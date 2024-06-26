@@ -1,0 +1,31 @@
+export (softmax,
+        softmax!)
+
+"""
+$(TYPEDSIGNATURES)
+
+Computes softmax of an array, with temperature `t`.
+"""
+function softmax(x::Array{Float64}, t::Float64 = 1.0)
+    out = similar(x)
+    softmax!(out, x, t = t)
+    return out
+end
+
+function softmax!(out::Array{Float64}, x::Array{Float64}, t::Float64)
+    nx = length(x)
+    maxx = maximum(x)
+    sxs = 0.0
+
+    if maxx == -Inf
+        out .= 1.0 / nx
+        return nothing
+    end
+
+    @inbounds for i = 1:nx
+        out[i] = @fastmath exp((x[i] - maxx) / t)
+        sxs += out[i]
+    end
+    rmul!(out, 1.0 / sxs)
+    return nothing
+end
