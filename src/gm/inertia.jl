@@ -49,7 +49,7 @@ materials(wm::InertiaWM) = wm.materials
 
 abstract type InertiaObject end
 
-@with_kw struct InertiaOne <: InertiaObject
+@with_kw struct InertiaSingle <: InertiaObject
     mat::Material
     pos::S2V
     vel::S2V
@@ -64,91 +64,78 @@ struct InertiaEnsemble <: InertiaObject
     vel::S2V
 end
 
-
-
 struct InertiaState <: WMState{InertiaWM}
     walls::SVector{4, Wall}
-    objects::Vector{Object}
-end
-
-struct KinematicsUpdate
-    p::SVector{2, Float64}
-    v::SVector{2, Float64}
+    objects::Vector{InertiaObject}
 end
 
 function step(wm::InertiaWM,
               state::InertiaState,
-              updates)
+              updates::AbstractVector{S2V})
 
-    # Dynamics (computing forces)
-    # for each dot compute forces
     @unpack walls, objects = state
     next = Vector{Object}(undef, length(objects))
 
+    @assert length(objects) == length(updates)
+
     @inbounds for i in eachindex(objects)
+        obj = objects[i]
         # force accumalator
         # initialized from the motion kernel
         facc = MVector{2, Float64}(updates[i])
-        dot = overwrite_update(objects[i], updates[i])
         # interactions with walls
         for w in walls
             force!(facc, wm, w, dot)
         end
-        next[i] = update_state(wm, dot, facc)
+        next[i] = update_state(wm, obj, facc) # TODO
     end
     return next
 end
 
 """Computes the force of A -> B"""
-function force!(f::MVector{2, Float64}, dm::InertiaGM, ::Thing, ::Thing)
+function force!(f::MVector{2, Float64}, dm::InertiaWM, ::Any, ::Any)
     return nothing
 end
 
-function force!(f::MVector{2, Float64}, dm::InertiaGM, w::Wall, d::Dot)
-    pos = get_pos(d)
+function force!(f::MVector{2, Float64}, dm::InertiaWM, w::Wall, d::InertiaSingle)
+    @unpack pos = d
     @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = dm
     n = LinearAlgebra.norm(w.normal .* pos + w.nd)
     f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
     return nothing
-
 end
 
-# function force!(f::MVector{2, Float64}, dm::InertiaGM, a::Dot, b::Dot)
-#     v = get_pos(a)- get_pos(b)
-#     norm_v = norm(v)
-#     absolute_force = dm.distance * exp(norm_v * dm.dot_repulsion)
-#     f .+= absolute_force .* normalize(v)
-#     return nothing
-# end
-
-function overwrite_update(d::Dot, ku::KinematicsUpdate)
-    # replace the current head with ku
-    cb = deepcopy(d.tail)
-    cb[1] = ku.p
-    setproperties(d, (vel = ku.v, tail = cb))
+# TODO
+function force!(f::MVector{2, Float64}, dm::InertiaWM, w::Wall, e::InertiaEnsemble)
+    # @unpack pos = d
+    # @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = dm
+    # n = LinearAlgebra.norm(w.normal .* pos + w.nd)
+    # f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
+    return nothing
 end
 
 """
-    update_kinematics(::GM, ::Object, ::MVector{2, Float64})
+    update_state(::GM, ::Object, ::MVector{2, Float64})
 
-resolve force on object, returning kinematics update
+resolve force on object
 """
-function update_kinematics end
+function update_state end
 
-function update_kinematics(gm::InertiaGM, d::Dot, f::MVector{2, Float64})
+function update_state(wm::InertiaWM, s::InertiaSingle, f::MVector{2, Float64})
     # treating force directly as velocity;
     # update velocity by x percentage;
     # but f isn't normalized to be similar to v
-    a = f/d.mass
-    new_vel = d.vel + a
-    new_pos = clamp.(get_pos(d) + new_vel,
-                     -gm.area_height * 0.5 + d.radius,
-                     gm.area_height * 0.5  - d.radius)
+    @unpack pos, vel, size = s
+    @unpack area_height = wm
+    new_vel = vel + f
+    new_pos = clamp.(pos + new_vel,
+                     -area_height * 0.5 + d.radius,
+                     area_height * 0.5  - d.radius)
     KinematicsUpdate(new_pos, new_vel)
 end
 
 
-function update_graphics(gm::InertiaGM, d::Dot)
+function update_graphics(gm::InertiaWM, d::Dot)
 
     nt = length(d.tail)
 
@@ -173,7 +160,7 @@ function update_graphics(gm::InertiaGM, d::Dot)
     setproperties(d, (gstate = gpoints))
 end
 
-function predict(gm::InertiaGM,
+function predict(gm::InertiaWM,
                  t::Int,
                  st::InertiaState,
                  objects::AbstractVector{Dot})
@@ -199,7 +186,7 @@ function predict(gm::InertiaGM,
     return es
 end
 
-function observe(gm::InertiaGM,
+function observe(gm::InertiaWM,
                  objects::AbstractVector{Dot})
     n = length(objects)
     # es = RFSElements{GaussObs{2}}(undef, n)
@@ -214,7 +201,7 @@ end
 include("helpers.jl")
 include("gen.jl")
 
-gen_fn(::InertiaGM) = gm_inertia
+gen_fn(::InertiaWM) = gm_inertia
 const InertiaIr = Gen.get_ir(gm_inertia)
 const InertiaTrace = Gen.get_trace_type(gm_inertia)
 

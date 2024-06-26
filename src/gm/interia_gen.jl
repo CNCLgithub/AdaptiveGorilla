@@ -7,7 +7,7 @@ export wm_inertia
 ################################################################################
 @gen static function state_prior(wm::InertiaWM)
 
-    xs, ys = object_bounds(wm)
+    xs, ys = object_bounds(wm) # TODO: rename `tracker_bounds`
     x = @trace(uniform(xs[1], xs[2]), :x)
     y = @trace(uniform(ys[1], ys[2]), :y)
 
@@ -60,7 +60,7 @@ end
     switch_idx = birth ? 1 : 2
     # potentially empty
     baby ~ birth_or_not(switch_idx)
-    result::PersistentVector{InertiaObject} = push(prev.objects, baby)
+    result::PersistentVector{InertiaObject} = append(prev.objects, baby)
     return result
 end
 
@@ -97,7 +97,7 @@ end
 
 @gen static function inertia_force(wm::InertiaWM, o::Object)
 
-    stability, ang_var, mag_var = force_weights(o, wm)
+    stability, ang_var, mag_var = force_weights(o, wm) # TODO
 
     is_stable = @trace(bernoulli(stability), :inertia)
 
@@ -124,13 +124,13 @@ end
     n = length(objects)
 
     # Random nudges
-    updates = @trace(Gen.Map(inertia_step)(Fill(wm, n), objects), :force)
+    forces ~ Gen.Map(inertia_step)(Fill(wm, n), objects)
 
-    next::InertiaState = next_state(wm, objects, updates)
+    next::InertiaState = next_state(wm, objects, forces)
 
     # predict observations as a random finite set
     es = predict(wm, t, next)
-    xs = @trace(DetectionPMBRFS(es), :detections)
+    xs ~ DetectionPMBRFS(es)
 
     return next
 end
