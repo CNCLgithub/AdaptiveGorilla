@@ -64,42 +64,44 @@ struct InertiaEnsemble <: InertiaObject
     vel::S2V
 end
 
-struct InertiaState <: WMState{InertiaWM}
+struct InertiaState <: WorldState{InertiaWM}
     walls::SVector{4, Wall}
-    objects::Vector{InertiaObject}
+    singles::Vector{InertiaSingle}
+    ensemble::InertiaEnsemble
 end
 
 function step(wm::InertiaWM,
               state::InertiaState,
               updates::AbstractVector{S2V})
 
-    @unpack walls, objects = state
-    next = Vector{Object}(undef, length(objects))
+    # Dynamics (computing forces)
+    # for each dot compute forces
+    @unpack walls, singles, ensemble = state
+    ns = length(singles)
+    next = Vector{InertiaSingle}(undef, ns)
 
-    @assert length(objects) == length(updates)
-
-    @inbounds for i in eachindex(objects)
-        obj = objects[i]
+    @inbounds for i = 1:ns
         # force accumalator
+        s = singles[i]
         # initialized from the motion kernel
         facc = MVector{2, Float64}(updates[i])
         # interactions with walls
         for w in walls
-            force!(facc, wm, w, dot)
+            force!(facc, wm, w, s)
         end
-        next[i] = update_state(wm, obj, facc) # TODO
+        next[i] = update_state(s, wm, facc)
     end
     return next
 end
 
 """Computes the force of A -> B"""
-function force!(f::MVector{2, Float64}, dm::InertiaWM, ::Any, ::Any)
+function force!(f::MVector{2, Float64}, ::InertiaWM, ::Object, ::Object)
     return nothing
 end
 
-function force!(f::MVector{2, Float64}, dm::InertiaWM, w::Wall, d::InertiaSingle)
-    @unpack pos = d
-    @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = dm
+function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, s::InertiaSingle)
+    pos = get_pos(s)
+    @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = wm
     n = LinearAlgebra.norm(w.normal .* pos + w.nd)
     f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
     return nothing
@@ -132,33 +134,25 @@ function update_state(wm::InertiaWM, s::InertiaSingle, f::MVector{2, Float64})
                      -area_height * 0.5 + d.radius,
                      area_height * 0.5  - d.radius)
     KinematicsUpdate(new_pos, new_vel)
+
+"""
+    update_state(::WM, ::Object, ::MVector{2, Float64})
+
+resolve force on object, returning state update
+"""
+function update_state end
+
+function update_state(wm::InertiaWM, d::Dot, f::MVector{2, Float64})
+    # treating force directly as velocity;
+    # update velocity by x percentage;
+    # but f isn't normalized to be similar to v
+    a = f/d.mass
+    new_vel = d.vel + a
+    new_pos = clamp.(get_pos(d) + new_vel,
+                     -wm.area_height * 0.5 + d.radius,
+                     wm.area_height * 0.5  - d.radius)
 end
 
-
-function update_graphics(gm::InertiaWM, d::Dot)
-
-    nt = length(d.tail)
-
-    @unpack inner_f, outer_f, tail_sample_rate = gm
-    r = d.radius
-    base_sd = r * inner_f
-    nk = ceil(Int64, nt / tail_sample_rate)
-    gpoints = Vector{GaussianComponent{2}}(undef, nk)
-    # linearly increase sd
-    step_sd = (outer_f - inner_f) * r / nt
-    c::Int64 = 1
-    i::Int64 = 1
-    @inbounds while c <= nt
-        c_next = min(nt, c + tail_sample_rate - 1)
-        pos = mean(d.tail[c:c_next])
-        sd = (i-1) * step_sd + base_sd
-        cov = SMatrix{2,2}(spdiagm([sd, sd]))
-        gpoints[i] = GaussianComponent{2}(1.0, pos, cov)
-        c = c_next + 1
-        i += 1
-    end
-    setproperties(d, (gstate = gpoints))
-end
 
 function predict(gm::InertiaWM,
                  t::Int,

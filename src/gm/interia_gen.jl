@@ -85,9 +85,9 @@ end
     n ~ poisson(wm.object_rate)
     k ~ binomial(wm.irate, n)
     wms = Fill(wm, k)
-    objects ~ Gen.Map(birth_object)(wms)
+    singles ~ Gen.Map(birth_object)(wms)
     ensemble ~ birth_ensemble(wm, n - k)
-    state::InertiaState = InertiaState(wm, objects, ensemble)
+    state::InertiaState = InertiaState(wm, singles, ensemble)
     return state
 end
 
