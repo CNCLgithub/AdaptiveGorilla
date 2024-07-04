@@ -10,7 +10,11 @@ function test_rfs()
     state = inertia_init(wm)
     es = predict(wm, state)
     display(es)
-    display(DetectionRFS(es))
+    tr = Gen.simulate(DetectionRFS, (es,))
+    display(get_choices(tr))
+    # xs = DetectionRFS(es)
+    # display(xs)
+    @show Gen.get_score(tr)
 end
 
 test_rfs()

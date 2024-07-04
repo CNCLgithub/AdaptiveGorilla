@@ -18,7 +18,9 @@ using Accessors
 using Parameters
 using FillArrays
 using StaticArrays
+using LinearAlgebra
 using DocStringExtensions
+using FunctionalCollections
 
 include("utils/utils.jl")
 include("gm/gm.jl")

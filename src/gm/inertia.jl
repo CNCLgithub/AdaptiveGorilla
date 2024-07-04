@@ -1,5 +1,7 @@
 export InertiaWM, InertiaState
 
+import MOTCore: get_pos
+
 ################################################################################
 # Model definition
 ################################################################################
@@ -50,7 +52,7 @@ end
 
 materials(wm::InertiaWM) = wm.materials
 
-abstract type InertiaObject end
+abstract type InertiaObject <: Object end
 
 # Iso or bernoulli
 @with_kw struct InertiaSingle <: InertiaObject
@@ -64,6 +66,8 @@ function InertiaSingle(m::Material, p::S2V, v::S2V)
     InertiaSingle(;mat = m,pos = p, vel = v)
 end
 
+get_pos(s::InertiaSingle) = s.pos
+
 # PPP
 struct InertiaEnsemble <: InertiaObject
     rate::Float64
@@ -74,17 +78,19 @@ struct InertiaEnsemble <: InertiaObject
     vel::S2V
 end
 
+get_pos(e::InertiaEnsemble) = e.pos
+
 struct InertiaState <: WorldState{InertiaWM}
     walls::SVector{4, Wall}
     singles::AbstractVector{InertiaSingle}
     ensemble::InertiaEnsemble
+end
 
-    function InertiaState(wm::InertiaWM,
-                          singles::AbstractVector{InertiaSingle},
-                          ensemble::InertiaEnsemble)
-        walls = MOTCore.init_walls(wm.area_width)
-        new(walls, singles, ensemble)
-    end
+function InertiaState(wm::InertiaWM,
+                        singles::AbstractVector{InertiaSingle},
+                        ensemble::InertiaEnsemble)
+    walls = MOTCore.init_walls(wm.area_width)
+    InertiaState(walls, singles, ensemble)
 end
 
 
@@ -97,9 +103,10 @@ end
 
 function force_prior(o::InertiaSingle, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
+    (stability, force_low, force_high)
 end
 
-function force_prior(o::InertiaEnsemble, wm::InertiaWM)
+function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
     (exp(log(rate) * log(stability)),
@@ -107,21 +114,30 @@ function force_prior(o::InertiaEnsemble, wm::InertiaWM)
      force_high / rate)
 end
 
+
 function step(wm::InertiaWM,
               state::InertiaState,
               updates::AbstractVector{S2V},
               eupdate::S2V)
-
     @unpack walls, singles, ensemble = state
-    new_singles = Vector{InertiaSingle}(undef, length(singles))
+    step(wm, singles, ensemble, walls, updates, eupdate)
+end
 
-    @assert length(singles) == length(updates)
+function step(wm::InertiaWM,
+              singles::AbstractVector{InertiaSingle},
+              ensemble::InertiaEnsemble,
+              walls::AbstractVector{Wall},
+              updates::AbstractVector{S2V},
+              eupdate::S2V)
 
-    @inbounds for i in eachindex(singles)
+    n = length(singles)
+    new_singles = Vector{InertiaSingle}(undef, n)
+
+    @assert n == length(updates) "$(length(updates)) updates but only $n singles"
+
+    @inbounds for i = 1:n
         obj = singles[i]
         # force accumalator
-        s = singles[i]
-        # initialized from the motion kernel
         facc = MVector{2, Float64}(updates[i])
         # interactions with walls
         for w in walls
@@ -132,8 +148,7 @@ function step(wm::InertiaWM,
 
     new_ensemble = update_state(ensemble, wm, eupdate)
 
-    setproperties(state; singles = new_singles,
-                  ensemble = new_ensemble)
+    InertiaState(walls, singles, ensemble)
 end
 
 """Computes the force of A -> B"""
@@ -179,15 +194,15 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
 end
 
 
-function update_state(wm::InertiaWM, e::InertiaEnsemble, f::MVector{2, Float64})
+function update_state(e::InertiaEnsemble, wm::InertiaWM, f::SVector{2, Float64})
     @unpack pos, vel = e
     bx, by = wm.dimensions
     new_vel = dx, dy = vel + f
     x, y = pos
     new_pos = S2V(clamp(x + dx, -bx, bx),
                   clamp(y + dy, -by, by))
-    setproperties(e; new_pos = new_pos,
-                  new_vel = new_vel)
+    setproperties(e; pos = new_pos,
+                  vel = new_vel)
 end
 
 """

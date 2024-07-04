@@ -50,17 +50,18 @@ end
 birth_switch = Gen.Switch(give_birth, no_birth)
 
 # Must wrap switch combinator to keep track of changes in `i`
-@gen function birth_or_not(i::Int)
-    to_add::Vector{InertiaSingle} = @trace(birth_switch(i), :birth_switch)
+@gen function birth_or_not(i::Int, wm::InertiaWM)
+    to_add::Vector{InertiaSingle} = @trace(birth_switch(i, wm),
+                                           :birth_switch)
     return to_add
 end
 
 @gen function birth_process(wm::InertiaWM, prev::InertiaState)
-    birth = @trace(bernoulli(wm.birth_weight), :give_birth)
-    switch_idx = birth ? 1 : 2
+    pregnant ~ bernoulli(wm.birth_weight)
+    switch_idx = pregnant ? 1 : 2
     # potentially empty
-    baby ~ birth_or_not(switch_idx)
-    result::PersistentVector{InertiaSingle} = append(prev.objects, baby)
+    birth ~ birth_or_not(switch_idx, wm)
+    result::PersistentVector{InertiaSingle} = append(prev.singles, birth)
     return result
 end
 
@@ -118,7 +119,8 @@ end
     # Random nudges
     forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
     fens ~ inertia_force(wm, prev.ensemble)
-    next::InertiaState = step(wm, prev, forces, fens)
+    next::InertiaState = step(wm, singles, prev.ensemble, prev.walls,
+                              forces, fens)
 
     # predict observations as a random finite set
     es = predict(wm, next)
