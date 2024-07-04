@@ -12,10 +12,13 @@ $(EXPORTS)
 module AdaptiveGorilla
 
 using Gen
+using GenRFS
+using MOTCore
 using Accessors
 using Parameters
+using FillArrays
 using StaticArrays
-using DocStringsExtensions
+using DocStringExtensions
 
 include("utils/utils.jl")
 include("gm/gm.jl")

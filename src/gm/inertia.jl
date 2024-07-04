@@ -11,15 +11,15 @@ Model that uses inertial change points to "explain" interactions
 
     # EPISTEMICS
     "Possible materials for objects. Sampled uniformly"
-    materials::Vector{Material} = instances(Material)
+    materials::Vector{Material} = collect(instances(Material))
     "Average number of objects in the scene"
     object_rate::Float64 = 8.0
     "Number of individual representations"
     irate::Float64 = 0.5
 
     # Ensemble parameters
-    ensemble_shape::Float64
-    ensemble_scale::Float64
+    ensemble_shape::Float64 = 1.0
+    ensemble_scale::Float64 = 1.0
 
     "Probability that a baby is born for a given step"
     birth_weight::Float64 = 0.01
@@ -28,27 +28,31 @@ Model that uses inertial change points to "explain" interactions
     # DYNAMICS
     # - general
     vel::Float64 = 10 # base vel
-    dot_radius::Float64 = 20.0
     area_width::Float64 = 400.0
     area_height::Float64 = 400.0
     dimensions::Tuple{Float64, Float64} = (area_width, area_height)
 
     # - inertia_force
     "Probability that an individual is stable for a given step"
-    istability::Float64 = 0.9
-    ang_var::Float64 = 100.0
-    mag_var::Float64 = 2.5
+    stability::Float64 = 0.9
+    force_low::Float64 = 0.1
+    force_high::Float64 = force_low * 10.0
 
     # - wall force
     wall_rep_m::Float64 = 0.0
     wall_rep_a::Float64 = 0.02
     wall_rep_x0::Float64 = 0.0
+
+    # Graphics
+    single_noise::Float64 = 1.0
+    material_noise::Float64 = 0.1
 end
 
 materials(wm::InertiaWM) = wm.materials
 
 abstract type InertiaObject end
 
+# Iso or bernoulli
 @with_kw struct InertiaSingle <: InertiaObject
     mat::Material
     pos::S2V
@@ -56,42 +60,80 @@ abstract type InertiaObject end
     size::Float64 = 10.0
 end
 
+function InertiaSingle(m::Material, p::S2V, v::S2V)
+    InertiaSingle(;mat = m,pos = p, vel = v)
+end
+
+# PPP
 struct InertiaEnsemble <: InertiaObject
     rate::Float64
     mat::Material
     pos::S2V
+    "Position variance"
     var::Float64
     vel::S2V
 end
 
 struct InertiaState <: WorldState{InertiaWM}
     walls::SVector{4, Wall}
-    singles::Vector{InertiaSingle}
+    singles::AbstractVector{InertiaSingle}
     ensemble::InertiaEnsemble
+
+    function InertiaState(wm::InertiaWM,
+                          singles::AbstractVector{InertiaSingle},
+                          ensemble::InertiaEnsemble)
+        walls = MOTCore.init_walls(wm.area_width)
+        new(walls, singles, ensemble)
+    end
+end
+
+
+function object_bounds(wm::InertiaWM)
+    @unpack area_width, area_height = wm
+    xs = S2V(-0.5*area_width, 0.5*area_width)
+    ys = S2V(-0.5*area_height, 0.5*area_height)
+    (xs, ys)
+end
+
+function force_prior(o::InertiaSingle, wm::InertiaWM)
+    @unpack stability, force_low, force_high = wm
+end
+
+function force_prior(o::InertiaEnsemble, wm::InertiaWM)
+    @unpack stability, force_low, force_high = wm
+    @unpack rate = e
+    (exp(log(rate) * log(stability)),
+     force_low / rate,
+     force_high / rate)
 end
 
 function step(wm::InertiaWM,
               state::InertiaState,
-              updates::AbstractVector{S2V})
+              updates::AbstractVector{S2V},
+              eupdate::S2V)
 
-    # Dynamics (computing forces)
-    # for each dot compute forces
     @unpack walls, singles, ensemble = state
-    ns = length(singles)
-    next = Vector{InertiaSingle}(undef, ns)
+    new_singles = Vector{InertiaSingle}(undef, length(singles))
 
-    @inbounds for i = 1:ns
+    @assert length(singles) == length(updates)
+
+    @inbounds for i in eachindex(singles)
+        obj = singles[i]
         # force accumalator
         s = singles[i]
         # initialized from the motion kernel
         facc = MVector{2, Float64}(updates[i])
         # interactions with walls
         for w in walls
-            force!(facc, wm, w, s)
+            force!(facc, wm, w, obj)
         end
-        next[i] = update_state(s, wm, facc)
+        new_singles[i] = update_state(obj, wm, facc)
     end
-    return next
+
+    new_ensemble = update_state(ensemble, wm, eupdate)
+
+    setproperties(state; singles = new_singles,
+                  ensemble = new_ensemble)
 end
 
 """Computes the force of A -> B"""
@@ -107,8 +149,8 @@ function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, s::InertiaSingle
     return nothing
 end
 
-# TODO
-function force!(f::MVector{2, Float64}, dm::InertiaWM, w::Wall, e::InertiaEnsemble)
+# REVIEW: wall -> ensemble force
+function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, e::InertiaEnsemble)
     # @unpack pos = d
     # @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = dm
     # n = LinearAlgebra.norm(w.normal .* pos + w.nd)
@@ -117,87 +159,84 @@ function force!(f::MVector{2, Float64}, dm::InertiaWM, w::Wall, e::InertiaEnsemb
 end
 
 """
-    update_state(::GM, ::Object, ::MVector{2, Float64})
+    update_state(::Object, ::GM, ::MVector{2, Float64})
 
 resolve force on object
 """
 function update_state end
 
-function update_state(wm::InertiaWM, s::InertiaSingle, f::MVector{2, Float64})
+function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     # treating force directly as velocity;
     # update velocity by x percentage;
     # but f isn't normalized to be similar to v
-    @unpack pos, vel, size = s
+    @unpack mat, pos, vel, size = s
     @unpack area_height = wm
     new_vel = vel + f
     new_pos = clamp.(pos + new_vel,
-                     -area_height * 0.5 + d.radius,
-                     area_height * 0.5  - d.radius)
-    KinematicsUpdate(new_pos, new_vel)
-
-"""
-    update_state(::WM, ::Object, ::MVector{2, Float64})
-
-resolve force on object, returning state update
-"""
-function update_state end
-
-function update_state(wm::InertiaWM, d::Dot, f::MVector{2, Float64})
-    # treating force directly as velocity;
-    # update velocity by x percentage;
-    # but f isn't normalized to be similar to v
-    a = f/d.mass
-    new_vel = d.vel + a
-    new_pos = clamp.(get_pos(d) + new_vel,
-                     -wm.area_height * 0.5 + d.radius,
-                     wm.area_height * 0.5  - d.radius)
+                     -area_height * 0.5 + size,
+                     area_height * 0.5  - size)
+    InertiaSingle(mat, new_pos, new_vel, size)
 end
 
 
-function predict(gm::InertiaWM,
-                 t::Int,
-                 st::InertiaState,
-                 objects::AbstractVector{Dot})
-    n = length(objects)
-    es = Vector{RandomFiniteElement{GaussObs{2}}}(undef, n + 1)
-    # es = RFSElements{GaussObs{2}}(undef, n + 1)
-    # the trackers
-    @unpack area_width, k_tail, tail_sample_rate = gm
+function update_state(wm::InertiaWM, e::InertiaEnsemble, f::MVector{2, Float64})
+    @unpack pos, vel = e
+    bx, by = wm.dimensions
+    new_vel = dx, dy = vel + f
+    x, y = pos
+    new_pos = S2V(clamp(x + dx, -bx, bx),
+                  clamp(y + dy, -by, by))
+    setproperties(e; new_pos = new_pos,
+                  new_vel = new_vel)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+The random finite elements corresponding to the world state.
+"""
+function predict(wm::InertiaWM, st::InertiaState)
+    @unpack singles, ensemble = st
+    n = length(singles)
+    es = Vector{RandomFiniteElement{Detection}}(undef, n + 1)
+    @unpack single_noise, material_noise = wm
+    # add the single object representations
     @inbounds for i in 1:n
-        obj = objects[i]
-        es[i] = IsoElement{GaussObs{2}}(gpp,
-                                       (obj.gstate,))
+        single = singles[i]
+        args = (single.pos, single.size * single_noise,
+                Float64(Int(single.mat)),
+                material_noise)
+        es[i] = IsoElement{Detection}(detect, args)
     end
     # the ensemble
-    tback = t < k_tail ? (t + 1) : k_tail
-    nt = ceil(Int64, tback / tail_sample_rate)
-    w = -log(nt) # REVIEW: no longer used in `GaussianComponent`
-    @unpack rate = (st.ensemble)
-    mu = @SVector zeros(2)
-    cov = SMatrix{2,2}(spdiagm([50*area_width, 50*area_width]))
-    uniform_gpp = Fill(GaussianComponent{2}(w, mu, cov), nt)
-    es[n + 1] = PoissonElement{GaussObs{2}}(rate, gpp, (uniform_gpp,))
+    es[n + 1] = PoissonElement{Detection}(ensemble.rate,
+                                          detect,
+                                          (ensemble.pos,
+                                           ensemble.var,
+                                           Float64(Int(ensemble.mat)),
+                                           material_noise))
     return es
 end
 
-function observe(gm::InertiaWM,
-                 objects::AbstractVector{Dot})
-    n = length(objects)
-    # es = RFSElements{GaussObs{2}}(undef, n)
-    es = Vector{RandomFiniteElement{GaussObs{2}}}(undef, n)
+function observe(gm::InertiaWM, singles::AbstractVector{InertiaSingle})
+    n = length(singles)
+    es = Vector{RandomFiniteElement{DetectionObs}}(undef, n)
+    @unpack single_noise, material_noise = wm
     @inbounds for i in 1:n
-        obj = objects[i]
-        es[i] = IsoElement{GaussObs{2}}(gpp, (obj.gstate,))
+        single = singles[i]
+        args = (single.pos, single.size * single_noise, single.material,
+                material_noise)
+        es[i] = IsoElement{Detection}(detect, args)
     end
-    (es, gpp_mrfs(es, 50, 1.0))
+    (es, gpp_mrfs(es, 200, 1.0))
 end
 
-include("helpers.jl")
-include("gen.jl")
+# include("helpers.jl")
+include("inertia_gen.jl")
 
-gen_fn(::InertiaWM) = gm_inertia
-const InertiaIr = Gen.get_ir(gm_inertia)
-const InertiaTrace = Gen.get_trace_type(gm_inertia)
+gen_fn(::InertiaWM) = wm_inertia
+const InertiaIR = Gen.get_ir(wm_inertia)
+const InertiaTrace = Gen.get_trace_type(wm_inertia)
 
 function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     # StaticIR names and nodes

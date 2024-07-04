@@ -1,5 +1,5 @@
-export (softmax,
-        softmax!)
+export softmax,
+    softmax!
 
 """
 $(TYPEDSIGNATURES)

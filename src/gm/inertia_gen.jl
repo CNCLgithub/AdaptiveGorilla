@@ -7,7 +7,7 @@ export wm_inertia
 ################################################################################
 @gen static function state_prior(wm::InertiaWM)
 
-    xs, ys = object_bounds(wm) # TODO: rename `tracker_bounds`
+    xs, ys = object_bounds(wm)
     x = @trace(uniform(xs[1], xs[2]), :x)
     y = @trace(uniform(ys[1], ys[2]), :y)
 
@@ -25,25 +25,25 @@ end
 # Birth
 ################################################################################
 
-@gen static function birth_object(wm::InertiaWM)
+@gen static function birth_single(wm::InertiaWM)
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)
-    midx = @trace(categorial(mws), :material)
+    midx = @trace(categorical(mws), :material)
     material = ms[midx]
     loc, vel = @trace(state_prior(wm), :state)
-    baby::InertiaObject = InertiaObject(material, loc, vel)
+    baby::InertiaSingle = InertiaSingle(material, loc, vel)
     return baby
 end
 
 @gen static function give_birth(wm::InertiaWM)
-    baby ~ birth_object(wm)
-    result::Vector{InertiaObject} = [baby]
+    baby ~ birth_single(wm)
+    result::Vector{InertiaSingle} = [baby]
     return result
 end
 
 @gen static function no_birth(wm::InertiaWM)
-    result::Vector{InertiaObject} = InertiaObject[]
+    result::Vector{InertiaSingle} = InertiaSingle[]
     return result
 end
 
@@ -51,7 +51,7 @@ birth_switch = Gen.Switch(give_birth, no_birth)
 
 # Must wrap switch combinator to keep track of changes in `i`
 @gen function birth_or_not(i::Int)
-    to_add::Vector{InertiaObject} = @trace(birth_switch(i), :birth_switch)
+    to_add::Vector{InertiaSingle} = @trace(birth_switch(i), :birth_switch)
     return to_add
 end
 
@@ -60,7 +60,7 @@ end
     switch_idx = birth ? 1 : 2
     # potentially empty
     baby ~ birth_or_not(switch_idx)
-    result::PersistentVector{InertiaObject} = append(prev.objects, baby)
+    result::PersistentVector{InertiaSingle} = append(prev.objects, baby)
     return result
 end
 
@@ -68,7 +68,7 @@ end
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)
-    midx = @trace(categorial(mws), :material)
+    midx = @trace(categorical(mws), :material)
     material = ms[midx]
     loc, vel = @trace(state_prior(wm), :state)
     var ~ inv_gamma(wm.ensemble_shape, wm.ensemble_scale)
@@ -82,11 +82,11 @@ end
 ################################################################################
 
 @gen static function inertia_init(wm::InertiaWM)
-    n ~ poisson(wm.object_rate)
-    k ~ binomial(wm.irate, n)
+    n ~ poisson(wm.object_rate) # total number of objects
+    k ~ binom(n, wm.irate) # number of individuals
     wms = Fill(wm, k)
-    singles ~ Gen.Map(birth_object)(wms)
-    ensemble ~ birth_ensemble(wm, n - k)
+    singles ~ Gen.Map(birth_single)(wms)
+    ensemble ~ birth_ensemble(wm, n - k) 
     state::InertiaState = InertiaState(wm, singles, ensemble)
     return state
 end
@@ -96,41 +96,33 @@ end
 ################################################################################
 
 @gen static function inertia_force(wm::InertiaWM, o::Object)
-
-    stability, ang_var, mag_var = force_weights(o, wm) # TODO
-
-    is_stable = @trace(bernoulli(stability), :inertia)
-
+    stability, force_low, force_high = force_prior(o, wm)
+    is_stable ~ bernoulli(stability)
     # large angular variance if not stable
-    k = is_stable ? ang_var : 1.0
-    ang = @trace(von_mises(0.0, k), :ang)
-
-    w = is_stable ? mag_var : 10.0
-    mag = @trace(normal(0.0, w), :mag)
-
+    var = is_stable ? force_low : force_high
+    fx ~ normal(0.0, var)
+    fy ~ normal(0.0, var)
     # converting back to vector form
-    force::S2V = S2V(mag * cos(ang), mag * sin(ang))
+    force::S2V = S2V(fx, fy)
     return force
 end
 
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
-
-
     # REVIEW: add Death?
     # Birth
-    objects = @trace(birth_process(wm, prev), :birth)
-    n = length(objects)
+    singles = @trace(birth_process(wm, prev), :birth)
+    n = length(singles)
 
     # Random nudges
-    forces ~ Gen.Map(inertia_step)(Fill(wm, n), objects)
-
-    next::InertiaState = next_state(wm, objects, forces)
+    forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
+    fens ~ inertia_force(wm, prev.ensemble)
+    next::InertiaState = step(wm, prev, forces, fens)
 
     # predict observations as a random finite set
-    es = predict(wm, t, next)
-    xs ~ DetectionPMBRFS(es)
+    es = predict(wm, next)
+    xs ~ DetectionRFS(es)
 
     return next
 end
