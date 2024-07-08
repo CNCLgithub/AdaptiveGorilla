@@ -2,7 +2,8 @@ export Detection,
     intensity,
     position,
     detect,
-    DetectionRFS
+    DetectionRFS,
+    detect_mixture
 
 struct Detection
     "X location"
@@ -39,3 +40,5 @@ end
 
 Gen.has_output_grad(::DetectionRV) = false
 Gen.logpdf_grad(::DetectionRV, value, args...) = (nothing,)
+
+detect_mixture = HomogeneousMixture(detect, [0, 0, 0, 0])

@@ -66,15 +66,14 @@ end
 end
 
 @gen static function birth_ensemble(wm::InertiaWM, rate::Float64)
-    ms = materials(wm)
-    nm = length(ms)
-    mws = Fill(1.0 / nm, nm)
-    midx = @trace(categorical(mws), :material)
-    material = ms[midx]
+    # assuming | materials | = 2
+    # NOTE: could replace with dirichlet
+    plight ~ beta(0.5, 0.5)
+    mws = S2V(plight, 1.0 - plight)
     loc, vel = @trace(state_prior(wm), :state)
     var ~ inv_gamma(wm.ensemble_shape, wm.ensemble_scale)
     ensemble::InertiaEnsemble =
-        InertiaEnsemble(rate, material, loc, var, vel)
+        InertiaEnsemble(rate, mws, loc, var, vel)
     return ensemble
 end
 

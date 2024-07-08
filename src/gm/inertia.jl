@@ -67,11 +67,12 @@ function InertiaSingle(m::Material, p::S2V, v::S2V)
 end
 
 get_pos(s::InertiaSingle) = s.pos
+get_vel(s::InertiaSingle) = s.vel
 
 # PPP
 struct InertiaEnsemble <: InertiaObject
     rate::Float64
-    mat::Material
+    matws::Vector{Float64}
     pos::S2V
     "Position variance"
     var::Float64
@@ -224,12 +225,13 @@ function predict(wm::InertiaWM, st::InertiaState)
         es[i] = IsoElement{Detection}(detect, args)
     end
     # the ensemble
-    es[n + 1] = PoissonElement{Detection}(ensemble.rate,
-                                          detect,
-                                          (ensemble.pos,
-                                           ensemble.var,
-                                           Float64(Int(ensemble.mat)),
-                                           material_noise))
+    @unpack matws, rate, pos, var = ensemble
+    mix_args = (matws,
+                [pos, pos],
+                [var, var],
+                [0.0, 1.0],
+                [material_noise, material_noise])
+    es[n + 1] = PoissonElement{Detection}(rate, detect_mixture, mix_args)
     return es
 end
 
