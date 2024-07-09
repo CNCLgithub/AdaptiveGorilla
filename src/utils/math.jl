@@ -29,3 +29,11 @@ function softmax!(out::Array{Float64}, x::Array{Float64}, t::Float64)
     rmul!(out, 1.0 / sxs)
     return nothing
 end
+
+function inbounds(pos::S2V, bbmin::S2V, bbmax::S2V)
+    x, y = pos
+    bbmin[1] <= x &&
+        x <= bbmax[1] &&
+        bbmin[2] <= y &&
+        y <= bbmax[2]
+end

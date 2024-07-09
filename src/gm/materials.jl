@@ -7,6 +7,7 @@ export Material,
     Dark  # 2
 end
 
-
+# REVIEW: needed?
+# const materials = collect(instances(Material))
 
 NMAT = length(instances(Material))

@@ -33,12 +33,18 @@ Model that uses inertial change points to "explain" interactions
     area_width::Float64 = 400.0
     area_height::Float64 = 400.0
     dimensions::Tuple{Float64, Float64} = (area_width, area_height)
+    display_border::Float64 = 20.0
+    bbmin::S2V = S2V(area_width + display_border,
+                     area_height + display_border)
+    bbmax::S2V = S2V(area_width - display_border,
+                     area_height - display_border)
 
     # - inertia_force
     "Probability that an individual is stable for a given step"
     stability::Float64 = 0.9
     force_low::Float64 = 0.1
     force_high::Float64 = force_low * 10.0
+    ensemble_var_shift::Float64 = 0.3
 
     # - wall force
     wall_rep_m::Float64 = 0.0
@@ -119,7 +125,7 @@ end
 function step(wm::InertiaWM,
               state::InertiaState,
               updates::AbstractVector{S2V},
-              eupdate::S2V)
+              eupdate::S3V)
     @unpack walls, singles, ensemble = state
     step(wm, singles, ensemble, walls, updates, eupdate)
 end
@@ -129,7 +135,7 @@ function step(wm::InertiaWM,
               ensemble::InertiaEnsemble,
               walls::AbstractVector{Wall},
               updates::AbstractVector{S2V},
-              eupdate::S2V)
+              eupdate::S3V)
 
     n = length(singles)
     new_singles = Vector{InertiaSingle}(undef, n)
@@ -186,24 +192,30 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     # update velocity by x percentage;
     # but f isn't normalized to be similar to v
     @unpack mat, pos, vel, size = s
-    @unpack area_height = wm
+    @unpack area_height, area_width = wm
     new_vel = vel + f
-    new_pos = clamp.(pos + new_vel,
-                     -area_height * 0.5 + size,
-                     area_height * 0.5  - size)
+    x, y = pos + new_vel
+    x = clamp(x, -area_width * 0.5 + size,
+              area_width * 0.5 - size)
+    y = clamp(x, -area_height * 0.5 + size,
+              area_height * 0.5 - size)
+    new_pos = S2V(x, y)
     InertiaSingle(mat, new_pos, new_vel, size)
 end
 
 
-function update_state(e::InertiaEnsemble, wm::InertiaWM, f::SVector{2, Float64})
-    @unpack pos, vel = e
+function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
+    @unpack pos, vel, var = e
+    f = S2V(update[1], update[2])
     bx, by = wm.dimensions
     new_vel = dx, dy = vel + f
     x, y = pos
     new_pos = S2V(clamp(x + dx, -bx, bx),
                   clamp(y + dy, -by, by))
+    new_var = var * update[3]
     setproperties(e; pos = new_pos,
-                  vel = new_vel)
+                  vel = new_vel,
+                  var = new_var)
 end
 
 """
@@ -232,6 +244,8 @@ function predict(wm::InertiaWM, st::InertiaState)
                 [0.0, 1.0],
                 [material_noise, material_noise])
     es[n + 1] = PoissonElement{Detection}(rate, detect_mixture, mix_args)
+    @show length(singles)
+    @show rate
     return es
 end
 
@@ -322,4 +336,47 @@ function td_flat(trace::InertiaTrace, temp::Float64)
         end
     end
     return td_weights
+end
+
+# TODO: generalize observation size
+function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
+                    t::Int,
+                    single_size::Float64 = 10.0,
+                    target_count::Int = 4)
+    n = length(positions)
+    es = Vector{RandomFiniteElement{Detection}}(undef, n)
+    @unpack single_noise, material_noise = wm
+    @inbounds for i in 1:n
+        pos = S2V(positions[i])
+        mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
+        args = (pos, single_size * single_noise, mat,
+                material_noise)
+        es[i] = IsoElement{Detection}(detect, args)
+    end
+    xs = DetectionRFS(es)
+    for (i, x) = enumerate(xs)
+        cm[:kernel => t => :xs => i] = x
+    end
+    return nothing
+end
+
+function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
+                                    target_count = 4)
+    n = length(positions)
+    # prior over object partitioning
+    cm[:init_state => :n] = n
+    cm[:init_state => :k] = target_count
+    # prior over singles
+    for i = 1:target_count
+        x, y = positions[i]
+        cm[:init_state => :singles => i => :material] = 1 # Light
+        cm[:init_state => :singles => i => :state => :x] = x
+        cm[:init_state => :singles => i => :state => :y] = y
+    end
+    # prior over ensemble
+    ex, ey = mean(positions[(target_count+1):n])
+    cm[:init_state => :ensemble => :plight] = 0.01
+    cm[:init_state => :ensemble => :state => :x] = ex
+    cm[:init_state => :ensemble => :state => :y] = ey
+    return nothing
 end

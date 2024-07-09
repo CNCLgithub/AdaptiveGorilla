@@ -107,6 +107,15 @@ end
     return force
 end
 
+@gen static function inertia_ensemble(wm::InertiaWM,
+                                      e::InertiaEnsemble)
+    force ~ inertia_force(wm, e)
+    spread ~ uniform(1.0 - wm.ensemble_var_shift,
+                     1.0 + wm.ensemble_var_shift)
+    result::S3V = S3V(force[1], force[2], spread)
+    return result
+end
+
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
@@ -117,9 +126,9 @@ end
 
     # Random nudges
     forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
-    fens ~ inertia_force(wm, prev.ensemble)
+    eshift ~ inertia_ensemble(wm, prev.ensemble)
     next::InertiaState = step(wm, singles, prev.ensemble, prev.walls,
-                              forces, fens)
+                              forces, eshift)
 
     # predict observations as a random finite set
     es = predict(wm, next)
