@@ -8,7 +8,8 @@ duration = 100
 
 function main()
     wm = SchollWM(n_dots = 8,
-                  dot_radius = 10.0)
+                  dot_radius = 10.0,
+                  )
     data = Dict()
     data[:trials] = [gen_trial(wm, duration) for _ = 1:ntrials]
     data[:manifest] = Dict(:ntrials => ntrials,
