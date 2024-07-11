@@ -41,7 +41,7 @@ end
 function baby_ancestral_proposal(trace::InertiaTrace)
     t = first(get_args(trace))
     new_trace, w, _ = regenerate(trace, select(
-        :kernel => t => :birth
+        :kernel => t => :birth => :pregnant
     ))
     (new_trace, w)
 end

@@ -36,32 +36,47 @@ end
     return baby
 end
 
-@gen static function give_birth(wm::InertiaWM)
-    baby ~ birth_single(wm)
-    result::Vector{InertiaSingle} = [baby]
+# NOTE: Members of the switch have to be the same type of Gen.GM
+# (e.g., both have to be dynamic or both static)
+
+@gen function give_birth(wm::InertiaWM)
+    ms = materials(wm)
+    nm = length(ms)
+    mws = Fill(1.0 / nm, nm)
+    midx = @trace(categorical(mws), :material)
+    material = ms[midx]
+
+    xs, ys = object_bounds(wm)
+    x = @trace(uniform(xs[1], xs[2]), :x)
+    y = @trace(uniform(ys[1], ys[2]), :y)
+
+    ang = @trace(uniform(0., 2*pi), :ang)
+    mag = @trace(normal(wm.vel, 1e-2), :std)
+
+    loc = S2V(x, y)
+    vel = S2V(mag*cos(ang), mag*sin(ang))
+
+    result::InertiaSingle = InertiaSingle(material, loc, vel)
     return result
 end
 
-@gen static function no_birth(wm::InertiaWM)
-    result::Vector{InertiaSingle} = InertiaSingle[]
+@gen function no_birth(wm::InertiaWM)
+    # result::Vector{InertiaSingle} = InertiaSingle[]
+    result::InertiaSingle = InertiaSingle(Light, S2V(0, 0), S2V(0, 0))
     return result
 end
 
 birth_switch = Gen.Switch(give_birth, no_birth)
-
-# Must wrap switch combinator to keep track of changes in `i`
-@gen function birth_or_not(i::Int, wm::InertiaWM)
-    to_add::Vector{InertiaSingle} = @trace(birth_switch(i, wm),
-                                           :birth_switch)
-    return to_add
-end
+# birth_switch = Gen.Switch(birth_single, no_birth)
 
 @gen function birth_process(wm::InertiaWM, prev::InertiaState)
     pregnant ~ bernoulli(wm.birth_weight)
     switch_idx = pregnant ? 1 : 2
     # potentially empty
-    birth ~ birth_or_not(switch_idx, wm)
-    result::PersistentVector{InertiaSingle} = append(prev.singles, birth)
+    birth ~ birth_switch(switch_idx, wm)
+
+    result::PersistentVector{InertiaSingle} =
+        add_baby_from_switch(prev, birth, switch_idx)
     return result
 end
 

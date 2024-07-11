@@ -94,8 +94,8 @@ struct InertiaState <: WorldState{InertiaWM}
 end
 
 function InertiaState(wm::InertiaWM,
-                        singles::AbstractVector{InertiaSingle},
-                        ensemble::InertiaEnsemble)
+                      singles::AbstractVector{InertiaSingle},
+                      ensemble::InertiaEnsemble)
     walls = MOTCore.init_walls(wm.area_width)
     InertiaState(walls, singles, ensemble)
 end
@@ -244,8 +244,8 @@ function predict(wm::InertiaWM, st::InertiaState)
                 [0.0, 1.0],
                 [material_noise, material_noise])
     es[n + 1] = PoissonElement{Detection}(rate, detect_mixture, mix_args)
-    @show length(singles)
-    @show rate
+    # @show length(singles)
+    # @show rate
     return es
 end
 
@@ -379,4 +379,11 @@ function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
     cm[:init_state => :ensemble => :state => :x] = ex
     cm[:init_state => :ensemble => :state => :y] = ey
     return nothing
+end
+
+
+function add_baby_from_switch(prev, baby, idx)
+    idx == 1 ?
+        FunctionalCollections.push(prev.singles, baby) :
+        prev.singles
 end

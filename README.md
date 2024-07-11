@@ -5,3 +5,7 @@
 A computational model of inattentional blindness
 
 > Note: This is a work in progress.
+
+## Installation
+
+

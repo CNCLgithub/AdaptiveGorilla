@@ -8,39 +8,41 @@ using AdaptiveGorilla: state_prior,
 
 function test_state_prior()
     wm = InertiaWM()
+    trace, w = Gen.generate(state_prior, (wm,))
 
-    @show state_prior(wm)
-
-    trace = Gen.simulate(state_prior, (wm,))
-
+    @show w
     display(get_choices(trace))
+    display(get_score(trace))
 end
 
 test_state_prior()
 
 function test_birth_single()
     wm = InertiaWM()
-    @show birth_single(wm)
-    trace = Gen.simulate(birth_single, (wm,))
+    trace, w = Gen.generate(birth_single, (wm,))
     display(get_choices(trace))
+    display(get_score(trace))
+    @show w
 end
 
 test_birth_single()
 
 function test_birth_ensemble()
     wm = InertiaWM()
-    @show birth_ensemble(wm, 4.0)
-    trace = Gen.simulate(birth_ensemble, (wm, 4.0))
+    trace, w = Gen.generate(birth_ensemble, (wm, 4.0))
     display(get_choices(trace))
+    @show w
+    display(get_score(trace))
 end
 
 test_birth_ensemble()
 
 function test_inertia_init()
     wm = InertiaWM()
-    @show inertia_init(wm)
-    trace = Gen.simulate(inertia_init, (wm,))
+    trace, w = Gen.generate(inertia_init, (wm,))
     display(get_choices(trace))
+    @show w
+    display(get_score(trace))
 end
 
 test_inertia_init()
