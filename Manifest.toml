@@ -2,7 +2,7 @@
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "d061d5402bf2114c0d614aafc06503b7b887152f"
+project_hash = "c3d58c0bdd9b2206593353677b0a82a54dc67d10"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -379,7 +379,7 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[deps.Gen]]
 deps = ["Compat", "DataStructures", "Distributions", "ForwardDiff", "FunctionalCollections", "JSON", "LinearAlgebra", "MacroTools", "Parameters", "Random", "ReverseDiff", "SpecialFunctions"]
-path = "/home/mario/.julia/dev/Gen"
+git-tree-sha1 = "9878ff4ab1990f5647e89b4228a3c9da5f0e69c7"
 uuid = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
 version = "0.4.6"
 
@@ -391,7 +391,9 @@ version = "0.1.8"
 
 [[deps.GenRFS]]
 deps = ["BenchmarkTools", "Cassette", "Combinatorics", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "Lazy", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions", "StatProfilerHTML", "Test", "UnicodePlots"]
-path = "/home/mario/.julia/dev/GenRFS"
+git-tree-sha1 = "68fae5ee366c71c81c8d968f11751c4beff369cc"
+repo-rev = "master"
+repo-url = "https://github.com/CNCLgithub/GenRFS.git"
 uuid = "56ab6c88-a2ab-44ec-99ca-7b9069b439c2"
 version = "0.1.0"
 
