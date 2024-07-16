@@ -14,30 +14,49 @@
 using Gen
 using Luxor
 using MOTCore
+using Parameters
+using MOTCore: _draw_circle
 using AdaptiveGorilla
-using AdaptiveGorilla: inertia_init
+using AdaptiveGorilla: inertia_init, InertiaSingle, InertiaEnsemble
 import MOTCore.paint
 
 
 """
 Initializes a canvas for the world model and state.
 """
-function MOTCore.paint(p::InitPainter, wm::InertiaWM, st::InertiaState)
+function MOTCore.paint(p::InitPainter, wm::InertiaWM, st::InertiaState) 
     # TODO: Step 1
-    # HINT: see below as an example
-    # https://github.com/CNCLgithub/MOTCore.jl/blob/master/src/scholl/scholl.jl#L163-L168
-    return nothing
+    @unpack area_width, area_height = wm
+    Drawing(area_width, area_height, p.path)
+    Luxor.origin()
+    background(p.background)
 end
+
+function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
+
+    # TODO: figure out how to visualize this (dash around emsemble, see its center( a dot?), 
+    # its cardinality (colour change or a number) )
+
+    _draw_circle(get_pos(obj), obj.var, "purple", 
+         opacity = 1)
+        return nothing
+    end
 
 """
 Applies the painter to each element in the world state
 """
 function MOTCore.paint(p::Painter, st::InertiaState)
     # TODO: Step 2
-    # HINT: see below as an example (different than above)
-    # https://github.com/CNCLgithub/MOTCore.jl/blob/master/src/scholl/scholl.jl#L170-L175
+    paint(p, st.ensemble)
+
+    for o in st.singles
+        paint(p, o)
+    end
+    
+
     return nothing
 end
+
 
 
 """
@@ -45,21 +64,40 @@ Applies the Object painter to an InertiaSingle
 """
 function MOTCore.paint(p::ObjectPainter, obj::InertiaSingle)
     # TODO: Step 3 (optionally also implement for InertiaEnsemble)
-    # HINT: see below as an example (different than above)
+    _draw_circle(get_pos(obj), obj.size, p.dot_color,
+         opacity = p.alpha)
+        return nothing
+    end
+    
+    #HINT: see below as an example (different than above)
     # https://github.com/CNCLgithub/MOTCore.jl/blob/master/src/render/painters/painters.jl#L23-L27
+
+function MOTCore.paint(id::IDPainter, obj::InertiaSingle, idx::Int64)
+    pos = get_pos(obj)
+    MOTCore._draw_text("$idx", pos .+ [obj.size, obj.size],
+                          size = id.label_size)
     return nothing
 end
+
+
 
 """
 Applies the `IDPainter` to each thing in the world state
 """
 function MOTCore.paint(p::IDPainter, st::InertiaState)
     # TODO: Step 4
+    for i in eachindex(st.singles)
+        paint(p, st.singles[i], i)
+    end
+    return nothing
+end
+
+
+
     # NOTE: this is a more specific implementation than step 2
     # HINT: see below as an example (different than above)
     # https://github.com/CNCLgithub/MOTCore.jl/blob/master/src/scholl/scholl.jl#L178-L184
-    return nothing
-end
+    
 
 
 # START HERE:
@@ -88,10 +126,10 @@ test_render_frame();
 
 # Once you have impemented the above functions,
 # uncomment the following section and give it a go.
-# function test_render_scene()
-#     wm = InertiaWM()
-#     _, states = wm_inertia(10, wm)
-#     render_scene(wm, states, "states")
-#     return nothing
-# end
-# test_render_scene();
+function test_render_scene()
+    wm = InertiaWM()
+    _, states = wm_inertia(10, wm)
+    render_scene(wm, states, "states")
+    return nothing
+end
+ test_render_scene();
