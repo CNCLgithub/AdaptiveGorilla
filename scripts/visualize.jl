@@ -26,10 +26,15 @@ Initializes a canvas for the world model and state.
 """
 function MOTCore.paint(p::InitPainter, wm::InertiaWM, st::InertiaState) 
     # TODO: Step 1
-    @unpack area_width, area_height = wm
+    @unpack area_width, area_height, display_border = wm
     Drawing(area_width, area_height, p.path)
     Luxor.origin()
     background(p.background)
+    sethue(0.2, 0.2, 0.2)
+    box(Point(0, 0),
+        area_width - 2 * display_border,
+        area_height - 2 * display_border,
+        action = :stroke)
 end
 
 function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
@@ -128,7 +133,8 @@ test_render_frame();
 # uncomment the following section and give it a go.
 function test_render_scene()
     wm = InertiaWM()
-    _, states = wm_inertia(10, wm)
+    # display(wm)
+    _, states = wm_inertia(120, wm)
     render_scene(wm, states, "states")
     return nothing
 end

@@ -34,10 +34,10 @@ Model that uses inertial change points to "explain" interactions
     area_height::Float64 = 400.0
     dimensions::Tuple{Float64, Float64} = (area_width, area_height)
     display_border::Float64 = 20.0
-    bbmin::S2V = S2V(area_width + display_border,
-                     area_height + display_border)
-    bbmax::S2V = S2V(area_width - display_border,
-                     area_height - display_border)
+    bbmin::S2V = S2V(-0.5 * area_width + display_border,
+                     -0.5 * area_height + display_border)
+    bbmax::S2V = S2V(0.5 * area_width - display_border,
+                     0.5 * area_height - display_border)
 
     # - inertia_force
     "Probability that an individual is stable for a given step"
@@ -136,12 +136,9 @@ function step(wm::InertiaWM,
               walls::AbstractVector{Wall},
               updates::AbstractVector{S2V},
               eupdate::S3V)
-
     n = length(singles)
     new_singles = Vector{InertiaSingle}(undef, n)
-
     @assert n == length(updates) "$(length(updates)) updates but only $n singles"
-
     @inbounds for i = 1:n
         obj = singles[i]
         # force accumalator
@@ -152,10 +149,8 @@ function step(wm::InertiaWM,
         end
         new_singles[i] = update_state(obj, wm, facc)
     end
-
     new_ensemble = update_state(ensemble, wm, eupdate)
-
-    InertiaState(walls, singles, ensemble)
+    InertiaState(walls, PersistentVector(new_singles), new_ensemble)
 end
 
 """Computes the force of A -> B"""
@@ -227,14 +222,16 @@ function predict(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensemble = st
     n = length(singles)
     es = Vector{RandomFiniteElement{Detection}}(undef, n + 1)
-    @unpack single_noise, material_noise = wm
+    @unpack single_noise, material_noise, bbmin, bbmax = wm
     # add the single object representations
     @inbounds for i in 1:n
         single = singles[i]
-        args = (single.pos, single.size * single_noise,
+        pos = get_pos(single)
+        args = (pos, single.size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
-        es[i] = IsoElement{Detection}(detect, args)
+        bw = inbounds(pos, bbmin, bbmax) ? 0.95 : 0.05
+        es[i] = BernoulliElement{Detection}(bw, detect, args)
     end
     # the ensemble
     @unpack matws, rate, pos, var = ensemble
