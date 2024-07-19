@@ -408,7 +408,9 @@ version = "0.1.8"
 
 [[deps.GenRFS]]
 deps = ["BenchmarkTools", "Cassette", "Combinatorics", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "Lazy", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions", "StatProfilerHTML", "Test", "UnicodePlots"]
-path = "/home/mario/.julia/dev/GenRFS"
+git-tree-sha1 = "6a4b861b1effa40ef03ef36407be08e2e6b63f70"
+repo-rev = "master"
+repo-url = "https://github.com/CNCLgithub/GenRFS.git"
 uuid = "56ab6c88-a2ab-44ec-99ca-7b9069b439c2"
 version = "0.1.0"
 
