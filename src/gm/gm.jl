@@ -1,2 +1,2 @@
 include("materials.jl")
-include("inertia.jl")
+include("inertia/inertia.jl")

@@ -34,16 +34,19 @@ Model that uses inertial change points to "explain" interactions
     area_height::Float64 = 400.0
     dimensions::Tuple{Float64, Float64} = (area_width, area_height)
     display_border::Float64 = 20.0
+    # display region
     bbmin::S2V = S2V(-0.5 * area_width + display_border,
                      -0.5 * area_height + display_border)
     bbmax::S2V = S2V(0.5 * area_width - display_border,
                      0.5 * area_height - display_border)
+    walls::SVector{4, Wall} = init_walls(area_width,
+                                           area_height)
 
     # - inertia_force
     "Probability that an individual is stable for a given step"
     stability::Float64 = 0.9
-    force_low::Float64 = 0.1
-    force_high::Float64 = force_low * 10.0
+    force_low::Float64 = 1.0
+    force_high::Float64 = force_low * 5.0
     ensemble_var_shift::Float64 = 0.3
 
     # - wall force
@@ -88,7 +91,6 @@ end
 get_pos(e::InertiaEnsemble) = e.pos
 
 struct InertiaState <: WorldState{InertiaWM}
-    walls::SVector{4, Wall}
     singles::AbstractVector{InertiaSingle}
     ensemble::InertiaEnsemble
 end
@@ -96,8 +98,7 @@ end
 function InertiaState(wm::InertiaWM,
                       singles::AbstractVector{InertiaSingle},
                       ensemble::InertiaEnsemble)
-    walls = MOTCore.init_walls(wm.area_width)
-    InertiaState(walls, singles, ensemble)
+    InertiaState(singles, ensemble)
 end
 
 
@@ -116,9 +117,9 @@ end
 function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
-    (exp(log(rate) * log(stability)),
-     force_low / rate,
-     force_high / rate)
+    (stability,
+     force_low,
+     force_high)
 end
 
 
@@ -126,16 +127,16 @@ function step(wm::InertiaWM,
               state::InertiaState,
               updates::AbstractVector{S2V},
               eupdate::S3V)
-    @unpack walls, singles, ensemble = state
-    step(wm, singles, ensemble, walls, updates, eupdate)
+    @unpack singles, ensemble = state
+    step(wm, singles, ensemble, updates, eupdate)
 end
 
 function step(wm::InertiaWM,
               singles::AbstractVector{InertiaSingle},
               ensemble::InertiaEnsemble,
-              walls::AbstractVector{Wall},
               updates::AbstractVector{S2V},
               eupdate::S3V)
+    @unpack walls = wm
     n = length(singles)
     new_singles = Vector{InertiaSingle}(undef, n)
     @assert n == length(updates) "$(length(updates)) updates but only $n singles"
@@ -150,7 +151,7 @@ function step(wm::InertiaWM,
         new_singles[i] = update_state(obj, wm, facc)
     end
     new_ensemble = update_state(ensemble, wm, eupdate)
-    InertiaState(walls, PersistentVector(new_singles), new_ensemble)
+    InertiaState(PersistentVector(new_singles), new_ensemble)
 end
 
 """Computes the force of A -> B"""
@@ -188,13 +189,17 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     # but f isn't normalized to be similar to v
     @unpack mat, pos, vel, size = s
     @unpack area_height, area_width = wm
-    new_vel = vel + f
-    x, y = pos + new_vel
-    x = clamp(x, -area_width * 0.5 + size,
-              area_width * 0.5 - size)
-    y = clamp(x, -area_height * 0.5 + size,
-              area_height * 0.5 - size)
+    vx, vy = vel + f
+    vx = clamp(vx, -10., 10.)
+    vy = clamp(vy, -10., 10.)
+    x = pos[1] + vx
+    y = pos[2] + vy
+    x = clamp(x, -area_width * 0.5,
+              area_width * 0.5)
+    y = clamp(y, -area_height * 0.5,
+              area_height * 0.5)
     new_pos = S2V(x, y)
+    new_vel = S2V(vx, vy)
     InertiaSingle(mat, new_pos, new_vel, size)
 end
 
@@ -205,8 +210,8 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     bx, by = wm.dimensions
     new_vel = dx, dy = vel + f
     x, y = pos
-    new_pos = S2V(clamp(x + dx, -bx, bx),
-                  clamp(y + dy, -by, by))
+    new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
+                  clamp(y + dy, -0.5 * by, 0.5 * by))
     new_var = var * update[3]
     setproperties(e; pos = new_pos,
                   vel = new_vel,
@@ -230,8 +235,9 @@ function predict(wm::InertiaWM, st::InertiaState)
         args = (pos, single.size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
-        bw = inbounds(pos, bbmin, bbmax) ? 0.95 : 0.05
-        es[i] = BernoulliElement{Detection}(bw, detect, args)
+        # bw = inbounds(pos, bbmin, bbmax) ? 0.95 : 0.05
+        # es[i] = BernoulliElement{Detection}(bw, detect, args)
+        es[i] = IsoElement{Detection}(detect, args)
     end
     # the ensemble
     @unpack matws, rate, pos, var = ensemble
@@ -260,7 +266,7 @@ function observe(gm::InertiaWM, singles::AbstractVector{InertiaSingle})
 end
 
 # include("helpers.jl")
-include("inertia_gen.jl")
+include("gen.jl")
 
 gen_fn(::InertiaWM) = wm_inertia
 const InertiaIR = Gen.get_ir(wm_inertia)
@@ -338,21 +344,28 @@ end
 # TODO: generalize observation size
 function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
                     t::Int,
+                    gorilla_color::Material = Dark,
+                    gorilla_idx::Int = 9,
                     single_size::Float64 = 10.0,
                     target_count::Int = 4)
     n = length(positions)
-    es = Vector{RandomFiniteElement{Detection}}(undef, n)
-    @unpack single_noise, material_noise = wm
-    @inbounds for i in 1:n
-        pos = S2V(positions[i])
+    # es = Vector{RandomFiniteElement{Detection}}(undef, n)
+    # @unpack single_noise, material_noise = wm
+    # @inbounds for i in 1:n
+    #     pos = S2V(positions[i])
+    #     mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
+    #     args = (pos, single_size * single_noise, mat,
+    #             material_noise)
+    #     es[i] = IsoElement{Detection}(detect, args)
+    # end
+    # xs = DetectionRFS(es)
+    for i = 1:n
+        x, y = positions[i]
         mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
-        args = (pos, single_size * single_noise, mat,
-                material_noise)
-        es[i] = IsoElement{Detection}(detect, args)
-    end
-    xs = DetectionRFS(es)
-    for (i, x) = enumerate(xs)
-        cm[:kernel => t => :xs => i] = x
+        if i == gorilla_idx
+            mat = gorilla_color == Light ? 0.0 : 1.0
+        end
+        cm[:kernel => t => :xs => i] = Detection(x, y, mat)
     end
     return nothing
 end
@@ -384,3 +397,5 @@ function add_baby_from_switch(prev, baby, idx)
         FunctionalCollections.push(prev.singles, baby) :
         prev.singles
 end
+
+include("visuals.jl")

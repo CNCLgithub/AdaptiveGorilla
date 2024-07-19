@@ -8,14 +8,17 @@ function (b::ReweightBlock)(state::Gen.ParticleFilterState,
                             args...)
     @unpack proposal, steps = b
     s = state.traces[pidx]
+    c = 0
     for _ = 1:steps
         s_prime, w = proposal(s, args...)
         if log(rand()) < w # MH acceptance ratio
             s = s_prime
             # mh reweighting
             state.log_weights[pidx] += w
+            c += 1
         end
     end
+    # println("Acceptance ratio: $(c / steps)")
     state.traces[pidx] = s
     return nothing
 end

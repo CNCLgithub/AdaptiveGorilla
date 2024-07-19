@@ -8,11 +8,11 @@ Computes softmax of an array, with temperature `t`.
 """
 function softmax(x::Array{Float64}, t::Float64 = 1.0)
     out = similar(x)
-    softmax!(out, x, t = t)
+    softmax!(out, x, t)
     return out
 end
 
-function softmax!(out::Array{Float64}, x::Array{Float64}, t::Float64)
+function softmax!(out::Array{Float64}, x::Array{Float64}, t::Float64 = 1.0)
     nx = length(x)
     maxx = maximum(x)
     sxs = 0.0

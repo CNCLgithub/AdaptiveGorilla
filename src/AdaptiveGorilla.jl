@@ -15,12 +15,15 @@ using Gen
 using JSON3
 using GenRFS
 using MOTCore
+using Distances
 using Accessors
 using Parameters
 using FillArrays
 using Statistics
 using StaticArrays
 using LinearAlgebra
+using DataStructures
+using NearestNeighbors
 using DocStringExtensions
 using FunctionalCollections
 

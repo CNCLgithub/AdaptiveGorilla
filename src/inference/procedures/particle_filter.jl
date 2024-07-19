@@ -34,6 +34,7 @@ function Gen_Compose.step!(chain::PFChain{<:SequentialQuery, <:AdaptiveParticleF
     # Resample before moving on...
     if effective_sample_size(state) < proc.ess
         # Perform residual resampling, pruning low-weight particles
+        println("Pruning particles...")
         pf_residual_resample!(state)
     end
     # update the state of the particles
