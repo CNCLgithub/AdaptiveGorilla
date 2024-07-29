@@ -182,3 +182,6 @@ function importance(partition::TracePartition{T}, trace::T, tr::TREstimate,
     end
     importance = softmax(ws, 2.0)
 end
+
+function baby_attention_proposal()
+end

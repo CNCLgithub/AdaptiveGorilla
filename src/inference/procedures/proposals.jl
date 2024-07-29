@@ -49,6 +49,17 @@ function baby_ancestral_proposal(trace::InertiaTrace)
     (new_trace, w)
 end
 
+@gen function baby_local_proposal(trace::InertiaTrace, parent::Int)
+    t = first(get_args(trace))
+    state = trace[:kernel => t]
+    x, y = get_pos(state.singles[parent])
+    if trace[:kernel => t => :birth => :pregnant]
+        @trace(normal(x, 100.0), :kernel => t => :birth => :birth => :x)
+        @trace(normal(y, 100.0), :kernel => t => :birth => :birth => :y)
+    end
+    return nothing
+end
+
 function apply_random_walk(trace::Gen.Trace, proposal, proposal_args)
     model_args = get_args(trace)
     argdiffs = map((_) -> NoChange(), model_args)

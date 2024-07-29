@@ -61,7 +61,6 @@ end
 
 
 function MOTCore.paint(state::InertiaState, ws::Vector{Float64})
-    display(ws)
     @inbounds for i = eachindex(state.singles)
         pos = get_pos(state.singles[i])
         radius = 40.0 * ws[i]

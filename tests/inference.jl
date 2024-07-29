@@ -53,7 +53,8 @@ function test_birth_prop()
     display(get_choices(new_tr))
     @show w
 
-    # tr = simulate(wm_inertia, (1, wm))
+    tr = simulate(wm_inertia, (1, wm))
+    display(get_choices(tr))
     # (new_tr, w) = baby_ancestral_proposal(tr)
 
     return nothing
@@ -65,18 +66,21 @@ test_birth_prop()
 function test_pf()
     wm = InertiaWM(area_width = 1240.0,
                    area_height = 840.0,
-                   birth_weight = 0.001,
+                   birth_weight = 0.1,
                    single_noise = 1.0,
-                   stability = 0.95,
+                   stability = 0.90,
                    vel = 3.0,
                    force_low = 1.0,
                    force_high = 5.0,
-                   material_noise = 0.01)
+                   material_noise = 0.01,
+                   ensemble_shape = 1.2,
+                   ensemble_scale = 1.0)
     dpath = "output/datasets/pilot.json"
-    query = query_from_dataset(wm, dpath, 2, 50)
+    query = query_from_dataset(wm, dpath, 2, 10,
+                               Light)
     # att = UniformProtocol()
     att = AdaptiveProtocol()
-    proc = AdaptiveParticleFilter(particles = 15,
+    proc = AdaptiveParticleFilter(particles = 30,
                                   attention = att)
     nsteps = length(query)
     logger = MemLogger(nsteps)

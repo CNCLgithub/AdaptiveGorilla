@@ -92,7 +92,9 @@ function select_prop(partition::InertiaPartition,
         idx += 1
     end
     prop = if idx <= n
-        tr -> single_ancestral_proposal(tr, idx)
+        bernoulli(0.5) ?
+            tr -> single_ancestral_proposal(tr, idx) :
+            tr -> apply_random_walk(tr, baby_local_proposal, (idx,))
     elseif idx == n + 1
         ensemble_ancestral_proposal
     else

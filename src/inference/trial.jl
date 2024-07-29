@@ -47,15 +47,12 @@ end
 function digest_gorilla(chain::APChain)
     np = length(chain.state.traces)
     traces = sample_unweighted_traces(chain.state, np)
-    pgorilla = 0.0
+    pgorilla = -Inf
     for i = 1:np
-        (_, states) = Gen.get_retval(traces[i])
-        current_state = last(states)
-        if length(current_state.singles) == 5
-            pgorilla += 1.0
-        end
+        pgorilla = logsumexp(pgorilla, detect_gorilla(traces[i]))
     end
-    pgorilla /= np
+    pgorilla -= log(np)
+    @show pgorilla
     return pgorilla
 end
 

@@ -274,71 +274,61 @@ const InertiaTrace = Gen.get_trace_type(wm_inertia)
 
 function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     # StaticIR names and nodes
-    outer_ir = Gen.get_ir(gm_inertia)
-    kernel_node = outer_ir.call_nodes[2] # (:kernel)
+    outer_ir = Gen.get_ir(wm_inertia)
+    kernel_node = outer_ir.call_nodes[2] # :kernel
     kernel_field = Gen.get_subtrace_fieldname(kernel_node)
     # subtrace for each time step
-    vector_trace = getproperty(trace, kernel_field)
-    sub_trace = vector_trace.subtraces[t]
+    kernel_traces = getproperty(trace, kernel_field)
+    sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
-    inner_ir = Gen.get_ir(inertia_kernel)
-    xs_node = inner_ir.call_nodes[2] # (:masks)
+    kernel_ir = Gen.get_ir(inertia_kernel)
+    xs_node = kernel_ir.call_nodes[4] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
 end
 
-function td_flat(trace::InertiaTrace, temp::Float64)
+
+"""
+    $(TYPEDSIGNATURES)
+
+Posterior probability that gorilla is detected.
+---
+Criterion:
+    1. A gorilla is present
+    2. There are 5 singles
+    3. All targets (xs[1-4]) are tracked
+    4. The gorilla (x = n + 1) is tracked
+"""
+function detect_gorilla(trace::InertiaTrace,
+                        ntargets::Int = 4,
+                        nobj::Int = 8,
+                        temp::Float64 = 1.0)
 
     t = first(get_args(trace))
     rfs = extract_rfs_subtrace(trace, t)
     pt = rfs.ptensor
-    # @unpack pt, pls = st
+    scores = rfs.pscores
     nx,ne,np = size(pt)
-    ne -= 1
-    # ls::Float64 = logsumexp(pls)
-    nls = log.(softmax(rfs.pscores, t=temp))
-    # probability that each observation
-    # is explained by a target
-    x_weights = Vector{Float64}(undef, nx)
-    @inbounds for x = 1:nx
-        xw = -Inf
-        @views for p = 1:np
-            if !pt[x, ne + 1, p]
-                xw = logsumexp(xw, nls[p])
-            end
-        end
-        # @views for p = 1:np, e = 1:ne
-        #     pt[x, e, p] || continue
-        #     xw = logsumexp(xw, nls[p])
-        # end
-        x_weights[x] = xw
+    result = -Inf
+    state = trace[:kernel => t]
+    if (nx != nobj + 1 ) #|| length(state.singles) != 5)
+        return result
     end
+    @inbounds for p = 1:np
+        targets_tracked = true
+        for x = 1:ntargets
+            pt[x, ne, p] || continue
+            targets_tracked = false
+            break
+        end
+        gorilla_detected = !pt[nx, ne, p]
 
-    # @show length(pls)
-    # display(sum(pt; dims = 3))
-    # @show x_weights
-    # the ratio of observations explained by each target
-    # weighted by the probability that the observation is
-    # explained by other targets
-    td_weights = fill(-Inf, ne)
-    @inbounds for i = 1:ne
-        for p = 1:np
-            ew = -Inf
-            @views for x = 1:nx
-                pt[x, i, p] || continue
-                ew = x_weights[x]
-                # assuming isomorphicity
-                # (one association per partition)
-                break
-            end
-            # P(e -> x) where x is associated with any other targets
-            prop = nls[p]
-            ew += prop
-            td_weights[i] = logsumexp(td_weights[i], ew)
+        if targets_tracked && gorilla_detected
+            result = logsumexp(result, scores[p] - rfs.score)
         end
     end
-    return td_weights
+    return result
 end
 
 # TODO: generalize observation size
@@ -349,16 +339,6 @@ function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
                     single_size::Float64 = 10.0,
                     target_count::Int = 4)
     n = length(positions)
-    # es = Vector{RandomFiniteElement{Detection}}(undef, n)
-    # @unpack single_noise, material_noise = wm
-    # @inbounds for i in 1:n
-    #     pos = S2V(positions[i])
-    #     mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
-    #     args = (pos, single_size * single_noise, mat,
-    #             material_noise)
-    #     es[i] = IsoElement{Detection}(detect, args)
-    # end
-    # xs = DetectionRFS(es)
     for i = 1:n
         x, y = positions[i]
         mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
