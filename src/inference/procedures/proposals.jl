@@ -8,14 +8,17 @@ function (b::ReweightBlock)(state::Gen.ParticleFilterState,
                             args...)
     @unpack proposal, steps = b
     s = state.traces[pidx]
+    c = 0
     for _ = 1:steps
         s_prime, w = proposal(s, args...)
         if log(rand()) < w # MH acceptance ratio
             s = s_prime
             # mh reweighting
             state.log_weights[pidx] += w
+            c += 1
         end
     end
+    # println("Acceptance ratio: $(c / steps)")
     state.traces[pidx] = s
     return nothing
 end
@@ -44,6 +47,17 @@ function baby_ancestral_proposal(trace::InertiaTrace)
         :kernel => t => :birth => :pregnant
     ))
     (new_trace, w)
+end
+
+@gen function baby_local_proposal(trace::InertiaTrace, parent::Int)
+    t = first(get_args(trace))
+    state = trace[:kernel => t]
+    x, y = get_pos(state.singles[parent])
+    if trace[:kernel => t => :birth => :pregnant]
+        @trace(normal(x, 100.0), :kernel => t => :birth => :birth => :x)
+        @trace(normal(y, 100.0), :kernel => t => :birth => :birth => :y)
+    end
+    return nothing
 end
 
 function apply_random_walk(trace::Gen.Trace, proposal, proposal_args)

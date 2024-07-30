@@ -1,4 +1,6 @@
 export Material,
+    Light,
+    Dark,
     NMAT
 
 
@@ -11,3 +13,7 @@ end
 # const materials = collect(instances(Material))
 
 NMAT = length(instances(Material))
+
+import Base.show
+
+Base.show(io::IO, x::Material) = x == Light ? "light" : "dark"

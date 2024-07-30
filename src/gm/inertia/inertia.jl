@@ -34,16 +34,19 @@ Model that uses inertial change points to "explain" interactions
     area_height::Float64 = 400.0
     dimensions::Tuple{Float64, Float64} = (area_width, area_height)
     display_border::Float64 = 20.0
-    bbmin::S2V = S2V(area_width + display_border,
-                     area_height + display_border)
-    bbmax::S2V = S2V(area_width - display_border,
-                     area_height - display_border)
+    # display region
+    bbmin::S2V = S2V(-0.5 * area_width + display_border,
+                     -0.5 * area_height + display_border)
+    bbmax::S2V = S2V(0.5 * area_width - display_border,
+                     0.5 * area_height - display_border)
+    walls::SVector{4, Wall} = init_walls(area_width,
+                                           area_height)
 
     # - inertia_force
     "Probability that an individual is stable for a given step"
     stability::Float64 = 0.9
-    force_low::Float64 = 0.1
-    force_high::Float64 = force_low * 10.0
+    force_low::Float64 = 1.0
+    force_high::Float64 = force_low * 5.0
     ensemble_var_shift::Float64 = 0.3
 
     # - wall force
@@ -88,7 +91,6 @@ end
 get_pos(e::InertiaEnsemble) = e.pos
 
 struct InertiaState <: WorldState{InertiaWM}
-    walls::SVector{4, Wall}
     singles::AbstractVector{InertiaSingle}
     ensemble::InertiaEnsemble
 end
@@ -96,8 +98,7 @@ end
 function InertiaState(wm::InertiaWM,
                       singles::AbstractVector{InertiaSingle},
                       ensemble::InertiaEnsemble)
-    walls = MOTCore.init_walls(wm.area_width)
-    InertiaState(walls, singles, ensemble)
+    InertiaState(singles, ensemble)
 end
 
 
@@ -116,9 +117,9 @@ end
 function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
-    (exp(log(rate) * log(stability)),
-     force_low / rate,
-     force_high / rate)
+    (stability,
+     force_low,
+     force_high)
 end
 
 
@@ -126,22 +127,19 @@ function step(wm::InertiaWM,
               state::InertiaState,
               updates::AbstractVector{S2V},
               eupdate::S3V)
-    @unpack walls, singles, ensemble = state
-    step(wm, singles, ensemble, walls, updates, eupdate)
+    @unpack singles, ensemble = state
+    step(wm, singles, ensemble, updates, eupdate)
 end
 
 function step(wm::InertiaWM,
               singles::AbstractVector{InertiaSingle},
               ensemble::InertiaEnsemble,
-              walls::AbstractVector{Wall},
               updates::AbstractVector{S2V},
               eupdate::S3V)
-
+    @unpack walls = wm
     n = length(singles)
     new_singles = Vector{InertiaSingle}(undef, n)
-
     @assert n == length(updates) "$(length(updates)) updates but only $n singles"
-
     @inbounds for i = 1:n
         obj = singles[i]
         # force accumalator
@@ -152,10 +150,8 @@ function step(wm::InertiaWM,
         end
         new_singles[i] = update_state(obj, wm, facc)
     end
-
     new_ensemble = update_state(ensemble, wm, eupdate)
-
-    InertiaState(walls, singles, ensemble)
+    InertiaState(PersistentVector(new_singles), new_ensemble)
 end
 
 """Computes the force of A -> B"""
@@ -193,13 +189,17 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     # but f isn't normalized to be similar to v
     @unpack mat, pos, vel, size = s
     @unpack area_height, area_width = wm
-    new_vel = vel + f
-    x, y = pos + new_vel
-    x = clamp(x, -area_width * 0.5 + size,
-              area_width * 0.5 - size)
-    y = clamp(x, -area_height * 0.5 + size,
-              area_height * 0.5 - size)
+    vx, vy = vel + f
+    vx = clamp(vx, -10., 10.)
+    vy = clamp(vy, -10., 10.)
+    x = pos[1] + vx
+    y = pos[2] + vy
+    x = clamp(x, -area_width * 0.5,
+              area_width * 0.5)
+    y = clamp(y, -area_height * 0.5,
+              area_height * 0.5)
     new_pos = S2V(x, y)
+    new_vel = S2V(vx, vy)
     InertiaSingle(mat, new_pos, new_vel, size)
 end
 
@@ -210,8 +210,8 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     bx, by = wm.dimensions
     new_vel = dx, dy = vel + f
     x, y = pos
-    new_pos = S2V(clamp(x + dx, -bx, bx),
-                  clamp(y + dy, -by, by))
+    new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
+                  clamp(y + dy, -0.5 * by, 0.5 * by))
     new_var = var * update[3]
     setproperties(e; pos = new_pos,
                   vel = new_vel,
@@ -227,13 +227,16 @@ function predict(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensemble = st
     n = length(singles)
     es = Vector{RandomFiniteElement{Detection}}(undef, n + 1)
-    @unpack single_noise, material_noise = wm
+    @unpack single_noise, material_noise, bbmin, bbmax = wm
     # add the single object representations
     @inbounds for i in 1:n
         single = singles[i]
-        args = (single.pos, single.size * single_noise,
+        pos = get_pos(single)
+        args = (pos, single.size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
+        # bw = inbounds(pos, bbmin, bbmax) ? 0.95 : 0.05
+        # es[i] = BernoulliElement{Detection}(bw, detect, args)
         es[i] = IsoElement{Detection}(detect, args)
     end
     # the ensemble
@@ -263,7 +266,7 @@ function observe(gm::InertiaWM, singles::AbstractVector{InertiaSingle})
 end
 
 # include("helpers.jl")
-include("inertia_gen.jl")
+include("gen.jl")
 
 gen_fn(::InertiaWM) = wm_inertia
 const InertiaIR = Gen.get_ir(wm_inertia)
@@ -271,91 +274,78 @@ const InertiaTrace = Gen.get_trace_type(wm_inertia)
 
 function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     # StaticIR names and nodes
-    outer_ir = Gen.get_ir(gm_inertia)
-    kernel_node = outer_ir.call_nodes[2] # (:kernel)
+    outer_ir = Gen.get_ir(wm_inertia)
+    kernel_node = outer_ir.call_nodes[2] # :kernel
     kernel_field = Gen.get_subtrace_fieldname(kernel_node)
     # subtrace for each time step
-    vector_trace = getproperty(trace, kernel_field)
-    sub_trace = vector_trace.subtraces[t]
+    kernel_traces = getproperty(trace, kernel_field)
+    sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
-    inner_ir = Gen.get_ir(inertia_kernel)
-    xs_node = inner_ir.call_nodes[2] # (:masks)
+    kernel_ir = Gen.get_ir(inertia_kernel)
+    xs_node = kernel_ir.call_nodes[4] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
 end
 
-function td_flat(trace::InertiaTrace, temp::Float64)
+
+"""
+    $(TYPEDSIGNATURES)
+
+Posterior probability that gorilla is detected.
+---
+Criterion:
+    1. A gorilla is present
+    2. There are 5 singles
+    3. All targets (xs[1-4]) are tracked
+    4. The gorilla (x = n + 1) is tracked
+"""
+function detect_gorilla(trace::InertiaTrace,
+                        ntargets::Int = 4,
+                        nobj::Int = 8,
+                        temp::Float64 = 1.0)
 
     t = first(get_args(trace))
     rfs = extract_rfs_subtrace(trace, t)
     pt = rfs.ptensor
-    # @unpack pt, pls = st
+    scores = rfs.pscores
     nx,ne,np = size(pt)
-    ne -= 1
-    # ls::Float64 = logsumexp(pls)
-    nls = log.(softmax(rfs.pscores, t=temp))
-    # probability that each observation
-    # is explained by a target
-    x_weights = Vector{Float64}(undef, nx)
-    @inbounds for x = 1:nx
-        xw = -Inf
-        @views for p = 1:np
-            if !pt[x, ne + 1, p]
-                xw = logsumexp(xw, nls[p])
-            end
-        end
-        # @views for p = 1:np, e = 1:ne
-        #     pt[x, e, p] || continue
-        #     xw = logsumexp(xw, nls[p])
-        # end
-        x_weights[x] = xw
+    result = -Inf
+    state = trace[:kernel => t]
+    if (nx != nobj + 1 ) #|| length(state.singles) != 5)
+        return result
     end
+    @inbounds for p = 1:np
+        targets_tracked = true
+        for x = 1:ntargets
+            pt[x, ne, p] || continue
+            targets_tracked = false
+            break
+        end
+        gorilla_detected = !pt[nx, ne, p]
 
-    # @show length(pls)
-    # display(sum(pt; dims = 3))
-    # @show x_weights
-    # the ratio of observations explained by each target
-    # weighted by the probability that the observation is
-    # explained by other targets
-    td_weights = fill(-Inf, ne)
-    @inbounds for i = 1:ne
-        for p = 1:np
-            ew = -Inf
-            @views for x = 1:nx
-                pt[x, i, p] || continue
-                ew = x_weights[x]
-                # assuming isomorphicity
-                # (one association per partition)
-                break
-            end
-            # P(e -> x) where x is associated with any other targets
-            prop = nls[p]
-            ew += prop
-            td_weights[i] = logsumexp(td_weights[i], ew)
+        if targets_tracked && gorilla_detected
+            result = logsumexp(result, scores[p] - rfs.score)
         end
     end
-    return td_weights
+    return result
 end
 
 # TODO: generalize observation size
 function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
                     t::Int,
+                    gorilla_color::Material = Dark,
+                    gorilla_idx::Int = 9,
                     single_size::Float64 = 10.0,
                     target_count::Int = 4)
     n = length(positions)
-    es = Vector{RandomFiniteElement{Detection}}(undef, n)
-    @unpack single_noise, material_noise = wm
-    @inbounds for i in 1:n
-        pos = S2V(positions[i])
+    for i = 1:n
+        x, y = positions[i]
         mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
-        args = (pos, single_size * single_noise, mat,
-                material_noise)
-        es[i] = IsoElement{Detection}(detect, args)
-    end
-    xs = DetectionRFS(es)
-    for (i, x) = enumerate(xs)
-        cm[:kernel => t => :xs => i] = x
+        if i == gorilla_idx
+            mat = gorilla_color == Light ? 0.0 : 1.0
+        end
+        cm[:kernel => t => :xs => i] = Detection(x, y, mat)
     end
     return nothing
 end
@@ -387,3 +377,5 @@ function add_baby_from_switch(prev, baby, idx)
         FunctionalCollections.push(prev.singles, baby) :
         prev.singles
 end
+
+include("visuals.jl")

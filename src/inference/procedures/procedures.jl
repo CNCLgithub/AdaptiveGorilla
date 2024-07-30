@@ -15,5 +15,6 @@ function AuxState end
 function apply_protocol! end
 
 include("proposals.jl")
+include("trace_partition.jl")
 include("particle_filter.jl")
 include("attention_protocols.jl")

@@ -32,7 +32,9 @@ end
 
 function Gen.logpdf(::DetectionRV, x::Detection, mu_pos::SVector{2, Float64},
                     var_pos::Float64, mu_material::Float64, var_material::Float64)
-    Gen.logpdf(broadcasted_normal, position(x), mu_pos, var_pos) +
+    px, py = position(x)
+    Gen.logpdf(normal, px, mu_pos[1], var_pos) +
+        Gen.logpdf(normal, py, mu_pos[2], var_pos) +
         Gen.logpdf(normal, intensity(x), mu_material, var_material) # REVIEW: reimplement with Beta distribution
 end
 
@@ -42,3 +44,22 @@ Gen.has_output_grad(::DetectionRV) = false
 Gen.logpdf_grad(::DetectionRV, value, args...) = (nothing,)
 
 detect_mixture = HomogeneousMixture(detect, [0, 0, 0, 0])
+
+import MOTCore.paint
+
+function MOTCore.paint(p::ObjectPainter,  obs::AbstractVector{T}
+                       ) where {T<:Detection}
+    for i = eachindex(obs)
+        d = obs[i]
+        sethue(0.2, 0.2, 0.2)
+        setopacity(1.0)
+        box(Point(d.x, -d.y), 20.0, 20.0,
+            action = :stroke)
+        c = d.i == 0.0 ? 0.99 : 0.01
+        sethue(c, c, c)
+        setopacity(0.7)
+        box(Point(d.x, -d.y), 20.0, 20.0,
+            action = :fill)
+    end
+    return nothing
+end

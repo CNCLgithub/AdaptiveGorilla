@@ -142,7 +142,7 @@ end
     # Random nudges
     forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
     eshift ~ inertia_ensemble(wm, prev.ensemble)
-    next::InertiaState = step(wm, singles, prev.ensemble, prev.walls,
+    next::InertiaState = step(wm, singles, prev.ensemble,
                               forces, eshift)
 
     # predict observations as a random finite set
