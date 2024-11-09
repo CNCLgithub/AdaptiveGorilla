@@ -15,6 +15,10 @@ A computational model of inattentional blindness
 If you run into an issue with one of the unregistered repos, you can simply add them again with `Pkg.add(<THE GIT URL>)`
 
 
+### Docker
+
+- May need to configure gpu driver: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#rootless-mode
+
 ## Contribution
 
 Pull requests welcome!
