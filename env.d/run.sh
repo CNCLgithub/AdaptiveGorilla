@@ -56,7 +56,7 @@ printf "(\xE2\x9C\x94) Adding mount points\n"
 # Bind project SPATHS
 #################################################################################
 base_path="${SENV[spath]}"
-BS="${BS} -v ${PWD}:/project"
+BS="${BS} -v '${PWD}:/project'"
 echo "( ) Binding project paths"
 printf "\t%s \u2190 %s\n" "/project" "${PWD}"
 for i in "${!SPATHS[@]}"
@@ -87,7 +87,7 @@ echo "( ) Executing ${COMMAND}"
 printf "=%.0s"  $(seq 1 63)
 printf "\n"
 # NOTE: uncomment below to debug
-# echo "$CONTENV $BS -it ${SENV[cont]}"
+echo "$CONTENV $BS -it ${SENV[cont]}"
 eval "$CONTENV $BS -it ${SENV[cont]} bash -c \"cd /project && \
     exec $COMMAND && \
     cd -\""
