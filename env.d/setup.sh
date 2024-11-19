@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #################################################################################
 # Environment definition
 #################################################################################
-sconfig_dir=$(realpath "$0" | xargs dirname)
-. "$sconfig_dir/load_config.sh"
+sconfig_path="$(realpath "$0")"
+sconfig_dir="$(dirname "$sconfig_path")"
+. "${sconfig_dir}/load_config.sh"
 
 #################################################################################
 # Usage

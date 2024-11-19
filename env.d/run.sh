@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #################################################################################
 # Environment definition
 #################################################################################
-sconfig_dir=$(realpath "$0" | xargs dirname)
-. "$sconfig_dir/load_config.sh"
+sconfig_path="$(realpath "$0")"
+sconfig_dir="$(dirname "$sconfig_path")"
+. "${sconfig_dir}/load_config.sh"
 
 #################################################################################
 # Usage
@@ -31,7 +32,7 @@ examples:
 #################################################################################
 
 # Define the path to the container and conda env
-CONT="${SENV[envd]}/${SENV[cont]}"
+# CONT="${SENV[envd]}/${SENV[cont]}"
 
 # Parse the incoming command
 COMMAND="$@"
@@ -39,7 +40,7 @@ COMMAND="$@"
 #################################################################################
 # Mount additional file systems
 #################################################################################
-SING="${SENV[sing]} run --gpus=all "
+CONTENV="${SENV[sing]} run --gpus=all"
 mounts=(${SENV[mounts]})
 BS=""
 echo "( ) Adding mount points"
@@ -62,7 +63,7 @@ for i in "${!SPATHS[@]}"
 do
     apath="${PWD}/${SPATHS[$i]}"
     printf "\t%s \u2190 %s\n" "${base_path}/$i" "${apath}"
-    BS="${BS} -v ${apath}:${base_path}/$i"
+    BS="${BS} -v '${apath}:${base_path}/$i'"
 done
 printf "(\xE2\x9C\x94) Binding project paths\n"
 
@@ -85,9 +86,11 @@ printf "(\xE2\x9C\x94) Exporting project variables \n"
 echo "( ) Executing ${COMMAND}"
 printf "=%.0s"  $(seq 1 63)
 printf "\n"
-$SING $BS -it "${SENV[cont]}" bash -c "cd /project && \
+# NOTE: uncomment below to debug
+# echo "$CONTENV $BS -it ${SENV[cont]}"
+eval "$CONTENV $BS -it ${SENV[cont]} bash -c \"cd /project && \
     exec $COMMAND && \
-    cd -"
+    cd -\""
 printf "=%.0s"  $(seq 1 63)
 printf "\n"
 printf "(\xE2\x9C\x94) Executing %s\n" "${COMMAND}"

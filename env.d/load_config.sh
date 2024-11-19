@@ -1,10 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #################################################################################
 # Loads config
 #################################################################################
 echo "( ) Loading project config ..."
-sconfig_dir="$(realpath "$0" | xargs dirname)"
+sconfig_path="$(realpath "$0")"
+sconfig_dir="$(dirname "$sconfig_path")"
+
 if [ -d "${sconfig_dir}" ]; then
     printf "\tFound env.d at %s\n" "$sconfig_dir"
 else
