@@ -75,11 +75,12 @@ function test_pf()
                    material_noise = 0.01,
                    ensemble_shape = 1.2,
                    ensemble_scale = 1.0)
+    display(wm)
     dpath = "output/datasets/pilot.json"
-    query = query_from_dataset(wm, dpath, 2, 10,
+    query = query_from_dataset(wm, dpath, 1, 10,
                                Light)
     # att = UniformProtocol()
-    att = AdaptiveProtocol()
+    att = AdaptiveProtocol(base_steps = 5)
     proc = AdaptiveParticleFilter(particles = 30,
                                   attention = att)
     nsteps = length(query)

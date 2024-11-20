@@ -19,7 +19,7 @@ test_state_prior()
 
 function test_birth_single()
     wm = InertiaWM()
-    trace, w = Gen.generate(birth_single, (wm,))
+    trace, w = Gen.generate(birth_single, (wm,1.0))
     display(get_choices(trace))
     display(get_score(trace))
     @show w
@@ -39,7 +39,7 @@ test_birth_ensemble()
 
 function test_inertia_init()
     wm = InertiaWM()
-    trace, w = Gen.generate(inertia_init, (wm,))
+    @time trace, w = Gen.generate(inertia_init, (wm,))
     display(get_choices(trace))
     @show w
     display(get_score(trace))

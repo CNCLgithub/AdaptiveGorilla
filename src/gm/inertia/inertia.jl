@@ -89,10 +89,11 @@ struct InertiaEnsemble <: InertiaObject
 end
 
 get_pos(e::InertiaEnsemble) = e.pos
+rate(e::InertiaEnsemble) = e.rate
 
 struct InertiaState <: WorldState{InertiaWM}
     singles::AbstractVector{InertiaSingle}
-    ensemble::InertiaEnsemble
+    ensembles::AbstractVector{InertiaEnsemble}
 end
 
 function InertiaState(wm::InertiaWM,
@@ -266,7 +267,7 @@ function observe(gm::InertiaWM, singles::AbstractVector{InertiaSingle})
 end
 
 # include("helpers.jl")
-include("gen.jl")
+include("gen/gen.jl")
 
 gen_fn(::InertiaWM) = wm_inertia
 const InertiaIR = Gen.get_ir(wm_inertia)

@@ -1,40 +1,7 @@
 export wm_inertia
 
+include("init.jl")
 
-
-################################################################################
-# Object state prior
-################################################################################
-@gen static function state_prior(wm::InertiaWM)
-
-    xs, ys = object_bounds(wm)
-    x = @trace(uniform(xs[1], xs[2]), :x)
-    y = @trace(uniform(ys[1], ys[2]), :y)
-
-    ang = @trace(uniform(0., 2*pi), :ang)
-    mag = @trace(normal(wm.vel, 1e-2), :std)
-
-    pos = S2V(x, y)
-    vel = S2V(mag*cos(ang), mag*sin(ang))
-
-    result::Tuple{S2V, S2V} = (pos, vel)
-    return result
-end
-
-################################################################################
-# Birth
-################################################################################
-
-@gen static function birth_single(wm::InertiaWM)
-    ms = materials(wm)
-    nm = length(ms)
-    mws = Fill(1.0 / nm, nm)
-    midx = @trace(categorical(mws), :material)
-    material = ms[midx]
-    loc, vel = @trace(state_prior(wm), :state)
-    baby::InertiaSingle = InertiaSingle(material, loc, vel)
-    return baby
-end
 
 # NOTE: Members of the switch have to be the same type of Gen.GM
 # (e.g., both have to be dynamic or both static)
@@ -92,19 +59,6 @@ end
     return ensemble
 end
 
-################################################################################
-# Prior over initial state
-################################################################################
-
-@gen static function inertia_init(wm::InertiaWM)
-    n ~ poisson(wm.object_rate) # total number of objects
-    k ~ binom(n, wm.irate) # number of individuals
-    wms = Fill(wm, k)
-    singles ~ Gen.Map(birth_single)(wms)
-    ensemble ~ birth_ensemble(wm, n - k) 
-    state::InertiaState = InertiaState(wm, singles, ensemble)
-    return state
-end
 
 ################################################################################
 # Dynamics
