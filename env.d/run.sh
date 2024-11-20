@@ -40,11 +40,11 @@ COMMAND="$@"
 #################################################################################
 # Mount additional file systems
 #################################################################################
-CONTENV="${SENV[sing]} run --gpus=all"
+CONTENV="${SENV[sing]} run --gpus=\"all\""
 mounts=(${SENV[mounts]})
 BS=""
 echo "( ) Adding mount points"
-for i in "${mounts[@]}";do
+for i in "${mounts[@]}"; do
     if [[ $i ]]; then
         printf "\t%s \u2190 %s\n" "$i" "$i"
         BS="${BS} -B $i:$i"
@@ -59,22 +59,19 @@ base_path="${SENV[spath]}"
 BS="${BS} -v '${PWD}:/project'"
 echo "( ) Binding project paths"
 printf "\t%s \u2190 %s\n" "/project" "${PWD}"
-for i in "${!SPATHS[@]}"
-do
+for i in "${!SPATHS[@]}"; do
     apath="${PWD}/${SPATHS[$i]}"
     printf "\t%s \u2190 %s\n" "${base_path}/$i" "${apath}"
     BS="${BS} -v '${apath}:${base_path}/$i'"
 done
 printf "(\xE2\x9C\x94) Binding project paths\n"
 
-
 #################################################################################
 # Export VARIABLES
 #################################################################################
 
 echo "( ) Exporting project variables ..."
-for i in "${!SVARS[@]}"
-do
+for i in "${!SVARS[@]}"; do
     printf "\t%s \u2190 %s\n" "${i}" "${SVARS[$i]}"
     BS="${BS} -e ${i}=${SVARS[$i]}"
 done
@@ -84,13 +81,14 @@ printf "(\xE2\x9C\x94) Exporting project variables \n"
 # Execution
 #################################################################################
 echo "( ) Executing ${COMMAND}"
-printf "=%.0s"  $(seq 1 63)
+printf "=%.0s" $(seq 1 63)
 printf "\n"
 # NOTE: uncomment below to debug
-echo "$CONTENV $BS -it ${SENV[cont]}"
-eval "$CONTENV $BS -it ${SENV[cont]} bash -c \"cd /project && \
+RUNCMD="$CONTENV $BS -it ${SENV[cont]} bash -c \"cd /project && \
     exec $COMMAND && \
     cd -\""
-printf "=%.0s"  $(seq 1 63)
+echo "$RUNCMD"
+eval "$RUNCMD"
+printf "=%.0s" $(seq 1 63)
 printf "\n"
 printf "(\xE2\x9C\x94) Executing %s\n" "${COMMAND}"

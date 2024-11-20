@@ -35,61 +35,59 @@ BUILD="${SENV[envd]}/${SENV[def]}"
 min_dest="${SENV[envd]}/min.sif"
 rstudio_dest="${SENV[envd]}/rstudio"
 
-
 #################################################################################
 # Container setup
 #################################################################################
-[[ "${@}" =~ "cont_build" ]] || [[ "${@}" =~ "cont_pull" ]] || \
+[[ "${@}" =~ "cont_build" ]] || [[ "${@}" =~ "cont_pull" ]] ||
     echo "Not touching container"
 
-[[ "${@}" =~ "cont_pull" ]] && [[ -z "${cont_pull_url}" ]] || \
-    [[ "${cont_pull_url}" == " " ]] && \
+[[ "${@}" =~ "cont_pull" ]] && [[ -z "${cont_pull_url}" ]] ||
+    [[ "${cont_pull_url}" == " " ]] &&
     echo "Tried to pull but no link provided in \$cont_pull_url"
-[[ "${@}" =~ "cont_pull" ]] && [[ -n "${cont_pull_url}" ]] && \
-    [[ "${cont_pull_url}" != " " ]] && \
-    echo "pulling container" && \
+[[ "${@}" =~ "cont_pull" ]] && [[ -n "${cont_pull_url}" ]] &&
+    [[ "${cont_pull_url}" != " " ]] &&
+    echo "pulling container" &&
     wget "$cont_pull_url" -O "${cont_dest}"
 
-[[ "${@}" =~ "cont_build" ]] && echo "building ${SENV[def]} -> ${SENV[cont]}" && \
+[[ "${@}" =~ "cont_build" ]] && echo "building ${SENV[def]} -> ${SENV[cont]}" &&
     docker build -t "${SENV[cont]}" "${SENV[envd]}"
 
 #################################################################################
 # Python setup
 #################################################################################
 [[ "${@}" =~ "python" ]] || echo "Not touching python"
-[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "python" ]] && \
-    echo "building python env at ${SENV[pyenv]}" && \
+[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "python" ]] &&
+    echo "building python env at ${SENV[pyenv]}" &&
     $SING exec "${cont_dest}" bash -c "virtualenv ${SENV[pyenv]} && \
     source ${SENV[pyenv]}/bin/activate && \
-    python -m pip install --upgrade pip" && \
+    python -m pip install --upgrade pip" &&
     ./env.d/run.sh python -m pip install --no-cache-dir -r /project/env.d/requirements.txt
-
 
 #################################################################################
 # Julia setup
 #################################################################################
 [[ "${@}" =~ "julia" ]] || echo "Not touching julia"
-[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "julia" ]] && \
-    echo "building julia env" && \
-    ./env.d/run.sh julia -e '"using Pkg; Pkg.instantiate();"'
+[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "julia" ]] &&
+    echo "building julia env" &&
+    ./env.d/run.sh "julia -e 'using Pkg;Pkg.instantiate();'"
 
 #################################################################################
 # Project data
 # (ie datasets and checkpoints)
 #################################################################################
-[[ "${@}" =~ "datasets" ]] || [[ "${@}" =~ "datasets" ]] || \
+[[ "${@}" =~ "datasets" ]] || [[ "${@}" =~ "datasets" ]] ||
     echo "Not touching datasets"
-[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "datasets" ]] && \
-    echo "pulling datasets" && \
+[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "datasets" ]] &&
+    echo "pulling datasets" &&
     wget "https://yale.box.com/shared/static/2fif6cgs7by5kt35n5zskze4m5b8sxjk.gz" \
-    -O "${SPATHS[datasets]}/ccn_2023_exp.tar.gz" && \
+        -O "${SPATHS[datasets]}/ccn_2023_exp.tar.gz" &&
     tar -xzf "${SPATHS[datasets]}/ccn_2023_exp.tar.gz" -C "${SPATHS[datasets]}/"
 
-[[ "${@}" =~ "checkpoints" ]] || [[ "${@}" =~ "checkpoints" ]] || \
+[[ "${@}" =~ "checkpoints" ]] || [[ "${@}" =~ "checkpoints" ]] ||
     echo "Not touching checkpoints"
-[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "checkpoints" ]] && \
-echo "pulling checkpoints" && \
+[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "checkpoints" ]] &&
+    echo "pulling checkpoints" &&
     wget "https://yale.box.com/shared/static/bhxpl16t015fmics1qxdmes3wndsv2yu.ckpt" \
-    -O "${SPATHS[checkpoints]}/scene_vae.ckpt" && \
+        -O "${SPATHS[checkpoints]}/scene_vae.ckpt" &&
     wget "https://yale.box.com/shared/static/4myglrftnixyce8u9l41c0zhuz11yv9g.ckpt" \
-    -O "${SPATHS[checkpoints]}/og_decoder.ckpt"
+        -O "${SPATHS[checkpoints]}/og_decoder.ckpt"
