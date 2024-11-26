@@ -40,7 +40,7 @@ COMMAND="$@"
 #################################################################################
 # Mount additional file systems
 #################################################################################
-CONTENV="${SENV[sing]} run --gpus=\"all\""
+CONTENV="${SENV[sing]} run"
 mounts=(${SENV[mounts]})
 BS=""
 echo "( ) Adding mount points"
