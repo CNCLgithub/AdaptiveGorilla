@@ -88,6 +88,9 @@ end
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
+
+    (singles, ensembles) ~ merge_kernel(prev, wm)
+
     # REVIEW: add Death?
     # Birth
     singles = @trace(birth_process(wm, prev), :birth)
