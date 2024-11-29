@@ -79,9 +79,10 @@ wm(x::ProdNode) = x.wm
 function split_node(x::ProdNode, ratio::Float64)
     c = cardinality(x)
     result = Vector{ProdNode}(undef, 2)
-    k = max(floor(Int64, c * ratio), 1)
-    result[1] = ProdNode(x.split, k, x.wm)
-    result[2] = ProdNode(x.split, c - k, x.wm)
+    k1 = max(floor(Int64, c * ratio), 1)
+    k2 = max(1, c - k1)
+    result[1] = ProdNode(x.split, k1, x.wm)
+    result[2] = ProdNode(x.split, k2, x.wm)
     return result
 end
 
