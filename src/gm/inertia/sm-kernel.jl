@@ -34,8 +34,70 @@ end
 function pair_vec(xs::Vector)
 end
 
-# TODO
-function determ_merge(a::InertiaObject, b::InertiaObject)
+function determ_merge(a::InertiaSingle, b::InertiaSingle)
+    matws = zeros(NMAT)
+    matws[Int64(a.mat)] += 1
+    matws[Int64(b.mat)] += 1
+    lmul!(0.5, matws)
+    new_pos = 0.5 .* (get_pos(a) + get_pos(b))
+    # REVIEW: dampen vel based on count?
+    new_vel = 0.5 .* (get_vel(a) + get_vel(b))
+    var = sum((new_pos - get_pos(a)).^(2))
+    var += sum((new_pos - get_pos(b)).^(2))
+    var /= 3
+    InertiaEnsemble(
+        2,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
+end
+
+function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
+    matws = deepcopy(b.matws)
+    lmul!(b.rate, matws)
+    matws[Int64(a.mat)] += 1
+    new_count = b.rate + 1
+    lmul!(1.0 / new_count, matws)
+    new_pos = (1 / new_count) .* get_pos(a) +
+        (b.rate / new_count) .* get_pos(b)
+    new_vel = (1 / new_count) .* get_vel(a) +
+        (b.rate / new_count) .* get_vel(b)
+    var = b.var + (1 / b.rate) *
+        sum((get_pos(b) - get_pos(a)).^(2))
+    InertiaEnsemble(
+        new_count,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
+end
+
+function determ_merge(a::InertiaEnsemble, b::InertiaSingle)
+    determ_merge(b, a)
+end
+
+function determ_merge(a::InertiaEnsemble, b::InertiaEnsemble)
+    new_count = a.rate + b.rate
+    matws = a.rate .* a.matws + b.rate .* b.matws
+    lmul!(1.0 / new_count, matws)
+    new_pos = (a.rate / new_count) .* get_pos(a) +
+        (b.rate / new_count) .* get_pos(b)
+    new_vel = (a.rate / new_count) .* get_vel(a) +
+        (b.rate / new_count) .* get_vel(b)
+    # REVIEW: this feels different than the other
+    # formulations
+    var = (a.rate / new_count) .* a.var +
+        (b.rate / new_count) .* b.var
+    InertiaEnsemble(
+        new_count,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
 end
 
 function merge_probability(a::InertiaSingle, b::InertiaSingle)
