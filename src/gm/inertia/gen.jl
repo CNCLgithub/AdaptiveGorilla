@@ -135,7 +135,7 @@ end
                                     prev::InertiaState,
                                     wm::InertiaWM)
 
-    (singles, ensembles) ~ merge_kernel(prev, wm)
+    # (singles, ensembles) ~ merge_kernel(prev, wm)
 
     # REVIEW: add Death?
     # Birth

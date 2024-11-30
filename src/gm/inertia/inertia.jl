@@ -89,6 +89,7 @@ struct InertiaEnsemble <: InertiaObject
 end
 
 get_pos(e::InertiaEnsemble) = e.pos
+get_vel(e::InertiaEnsemble) = e.vel
 
 struct InertiaState <: WorldState{InertiaWM}
     singles::AbstractVector{InertiaSingle}
@@ -379,3 +380,4 @@ function add_baby_from_switch(prev, baby, idx)
 end
 
 include("visuals.jl")
+include("sm-kernel.jl")
