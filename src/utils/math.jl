@@ -51,3 +51,7 @@ function vec2_angle(a::SVector{2, Float64}, b::SVector{2, Float64})
 
     !(signbit(a) || signbit(pi - a)) ? a : (signbit(a) ? 0.0 : pi)
 end
+
+function sosq(x::S2V, y::S2V)
+    sum(@. (x - y)^(2))
+end

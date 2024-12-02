@@ -86,7 +86,8 @@ end
     plight ~ beta(0.5, 0.5)
     mws = S2V(plight, 1.0 - plight)
     loc, vel = @trace(state_prior(wm), :state)
-    var ~ inv_gamma(wm.ensemble_shape, wm.ensemble_scale)
+    spread ~ inv_gamma(wm.ensemble_shape, wm.ensemble_scale)
+    var = spread * (min(wm.area_width, wm.area_height))
     ensemble::InertiaEnsemble =
         InertiaEnsemble(rate, mws, loc, var, vel)
     return ensemble
@@ -105,6 +106,35 @@ end
     state::InertiaState = InertiaState(wm, singles, ensemble)
     return state
 end
+
+
+################################################################################
+# Split-merge kernel
+################################################################################
+
+@gen function split_kernel(st::InertiaState, wm::InertiaWM)
+    w = split_probability(st, wm)
+    split ~ bernoulli(w)
+    sidx = split ? 1 : 2
+    birth ~ birth_switch(sidx, wm)
+    result::InertiaState = maybe_apply_split(st, birth, split)
+    return result
+end
+
+@gen static function sample_merge(a::InertiaObject, b::InertiaObject)
+    w = merge_probability(a, b) # how similar are a,b ?
+    to_merge::Bool = @trace(bernoulli(w), :to_merge)
+    return to_merge
+end
+
+@gen static function merge_kernel(st::InertiaState, wm::InertiaWM)
+    n = length(st.singles)
+    mergers ~ Gen.Map(sample_merge)(st.singles, Fill(st.ensemble, n))
+    result::InertiaState = apply_mergers(st, mergers)
+    return result
+end
+
+
 
 ################################################################################
 # Dynamics
@@ -135,17 +165,18 @@ end
                                     prev::InertiaState,
                                     wm::InertiaWM)
 
-    # (singles, ensembles) ~ merge_kernel(prev, wm)
+    merge ~ merge_kernel(prev, wm)
+    sm = @trace(split_kernel(merge, wm), :split)
 
     # REVIEW: add Death?
     # Birth
-    singles = @trace(birth_process(wm, prev), :birth)
+    singles = @trace(birth_process(wm, sm), :birth)
     n = length(singles)
 
     # Random nudges
     forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
-    eshift ~ inertia_ensemble(wm, prev.ensemble)
-    next::InertiaState = step(wm, singles, prev.ensemble,
+    eshift ~ inertia_ensemble(wm, sm.ensemble)
+    next::InertiaState = step(wm, singles, sm.ensemble,
                               forces, eshift)
 
     # predict observations as a random finite set
@@ -154,6 +185,8 @@ end
 
     return next
 end
+
+
 
 ################################################################################
 # Full models

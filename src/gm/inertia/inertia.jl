@@ -47,7 +47,7 @@ Model that uses inertial change points to "explain" interactions
     stability::Float64 = 0.9
     force_low::Float64 = 1.0
     force_high::Float64 = force_low * 5.0
-    ensemble_var_shift::Float64 = 0.3
+    ensemble_var_shift::Float64 = 0.2
 
     # - wall force
     wall_rep_m::Float64 = 0.0
@@ -214,6 +214,7 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
     new_var = var * update[3]
+    @show (var, update[3])
     setproperties(e; pos = new_pos,
                   vel = new_vel,
                   var = new_var)
@@ -248,8 +249,6 @@ function predict(wm::InertiaWM, st::InertiaState)
                 [0.0, 1.0],
                 [material_noise, material_noise])
     es[n + 1] = PoissonElement{Detection}(rate, detect_mixture, mix_args)
-    # @show length(singles)
-    # @show rate
     return es
 end
 
@@ -283,7 +282,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[4] # :xs
+    xs_node = kernel_ir.call_nodes[6] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -379,5 +378,152 @@ function add_baby_from_switch(prev, baby, idx)
         prev.singles
 end
 
+
+
 include("visuals.jl")
-include("sm-kernel.jl")
+# include("sm-kernel.jl")
+
+function maybe_apply_split(st::InertiaState, baby::InertiaSingle, split::Bool)
+    split || return st
+    singles = add_baby_from_switch(st, baby, 1)
+    ensemble = apply_split(st.ensemble, baby)
+    InertiaState(singles, ensemble)
+end
+
+function apply_split(e::InertiaEnsemble, x::InertiaSingle)
+    new_count = e.rate - 1
+    matws = deepcopy(e.matws)
+    lmul!(e.rate, matws)
+    matws[Int64(x.mat)] -= 1
+    lmul!(1.0 / new_count, matws)
+    new_pos = (1 / new_count) .*
+        (e.rate .* get_pos(e) - (1 / e.rate) .* get_pos(x))
+    new_vel = (1 / new_count) .*
+        (e.rate .* get_vel(e) - (1 / e.rate) .* get_vel(x))
+    delta = norm(get_pos(x) - get_pos(e)) * norm(get_pos(x) - new_pos)
+    var = ((e.rate - 1) * e.var - delta) / (new_count - 1)
+    InertiaEnsemble(
+        new_count,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
+end
+
+# TODO: parameterize with world model
+function split_probability(st::InertiaState, wm::InertiaWM)
+    st.ensemble.rate <= 2 && return 0.0
+    y = sqrt(st.ensemble.var)
+    max(0., 0.5 * log(y / 500.0))
+end
+
+
+# TODO: Optimize for loop
+function apply_mergers(st::InertiaState, mergers::AbstractVector{T}) where {T<:Bool}
+    ens = st.ensemble
+    n = min(length(st.singles), length(mergers))
+    @inbounds for i = 1:n
+        if mergers[i]
+            ens = determ_merge(st.singles[i], ens)
+        end
+    end
+    singles = PersistentVector(st.singles[.!(mergers)])
+    InertiaState(singles, ens)
+end
+
+
+function determ_merge(a::InertiaSingle, b::InertiaSingle)
+    matws = zeros(NMAT)
+    matws[Int64(a.mat)] += 1
+    matws[Int64(b.mat)] += 1
+    lmul!(0.5, matws)
+    new_pos = 0.5 .* (get_pos(a) + get_pos(b))
+    # REVIEW: dampen vel based on count?
+    new_vel = 0.5 .* (get_vel(a) + get_vel(b))
+    var = sum((new_pos - get_pos(a)).^(2))
+    var += sum((new_pos - get_pos(b)).^(2))
+    var /= 3
+    InertiaEnsemble(
+        2,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
+end
+
+function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
+    new_count = b.rate + 1
+    matws = deepcopy(b.matws)
+    lmul!(b.rate, matws)
+    matws[Int64(a.mat)] += 1
+    lmul!(1.0 / new_count, matws)
+    new_pos = (1 / new_count) .* get_pos(a) +
+        (b.rate / new_count) .* get_pos(b)
+    new_vel = (1 / new_count) .* get_vel(a) +
+        (b.rate / new_count) .* get_vel(b)
+    delta = norm(get_pos(a) - get_pos(b)) * norm(get_pos(a) - new_pos)
+    @show a.pos
+    @show b.pos
+    @show delta
+    var = ((b.rate - 1) * b.var + delta) / (new_count - 1)
+    InertiaEnsemble(
+        new_count,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
+end
+
+function determ_merge(a::InertiaEnsemble, b::InertiaSingle)
+    determ_merge(b, a)
+end
+
+function determ_merge(a::InertiaEnsemble, b::InertiaEnsemble)
+    new_count = a.rate + b.rate
+    matws = a.rate .* a.matws + b.rate .* b.matws
+    lmul!(1.0 / new_count, matws)
+    new_pos = (a.rate / new_count) .* get_pos(a) +
+        (b.rate / new_count) .* get_pos(b)
+    new_vel = (a.rate / new_count) .* get_vel(a) +
+        (b.rate / new_count) .* get_vel(b)
+    # REVIEW: this feels different than the other
+    # formulations
+    var = (a.rate / new_count) .* a.var +
+        (b.rate / new_count) .* b.var
+    InertiaEnsemble(
+        new_count,
+        matws,
+        new_pos,
+        var,
+        new_vel
+    )
+end
+
+# TODO: parameterize with world model
+function merge_probability(a::InertiaSingle, b::InertiaSingle)
+    color = a.mat === b.mat ? 1.0 : 0.0
+    l2 = norm(get_pos(a) - get_pos(b))
+    ca = vec2_angle(get_vel(a), get_vel(b))
+    color * 0.5 * exp(-(l2 * ca) / max(a.size, b.size))
+end
+
+function merge_probability(a::InertiaSingle, b::InertiaEnsemble)
+    color = b.matws[Int64(a.mat)]
+    l2 = norm(get_pos(a) - get_pos(b)) / sqrt(b.var)
+    ca = vec2_angle(get_vel(a), get_vel(b))
+    color * 0.5 * exp(-(l2 * ca) / max(a.size, sqrt(b.var)))
+end
+
+function merge_probability(a::InertiaEnsemble, b::InertiaSingle)
+    merge_probability(b, a)
+end
+
+function merge_probability(a::InertiaEnsemble, b::InertiaEnsemble)
+    color = norm(a.matws - b.matws)
+    l2 = norm(get_pos(a) - get_pos(b)) / (sqrt(b.var) + sqrt(a.var))
+    ca = vec2_angle(get_vel(a), get_vel(b))
+    0.5 * exp(-(l2 * ca * color) / sqrt(max(a.var, b.var)))
+end

@@ -1,24 +1,26 @@
 using MOTCore
 using AdaptiveGorilla
 using AdaptiveGorilla: merge_probability, give_birth,
-    InertiaSingle, InertiaEnsemble, birth_ensemble
+    InertiaSingle, InertiaEnsemble, birth_ensemble,
+    sample_merge
 
 function test_single_single()
 
     wm = InertiaWM()
-    a = give_birth(wm)
-    b = give_birth(wm)
-    # a = InertiaSingle(Light,
-    #                   [0., 0.],
-    #                   [1., 1.],
-    #                   10.0)
-    # b = InertiaSingle(Light,
-    #                   [0., 0.],
-    #                   [1., 1.],
-    #                   10.0)
+    # a = give_birth(wm)
+    # b = give_birth(wm)
+    a = InertiaSingle(Light,
+                      [0., 0.],
+                      [1., 1.],
+                      10.0)
+    b = InertiaSingle(Light,
+                      [0., 0.],
+                      [1., 1.],
+                      10.0)
 
 
     @show merge_probability(a, b)
+    @show sample_merge(a, b)
 
     return nothing
 end;

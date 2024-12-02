@@ -103,8 +103,12 @@ function apply_protocol!(chain::APChain, p::AdaptiveProtocol)
     @unpack tr = auxillary
     np = length(state.traces)
     l = load(tr)
+    # iterate through each particle
     for i = 1:np
         trace = state.traces[i]
+        # determine the importance of each latent
+        # for the given particle
+        # NOTE: this assumes `prop` does not change granularity
         w = importance(partition, trace, tr)
         for j = eachindex(w)
             steps = @inbounds ceil(Int32, w[j] * l) + base_steps
@@ -119,11 +123,11 @@ function apply_protocol!(chain::APChain, p::AdaptiveProtocol)
                 dPi = max(-100., log(divergence(o, new_o)))
                 dPi = log(divergence(o, new_o))
                 nabla = logsumexp(nabla, dPi + dS)
-                if isnan(nabla)
+                if isnan(nabla) # something went wrong
                     @show (o, new_o)
                     @show (dPi, dS)
                 end
-                if log(rand()) < dS
+                if log(rand()) < dS # update particle
                     trace = new_trace
                     o = new_o
                     state.log_weights[i] += dS
