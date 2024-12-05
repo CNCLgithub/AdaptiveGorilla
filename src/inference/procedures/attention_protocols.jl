@@ -117,8 +117,8 @@ function apply_protocol!(chain::APChain, p::AdaptiveProtocol)
             nabla = -Inf
             # @show j
             for k = 1:steps
-                new_trace, dS = prop(trace)
-                dS = min(dS, 0.)
+                new_trace, alpha = prop(trace)
+                dS = min(alpha, 0.)
                 new_o = plan(planner, new_trace)
                 dPi = max(-100., log(divergence(o, new_o)))
                 dPi = log(divergence(o, new_o))
@@ -130,7 +130,7 @@ function apply_protocol!(chain::APChain, p::AdaptiveProtocol)
                 if log(rand()) < dS # update particle
                     trace = new_trace
                     o = new_o
-                    state.log_weights[i] += dS
+                    state.log_weights[i] += alpha
                 end
             end
             nabla -= log(steps)
@@ -184,7 +184,7 @@ function importance(partition::TracePartition{T}, trace::T, tr::TREstimate,
         end
         ws[i] = gr
     end
-    importance = softmax(ws, 2.0)
+    importance = softmax(ws, 10.0)
 end
 
 function baby_attention_proposal()

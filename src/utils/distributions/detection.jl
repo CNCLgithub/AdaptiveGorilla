@@ -33,9 +33,12 @@ end
 function Gen.logpdf(::DetectionRV, x::Detection, mu_pos::SVector{2, Float64},
                     var_pos::Float64, mu_material::Float64, var_material::Float64)
     px, py = position(x)
+    intx = intensity(x)
+    pdf_int =
+        Gen.logpdf(normal, intx, mu_material, var_material)
     Gen.logpdf(normal, px, mu_pos[1], var_pos) +
         Gen.logpdf(normal, py, mu_pos[2], var_pos) +
-        Gen.logpdf(normal, intensity(x), mu_material, var_material) # REVIEW: reimplement with Beta distribution
+        pdf_int
 end
 
 (::DetectionRV)(mp, vp, mm, vm) = Gen.random(detect, mp, vp, mm, vm)
@@ -55,7 +58,7 @@ function MOTCore.paint(p::ObjectPainter,  obs::AbstractVector{T}
         setopacity(1.0)
         box(Point(d.x, -d.y), 20.0, 20.0,
             action = :stroke)
-        c = d.i == 0.0 ? 0.99 : 0.01
+        c = d.i == 1.0 ? 0.99 : 0.01
         sethue(c, c, c)
         setopacity(0.7)
         box(Point(d.x, -d.y), 20.0, 20.0,

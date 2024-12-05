@@ -53,7 +53,8 @@ end
     t = first(get_args(trace))
     state = trace[:kernel => t]
     x, y = get_pos(state.singles[parent])
-    if trace[:kernel => t => :birth => :pregnant]
+    w = @trace(bernoulli(0.5), :kernel => t => :birth => :pregnant)
+    if w
         @trace(normal(x, 100.0), :kernel => t => :birth => :birth => :x)
         @trace(normal(y, 100.0), :kernel => t => :birth => :birth => :y)
     end

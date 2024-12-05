@@ -30,16 +30,16 @@ function test_single_ensemble()
 
     wm = InertiaWM()
     # a = give_birth(wm)
-    b = birth_ensemble(wm, 3.0)
+    # b = birth_ensemble(wm, 3.0)
     a = InertiaSingle(Light,
                       [0., 0.],
                       [1., 1.],
                       10.0)
-    # b = InertiaEnsemble(3.0,
-    #                     [0.99, 0.01],
-    #                     [10., 0.],
-    #                     20.,
-    #                     [2.0, 0.0])
+    b = InertiaEnsemble(3.0,
+                        [0.99, 0.01],
+                        [100., 0.],
+                        4000.,
+                        [1.0, 1.0])
 
 
     @show merge_probability(a, b)

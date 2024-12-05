@@ -21,6 +21,7 @@ using Parameters
 using FillArrays
 using Statistics
 using StaticArrays
+using Distributions
 using LinearAlgebra
 using DataStructures
 using NearestNeighbors

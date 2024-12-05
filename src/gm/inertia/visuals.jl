@@ -28,7 +28,7 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     # TODO: figure out how to visualize this (dash around emsemble, see its center( a dot?),
     # its cardinality (colour change or a number) )
 
-    println("\nobj_var $(obj.var)")
+    # println("\nobj_var $(obj.var)")
     _draw_circle(get_pos(obj), sqrt(obj.var), "purple",
          opacity = 1)
         return nothing

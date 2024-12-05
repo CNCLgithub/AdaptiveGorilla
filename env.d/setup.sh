@@ -56,12 +56,12 @@ rstudio_dest="${SENV[envd]}/rstudio"
 # Python setup
 #################################################################################
 [[ "${@}" =~ "python" ]] || echo "Not touching python"
-[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "python" ]] &&
-    echo "building python env at ${SENV[pyenv]}" &&
-    $SING exec "${cont_dest}" bash -c "virtualenv ${SENV[pyenv]} && \
-    source ${SENV[pyenv]}/bin/activate && \
-    python -m pip install --upgrade pip" &&
-    ./env.d/run.sh python -m pip install --no-cache-dir -r /project/env.d/requirements.txt
+# [[ "${@}" =~ "all" ]] || [[ "${@}" =~ "python" ]] &&
+#     echo "building python env at ${SENV[pyenv]}" &&
+#     $SING exec "${cont_dest}" bash -c "virtualenv ${SENV[pyenv]} && \
+#     source ${SENV[pyenv]}/bin/activate && \
+#     python -m pip install --upgrade pip" &&
+#     ./env.d/run.sh python -m pip install --no-cache-dir -r /project/env.d/requirements.txt
 
 #################################################################################
 # Julia setup

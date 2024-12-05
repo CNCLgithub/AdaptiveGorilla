@@ -75,7 +75,7 @@ function test_pf()
                    material_noise = 0.01,
                    ensemble_shape = 1.2,
                    ensemble_scale = 1.0)
-    dpath = "output/datasets/pilot.json"
+    dpath = "/spaths/datasets/pilot.json"
     query = query_from_dataset(wm, dpath, 2, 10,
                                Light)
     # att = UniformProtocol()
@@ -85,7 +85,7 @@ function test_pf()
     nsteps = length(query)
     logger = MemLogger(nsteps)
     chain = run_chain(proc, query, nsteps, logger)
-    out = "output/tests/inference"
+    out = "/spaths/tests/inference"
     isdir(out) || mkpath(out)
     render_inference(wm, logger, out)
 end;

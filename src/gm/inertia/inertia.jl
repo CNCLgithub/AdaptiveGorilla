@@ -19,9 +19,11 @@ Model that uses inertial change points to "explain" interactions
     "Number of individual representations"
     irate::Float64 = 0.5
 
+    # Individual obj parameters
+    single_size::Float64 = 10.0
     # Ensemble parameters
-    ensemble_shape::Float64 = 1.0
-    ensemble_scale::Float64 = 1.0
+    ensemble_shape::Float64 = 2.0
+    ensemble_scale::Float64 = 0.5
 
     "Probability that a baby is born for a given step"
     birth_weight::Float64 = 0.01
@@ -119,8 +121,8 @@ function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
     (stability,
-     force_low,
-     force_high)
+     force_low / rate,
+     force_high / rate)
 end
 
 
@@ -164,7 +166,7 @@ function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, s::InertiaSingle
     pos = get_pos(s)
     @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = wm
     n = LinearAlgebra.norm(w.normal .* pos + w.nd)
-    f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
+    # f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
     return nothing
 end
 
@@ -190,17 +192,19 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     # but f isn't normalized to be similar to v
     @unpack mat, pos, vel, size = s
     @unpack area_height, area_width = wm
+    # vx, vy = f
     vx, vy = vel + f
     vx = clamp(vx, -10., 10.)
     vy = clamp(vy, -10., 10.)
-    x = pos[1] + vx
-    y = pos[2] + vy
-    x = clamp(x, -area_width * 0.5,
+    x = clamp(pos[1] + vx,
+              -area_width * 0.5,
               area_width * 0.5)
-    y = clamp(y, -area_height * 0.5,
+    y = clamp(pos[2] + vy,
+              -area_height * 0.5,
               area_height * 0.5)
     new_pos = S2V(x, y)
     new_vel = S2V(vx, vy)
+    # @show (vel, f, new_vel)
     InertiaSingle(mat, new_pos, new_vel, size)
 end
 
@@ -209,12 +213,13 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     @unpack pos, vel, var = e
     f = S2V(update[1], update[2])
     bx, by = wm.dimensions
+    # new_vel = dx, dy = f
     new_vel = dx, dy = vel + f
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
     new_var = var * update[3]
-    @show (var, update[3])
+    # @show (var, update[3])
     setproperties(e; pos = new_pos,
                   vel = new_vel,
                   var = new_var)
@@ -245,8 +250,8 @@ function predict(wm::InertiaWM, st::InertiaState)
     @unpack matws, rate, pos, var = ensemble
     mix_args = (matws,
                 [pos, pos],
-                [var, var],
-                [0.0, 1.0],
+                [sqrt(var), sqrt(var)],
+                [1.0, 2.0],
                 [material_noise, material_noise])
     es[n + 1] = PoissonElement{Detection}(rate, detect_mixture, mix_args)
     return es
@@ -282,7 +287,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[6] # :xs
+    xs_node = kernel_ir.call_nodes[4] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -341,9 +346,9 @@ function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
     n = length(positions)
     for i = 1:n
         x, y = positions[i]
-        mat = i <= target_count ? 0.0 : 1.0 # Light : Dark
+        mat = i <= target_count ? 1.0 : 2.0 # Light : Dark
         if i == gorilla_idx
-            mat = gorilla_color == Light ? 0.0 : 1.0
+            mat = gorilla_color == Light ? 1.0 : 2.0
         end
         cm[:kernel => t => :xs => i] = Detection(x, y, mat)
     end
@@ -371,6 +376,10 @@ function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
     return nothing
 end
 
+function birth_weight(wm::InertiaWM, st::InertiaState)
+    length(st.singles) + st.ensemble.rate <= wm.object_rate ?
+        wm.birth_weight : 0.0
+end
 
 function add_baby_from_switch(prev, baby, idx)
     idx == 1 ?
@@ -378,12 +387,16 @@ function add_baby_from_switch(prev, baby, idx)
         prev.singles
 end
 
+function ensemble_var(wm::InertiaWM, spread::Float64)
+    var = 100.0 * spread * wm.single_size # (min(wm.area_width, wm.area_height))
+end
+
 
 
 include("visuals.jl")
 # include("sm-kernel.jl")
 
-function maybe_apply_split(st::InertiaState, baby::InertiaSingle, split::Bool)
+function maybe_apply_split(st::InertiaState, baby, split::Bool)
     split || return st
     singles = add_baby_from_switch(st, baby, 1)
     ensemble = apply_split(st.ensemble, baby)
@@ -459,15 +472,18 @@ function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
     lmul!(b.rate, matws)
     matws[Int64(a.mat)] += 1
     lmul!(1.0 / new_count, matws)
-    new_pos = (1 / new_count) .* get_pos(a) +
-        (b.rate / new_count) .* get_pos(b)
+    new_pos = get_pos(b) + (get_pos(a) - get_pos(b)) / new_count
+    # new_pos = (1 / new_count) .* get_pos(a) +
+    #     (b.rate / new_count) .* get_pos(b)
     new_vel = (1 / new_count) .* get_vel(a) +
         (b.rate / new_count) .* get_vel(b)
     delta = norm(get_pos(a) - get_pos(b)) * norm(get_pos(a) - new_pos)
+    var = ((b.rate - 1) * b.var + delta) / (new_count - 1)
+    @show merge_probability(a, b)
     @show a.pos
     @show b.pos
     @show delta
-    var = ((b.rate - 1) * b.var + delta) / (new_count - 1)
+    @show (b.var, var)
     InertiaEnsemble(
         new_count,
         matws,
@@ -514,7 +530,9 @@ function merge_probability(a::InertiaSingle, b::InertiaEnsemble)
     color = b.matws[Int64(a.mat)]
     l2 = norm(get_pos(a) - get_pos(b)) / sqrt(b.var)
     ca = vec2_angle(get_vel(a), get_vel(b))
-    color * 0.5 * exp(-(l2 * ca) / max(a.size, sqrt(b.var)))
+    # @show l2
+    # @show ca
+    color * (0.4 * exp(-(l2)) + 0.1 * exp(-ca))
 end
 
 function merge_probability(a::InertiaEnsemble, b::InertiaSingle)

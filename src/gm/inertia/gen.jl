@@ -70,7 +70,8 @@ birth_switch = Gen.Switch(give_birth, no_birth)
 # birth_switch = Gen.Switch(birth_single, no_birth)
 
 @gen function birth_process(wm::InertiaWM, prev::InertiaState)
-    pregnant ~ bernoulli(wm.birth_weight)
+    w = birth_weight(wm, prev)
+    pregnant ~ bernoulli(w)
     switch_idx = pregnant ? 1 : 2
     # potentially empty
     birth ~ birth_switch(switch_idx, wm)
@@ -87,7 +88,7 @@ end
     mws = S2V(plight, 1.0 - plight)
     loc, vel = @trace(state_prior(wm), :state)
     spread ~ inv_gamma(wm.ensemble_shape, wm.ensemble_scale)
-    var = spread * (min(wm.area_width, wm.area_height))
+    var = ensemble_var(wm, spread)
     ensemble::InertiaEnsemble =
         InertiaEnsemble(rate, mws, loc, var, vel)
     return ensemble
@@ -113,10 +114,27 @@ end
 ################################################################################
 
 @gen function split_kernel(st::InertiaState, wm::InertiaWM)
+    ens = st.ensemble
     w = split_probability(st, wm)
-    split ~ bernoulli(w)
-    sidx = split ? 1 : 2
-    birth ~ birth_switch(sidx, wm)
+    split = @trace(bernoulli(w), :split)
+    if split
+        midx = @trace(categorical(ens.matws), :material)
+        material = materials(wm)[midx]
+
+        xs, ys = object_bounds(wm)
+        x = @trace(uniform(xs[1], xs[2]), :x)
+        y = @trace(uniform(ys[1], ys[2]), :y)
+
+        ang = @trace(uniform(0., 2*pi), :ang)
+        mag = @trace(normal(wm.vel, 1e-2), :std)
+
+        loc = S2V(x, y)
+        vel = S2V(mag*cos(ang), mag*sin(ang))
+
+        birth = InertiaSingle(material, loc, vel)
+    else
+        birth = nothing
+    end
     result::InertiaState = maybe_apply_split(st, birth, split)
     return result
 end
@@ -143,6 +161,7 @@ end
 @gen static function inertia_force(wm::InertiaWM, o::Object)
     stability, force_low, force_high = force_prior(o, wm)
     is_stable ~ bernoulli(stability)
+
     # large angular variance if not stable
     var = is_stable ? force_low : force_high
     fx ~ normal(0.0, var)
@@ -165,18 +184,18 @@ end
                                     prev::InertiaState,
                                     wm::InertiaWM)
 
-    merge ~ merge_kernel(prev, wm)
-    sm = @trace(split_kernel(merge, wm), :split)
+    # merge ~ merge_kernel(prev, wm)
+    # sm = @trace(split_kernel(merge, wm), :split)
 
     # REVIEW: add Death?
     # Birth
-    singles = @trace(birth_process(wm, sm), :birth)
+    singles = @trace(birth_process(wm, prev), :birth)
     n = length(singles)
 
     # Random nudges
     forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
-    eshift ~ inertia_ensemble(wm, sm.ensemble)
-    next::InertiaState = step(wm, singles, sm.ensemble,
+    eshift ~ inertia_ensemble(wm, prev.ensemble)
+    next::InertiaState = step(wm, singles, prev.ensemble,
                               forces, eshift)
 
     # predict observations as a random finite set

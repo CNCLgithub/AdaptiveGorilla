@@ -26,22 +26,34 @@ function gorilla_exp(logger)
 end
 
 function main()
-    trial = 1
-    duration = 40
+    trial = 2
+    duration = 20
     att_module = :ac
     dataset = "pilot"
     gorilla_color = Light
-    chains = 5
+    chains = 1
 
     result = DataFrame(:trial => Int64[],
                        :color => Symbol[],
                        :chain => Int64[],
                        :pgorilla => Float64[])
 
-    wm_config = load_json("$(@__DIR__)/wm.json")
-    wm = InertiaWM(;wm_config...)
+    # wm_config = load_json("$(@__DIR__)/wm.json")
+    # wm = InertiaWM(;wm_config...)
+    wm = InertiaWM(area_width = 1240.0,
+                   area_height = 840.0,
+                   birth_weight = 0.1,
+                   single_noise = 1.0,
+                   stability = 0.90,
+                   vel = 3.0,
+                   force_low = 1.0,
+                   force_high = 5.0,
+                   material_noise = 0.001,
+                   ensemble_shape = 1.2,
+                   ensemble_scale = 1.0,
+                   wall_rep_m = 0.0)
     display(wm)
-    dpath = "output/datasets/$(dataset).json"
+    dpath = "/spaths/datasets/$(dataset).json"
     query = query_from_dataset(wm, dpath, trial, duration, gorilla_color)
 
     att_config = load_json(att_configs[att_module])
@@ -49,19 +61,25 @@ function main()
     proc = AdaptiveParticleFilter(;load_json("$(@__DIR__)/pf.json")...,
                                   attention = att)
     nsteps = length(query)
-    for chain = 1:chains
-        logger = MemLogger(nsteps)
-        run_chain(proc, query, nsteps, logger)
-        pgorilla = gorilla_exp(logger)
-        push!(result, (trial, Symbol(gorilla_color), chain, pgorilla))
-    end
+
+    chain = 1
+    logger = MemLogger(nsteps)
+    run_chain(proc, query, nsteps, logger)
+    pgorilla = gorilla_exp(logger)
+    push!(result, (trial, Symbol(gorilla_color), chain, pgorilla))
+    # for chain = 1:chains
+    #     logger = MemLogger(nsteps)
+    #     run_chain(proc, query, nsteps, logger)
+    #     pgorilla = gorilla_exp(logger)
+    #     push!(result, (trial, Symbol(gorilla_color), chain, pgorilla))
+    # end
 
     display(result)
 
-    out = "output/experiments/$(dataset)/$(trial)_$(gorilla_color)"
+    out = "/spaths/experiments/$(dataset)/$(trial)_$(gorilla_color)"
     isdir(out) || mkpath(out)
     CSV.write("$(out).csv", result)
-    # render_inference(wm, logger, out)
+    render_inference(wm, logger, out)
 
 end;
 
