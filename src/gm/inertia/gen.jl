@@ -51,7 +51,7 @@ end
     y = @trace(uniform(ys[1], ys[2]), :y)
 
     ang = @trace(uniform(0., 2*pi), :ang)
-    mag = @trace(normal(wm.vel, 1e-2), :std)
+    mag = @trace(normal(wm.vel, 1.0), :std)
 
     loc = S2V(x, y)
     vel = S2V(mag*cos(ang), mag*sin(ang))
@@ -100,11 +100,8 @@ end
 
 @gen static function inertia_init(wm::InertiaWM)
     n ~ poisson(wm.object_rate) # total number of objects
-    k ~ binom(n, wm.irate) # number of individuals
-    wms = Fill(wm, k)
-    singles ~ Gen.Map(birth_single)(wms)
-    ensemble ~ birth_ensemble(wm, n - k) 
-    state::InertiaState = InertiaState(wm, singles, ensemble)
+    singles ~ Gen.Map(birth_single)(Fill(wm, n))
+    state::InertiaState = InertiaState(wm, singles)
     return state
 end
 
@@ -113,45 +110,52 @@ end
 # Split-merge kernel
 ################################################################################
 
-@gen function split_kernel(st::InertiaState, wm::InertiaWM)
-    ens = st.ensemble
-    w = split_probability(st, wm)
-    split = @trace(bernoulli(w), :split)
-    if split
-        midx = @trace(categorical(ens.matws), :material)
-        material = materials(wm)[midx]
 
-        xs, ys = object_bounds(wm)
-        x = @trace(uniform(xs[1], xs[2]), :x)
-        y = @trace(uniform(ys[1], ys[2]), :y)
-
-        ang = @trace(uniform(0., 2*pi), :ang)
-        mag = @trace(normal(wm.vel, 1e-2), :std)
-
-        loc = S2V(x, y)
-        vel = S2V(mag*cos(ang), mag*sin(ang))
-
-        birth = InertiaSingle(material, loc, vel)
-    else
-        birth = nothing
-    end
-    result::InertiaState = maybe_apply_split(st, birth, split)
+@gen static function birth_split(wm::InertiaWM, ens::InertiaEnsemble)
+    ms = materials(wm)
+    midx = @trace(categorical(ens.matws), :material)
+    material = ms[midx]
+    (ex, ey) = get_pos(ens)
+    x ~ normal(ex, sqrt(ens.var))
+    y ~ normal(ey, sqrt(ens.var))
+    (vx, vy) = get_vel(ens)
+    ang ~ von_mises(atan(vy, vx), 10.0)
+    mag ~ normal(norm(ens.vel), wm.force_low)
+    loc = S2V(x, y)
+    vel = S2V(mag*cos(ang), mag*sin(ang))
+    result::InertiaSingle = InertiaSingle(material, loc, vel)
     return result
 end
 
-@gen static function sample_merge(a::InertiaObject, b::InertiaObject)
+@gen static function sample_split(wm::InertiaWM, ens::InertiaEnsemble)
+    r = split_ppp(wm, ens)
+    n ~ poisson(r)
+    c = min(Int64(ens.rate), n)
+    splits ~ Gen.Map(birth_split)(Fill(wm, c), Fill(ens, c))
+    return splits
+end
+
+@gen function split_kernel(st::InertiaState, wm::InertiaWM)
+    ne = length(st.ensembles)
+    splits ~ Gen.Map(sample_split)(Fill(wm, ne), st.ensembles)
+    result::InertiaState = apply_splits(wm, st, splits)
+    return result
+end
+
+@gen static function sample_merge(st::InertiaState, x::Int64, y::Int64)
+    a = object_from_idx(st, x)
+    b = object_from_idx(st, y)
     w = merge_probability(a, b) # how similar are a,b ?
     to_merge::Bool = @trace(bernoulli(w), :to_merge)
     return to_merge
 end
 
 @gen static function merge_kernel(st::InertiaState, wm::InertiaWM)
-    n = length(st.singles)
-    mergers ~ Gen.Map(sample_merge)(st.singles, Fill(st.ensemble, n))
-    result::InertiaState = apply_mergers(st, mergers)
+    (nk, xs, ys) = all_pairs(st)
+    mergers ~ Gen.Map(sample_merge)(Fill(st, nk), xs, ys)
+    result::InertiaState = apply_mergers(st, xs, ys, mergers)
     return result
 end
-
 
 
 ################################################################################
@@ -183,20 +187,20 @@ end
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
+    # Random nudges
+    ns = length(prev.singles)
+    ne = length(prev.ensembles)
+    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), prev.singles)
+    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), prev.ensembles)
+    shifted::InertiaState = step(wm, prev, forces, eshifts)
 
-    # merge ~ merge_kernel(prev, wm)
-    # sm = @trace(split_kernel(merge, wm), :split)
+    merge ~ merge_kernel(shifted, wm)
+    sm = @trace(split_kernel(merge, wm), :split)
 
     # REVIEW: add Death?
     # Birth
-    singles = @trace(birth_process(wm, prev), :birth)
-    n = length(singles)
-
-    # Random nudges
-    forces ~ Gen.Map(inertia_force)(Fill(wm, n), singles)
-    eshift ~ inertia_ensemble(wm, prev.ensemble)
-    next::InertiaState = step(wm, singles, prev.ensemble,
-                              forces, eshift)
+    singles = @trace(birth_process(wm, sm), :birth)
+    next::InertiaState = InertiaState(singles, sm.ensembles)
 
     # predict observations as a random finite set
     es = predict(wm, next)

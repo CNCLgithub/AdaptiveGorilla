@@ -98,46 +98,55 @@ end
 
 
 function apply_protocol!(chain::APChain, p::AdaptiveProtocol)
+
     @unpack partition, planner, divergence, base_steps = p
     @unpack state, auxillary = chain
     @unpack tr = auxillary
+
     np = length(state.traces)
-    l = load(tr)
-    # iterate through each particle
-    for i = 1:np
+    l = load(tr) # load is shared across particles
+
+    for i = 1:np # iterate through each particle
         trace = state.traces[i]
-        # determine the importance of each latent
-        # for the given particle
-        # NOTE: this assumes `prop` does not change granularity
-        w = importance(partition, trace, tr)
-        for j = eachindex(w)
-            steps = @inbounds ceil(Int32, w[j] * l) + base_steps
+        remaining = l + base_steps
+        @show i
+        @show get_score(trace)
+        @show state.log_weights[i]
+        # Stage 2
+        while remaining > 0
+            # determine the importance of each latent
+            # can change across moves
+            w = importance(partition, trace, tr)
+            j = categorical(w) # select latent
             prop = select_prop(partition, trace, j)
+            # NOTE: assuming plannig is cheap
             o = plan(planner, trace)
-            nabla = -Inf
-            # @show j
-            for k = 1:steps
-                new_trace, alpha = prop(trace)
-                dS = min(alpha, 0.)
-                new_o = plan(planner, new_trace)
-                dPi = max(-100., log(divergence(o, new_o)))
-                dPi = log(divergence(o, new_o))
-                nabla = logsumexp(nabla, dPi + dS)
-                if isnan(nabla) # something went wrong
-                    @show (o, new_o)
-                    @show (dPi, dS)
-                end
-                if log(rand()) < dS # update particle
-                    trace = new_trace
-                    o = new_o
-                    state.log_weights[i] += alpha
-                end
+
+            # Apply computation, determine dS, dPi
+            new_trace, alpha = prop(trace)
+            dS = min(alpha, 0.)
+            new_o = plan(planner, new_trace)
+            dPi = log(divergence(o, new_o))
+            nabla = dPi + dS
+            if isnan(nabla) # something went wrong
+                @show (o, new_o)
+                @show (dPi, dS)
             end
-            nabla -= log(steps)
-            # @show nabla
+            if log(rand()) < alpha # update particle
+                trace = new_trace
+                state.log_weights[i] += alpha
+            end
+            # REVIEW: continually updating partition map
+            # Does this make AC not invertible?
+            # - Actually, an internal TRE is update so this
+            # does not change the probablities for the current
+            # time step
             update_tr!(auxillary, partition, trace, j, nabla)
+            remaining -= 1
         end
+
         # baby block
+        # REVIEW: remove?
         for _ = 1:base_steps
             new_trace, w = baby_ancestral_proposal(trace)
             if log(rand()) < w
@@ -184,7 +193,7 @@ function importance(partition::TracePartition{T}, trace::T, tr::TREstimate,
         end
         ws[i] = gr
     end
-    importance = softmax(ws, 10.0)
+    importance = softmax(ws, 1.0)
 end
 
 function baby_attention_proposal()

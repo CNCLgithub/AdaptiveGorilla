@@ -47,7 +47,7 @@ function latent_size(partition::InertiaPartition, tr::InertiaTrace)
         n += length(state.singles)
     end
     if partition.ensemble
-        n += 1
+        n += length(state.ensembles)
     end
     if partition.baby
         n += 1
@@ -60,19 +60,20 @@ function get_coord(partition::InertiaPartition,
                    trace::InertiaTrace, i::Int)
     t = first(get_args(trace))
     state = trace[:kernel => t]
-    n = length(state.singles)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
     idx = i
     if !partition.singles
-        idx += n
+        idx += ns # jump past singles
     end
     if !partition.ensemble
-        idx += 1
+        idx += ne # jump past ensembles
     end
-    coord = if idx <= n
+    coord = if idx <= ns
         x = state.singles[idx]
         S3V(get_pos(x)..., Float64(Int(x.mat)))
-    elseif idx == n + 1
-        y = state.ensemble
+    elseif isbetween(idx, ns + 1, ne)
+        y = state.ensembles[idx - ns]
         S3V(get_pos(y)..., mean(y.matws))
     else
         S3V(0., 0., 0.) # REVIEW: not sure where baby should go
@@ -83,20 +84,22 @@ function select_prop(partition::InertiaPartition,
                      trace::InertiaTrace, i::Int)
     t = first(get_args(trace))
     state = trace[:kernel => t]
-    n = length(state.singles)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
     idx = i
     if !partition.singles
-        idx += n
+        idx += ns # jump past singles
     end
     if !partition.ensemble
-        idx += 1
+        idx += ne # jump past ensembles
     end
-    prop = if idx <= n
-        bernoulli(0.5) ?
-            tr -> single_ancestral_proposal(tr, idx) :
-            tr -> apply_random_walk(tr, baby_local_proposal, (idx,))
-    elseif idx == n + 1
-        ensemble_ancestral_proposal
+    prop = if idx <= ns
+        tr -> single_ancestral_proposal(tr, idx)
+        # bernoulli(0.5) ?
+        #     tr -> single_ancestral_proposal(tr, idx) :
+        #     tr -> baby_local_transform(tr, idx)
+    elseif isbetween(idx, ns + 1, ne)
+        tr -> ensemble_ancestral_proposal(tr, idx - ns)
     else
         baby_ancestral_proposal
     end

@@ -406,7 +406,7 @@ version = "1.11.0"
 
 [[deps.Gen]]
 deps = ["Compat", "DataStructures", "Distributions", "ForwardDiff", "FunctionalCollections", "JSON", "LinearAlgebra", "MacroTools", "Parameters", "Random", "ReverseDiff", "SpecialFunctions"]
-git-tree-sha1 = "4fd82292067c900f5e9c641309d2fd4dd6f67768"
+path = "/project/env.d/jenv/dev/Gen"
 uuid = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
 version = "0.4.7"
 
@@ -418,9 +418,7 @@ version = "0.2.3"
 
 [[deps.GenRFS]]
 deps = ["BenchmarkTools", "Cassette", "Combinatorics", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "Lazy", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions", "StatProfilerHTML", "Test", "UnicodePlots"]
-git-tree-sha1 = "7e96ae5f0bfe26f616ceb3ff6becbc21fe5801da"
-repo-rev = "master"
-repo-url = "https://github.com/CNCLgithub/GenRFS.git"
+path = "/project/env.d/jenv/dev/GenRFS"
 uuid = "56ab6c88-a2ab-44ec-99ca-7b9069b439c2"
 version = "0.1.0"
 

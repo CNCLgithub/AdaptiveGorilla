@@ -37,9 +37,13 @@ function Gen_Compose.step!(chain::PFChain{<:SequentialQuery, <:AdaptiveParticleF
         println("Pruning particles...")
         pf_residual_resample!(state)
     end
+
     # update the state of the particles
     Gen.particle_filter_step!(state, args, argdiffs,
                               observations)
+
+    @show get_score(state.traces[1])
+
     @unpack attention = proc
     apply_protocol!(chain, attention)
     return nothing

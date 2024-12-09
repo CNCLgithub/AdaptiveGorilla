@@ -22,7 +22,7 @@ end
 function plan(pl::CollisionPlanner, state::InertiaState, wm::InertiaWM)
     @unpack mat, tol = pl
     @unpack walls = wm
-    @unpack singles, ensemble = state
+    @unpack singles, ensembles = state
     e = 0.0
     @inbounds for j = 1:length(singles)
         _e = 0.0

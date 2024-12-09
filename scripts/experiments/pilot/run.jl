@@ -27,7 +27,7 @@ end
 
 function main()
     trial = 2
-    duration = 20
+    duration = 5
     att_module = :ac
     dataset = "pilot"
     gorilla_color = Light

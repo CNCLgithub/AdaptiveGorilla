@@ -92,16 +92,23 @@ end
 
 get_pos(e::InertiaEnsemble) = e.pos
 get_vel(e::InertiaEnsemble) = e.vel
+rate(e::InertiaEnsemble) = e.rate
 
 struct InertiaState <: WorldState{InertiaWM}
     singles::AbstractVector{InertiaSingle}
-    ensemble::InertiaEnsemble
+    ensembles::AbstractVector{InertiaEnsemble}
+end
+
+function InertiaState(wm::InertiaWM,
+                      singles::AbstractVector{InertiaSingle})
+    # println("InertiaState ns=$(length(singles))")
+    InertiaState(singles, InertiaEnsemble[])
 end
 
 function InertiaState(wm::InertiaWM,
                       singles::AbstractVector{InertiaSingle},
-                      ensemble::InertiaEnsemble)
-    InertiaState(singles, ensemble)
+                      ensembles::AbstractVector{InertiaEnsemble})
+    InertiaState(singles, ensembles)
 end
 
 
@@ -128,33 +135,41 @@ end
 
 function step(wm::InertiaWM,
               state::InertiaState,
-              updates::AbstractVector{S2V},
-              eupdate::S3V)
-    @unpack singles, ensemble = state
-    step(wm, singles, ensemble, updates, eupdate)
+              supdates::AbstractVector{S2V},
+              eupdates::AbstractVector{S3V})
+    @unpack singles, ensembles = state
+    step(wm, singles, ensembles, supdates, eupdates)
 end
 
 function step(wm::InertiaWM,
               singles::AbstractVector{InertiaSingle},
-              ensemble::InertiaEnsemble,
-              updates::AbstractVector{S2V},
-              eupdate::S3V)
+              ensembles::AbstractVector{InertiaEnsemble},
+              supdates::AbstractVector{S2V},
+              eupdates::AbstractVector{S3V})
     @unpack walls = wm
-    n = length(singles)
-    new_singles = Vector{InertiaSingle}(undef, n)
-    @assert n == length(updates) "$(length(updates)) updates but only $n singles"
-    @inbounds for i = 1:n
+    ns = length(singles)
+    new_singles = Vector{InertiaSingle}(undef, ns)
+    @assert ns == length(supdates) "$(length(supdates)) updates but only $ns singles"
+    ne = length(ensembles)
+    new_ensembles = Vector{InertiaEnsemble}(undef, ne)
+    @assert ne == length(eupdates) "$(length(eupdates)) updates but only $ne ensembles"
+    @inbounds for i = 1:ns
         obj = singles[i]
         # force accumalator
-        facc = MVector{2, Float64}(updates[i])
+        facc = MVector{2, Float64}(supdates[i])
         # interactions with walls
         for w in walls
             force!(facc, wm, w, obj)
         end
         new_singles[i] = update_state(obj, wm, facc)
     end
-    new_ensemble = update_state(ensemble, wm, eupdate)
-    InertiaState(PersistentVector(new_singles), new_ensemble)
+    @inbounds for i = 1:ne
+        new_ensembles[i] = update_state(ensembles[i], wm,
+                                        eupdates[i])
+    end
+    # println("step ns=$(length(new_singles))")
+    InertiaState(PersistentVector(new_singles),
+                 PersistentVector(new_ensembles))
 end
 
 """Computes the force of A -> B"""
@@ -166,7 +181,7 @@ function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, s::InertiaSingle
     pos = get_pos(s)
     @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = wm
     n = LinearAlgebra.norm(w.normal .* pos + w.nd)
-    # f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
+    f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
     return nothing
 end
 
@@ -210,6 +225,7 @@ end
 
 
 function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
+    iszero(e.rate) && return e
     @unpack pos, vel, var = e
     f = S2V(update[1], update[2])
     bx, by = wm.dimensions
@@ -231,29 +247,34 @@ $(TYPEDSIGNATURES)
 The random finite elements corresponding to the world state.
 """
 function predict(wm::InertiaWM, st::InertiaState)
-    @unpack singles, ensemble = st
-    n = length(singles)
-    es = Vector{RandomFiniteElement{Detection}}(undef, n + 1)
+    @unpack singles, ensembles = st
+    ns = length(singles)
+    ne = length(ensembles)
+    es = Vector{RandomFiniteElement{Detection}}(undef, ns + ne)
     @unpack single_noise, material_noise, bbmin, bbmax = wm
     # add the single object representations
-    @inbounds for i in 1:n
+    @inbounds for i in 1:ns
         single = singles[i]
         pos = get_pos(single)
         args = (pos, single.size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
         # bw = inbounds(pos, bbmin, bbmax) ? 0.95 : 0.05
-        # es[i] = BernoulliElement{Detection}(bw, detect, args)
-        es[i] = IsoElement{Detection}(detect, args)
+        es[i] = PoissonElement{Detection}(1.0, detect, args)
+        # es[i] = IsoElement{Detection}(detect, args)
     end
     # the ensemble
-    @unpack matws, rate, pos, var = ensemble
-    mix_args = (matws,
-                [pos, pos],
-                [sqrt(var), sqrt(var)],
-                [1.0, 2.0],
-                [material_noise, material_noise])
-    es[n + 1] = PoissonElement{Detection}(rate, detect_mixture, mix_args)
+    @inbounds for i = 1:ne
+        @unpack matws, rate, pos, var = ensembles[i]
+        mix_args = (matws,
+                    [pos, pos],
+                    [sqrt(var), sqrt(var)],
+                    [1.0, 2.0],
+                    [material_noise, material_noise])
+        es[ns + i] =
+            PoissonElement{Detection}(rate, detect_mixture, mix_args)
+    end
+    # @show (ns, ne)
     return es
 end
 
@@ -287,7 +308,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[4] # :xs
+    xs_node = kernel_ir.call_nodes[6] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -360,24 +381,26 @@ function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
     n = length(positions)
     # prior over object partitioning
     cm[:init_state => :n] = n
-    cm[:init_state => :k] = target_count
     # prior over singles
-    for i = 1:target_count
+    for i = 1:n
         x, y = positions[i]
-        cm[:init_state => :singles => i => :material] = 1 # Light
+        color = i <= target_count ? 1 : 2 # Light : Dark
+        cm[:init_state => :singles => i => :material] = color
         cm[:init_state => :singles => i => :state => :x] = x
         cm[:init_state => :singles => i => :state => :y] = y
     end
-    # prior over ensemble
-    ex, ey = mean(positions[(target_count+1):n])
-    cm[:init_state => :ensemble => :plight] = 0.01
-    cm[:init_state => :ensemble => :state => :x] = ex
-    cm[:init_state => :ensemble => :state => :y] = ey
+    # # prior over ensemble
+    # ex, ey = mean(positions[(target_count+1):n])
+    # cm[:init_state => :ensemble => :plight] = 0.01
+    # cm[:init_state => :ensemble => :state => :x] = ex
+    # cm[:init_state => :ensemble => :state => :y] = ey
+    display(cm)
     return nothing
 end
 
 function birth_weight(wm::InertiaWM, st::InertiaState)
-    length(st.singles) + st.ensemble.rate <= wm.object_rate ?
+    @unpack singles, ensembles = st
+    length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
         wm.birth_weight : 0.0
 end
 
@@ -415,6 +438,7 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
         (e.rate .* get_vel(e) - (1 / e.rate) .* get_vel(x))
     delta = norm(get_pos(x) - get_pos(e)) * norm(get_pos(x) - new_pos)
     var = ((e.rate - 1) * e.var - delta) / (new_count - 1)
+    var = max(100.0, var)
     InertiaEnsemble(
         new_count,
         matws,
@@ -424,13 +448,77 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     )
 end
 
-# TODO: parameterize with world model
-function split_probability(st::InertiaState, wm::InertiaWM)
-    st.ensemble.rate <= 2 && return 0.0
-    y = sqrt(st.ensemble.var)
-    max(0., 0.5 * log(y / 500.0))
+function collapse(x::InertiaEnsemble)
+    InertiaSingle(
+        Material(argmax(x.matws)),
+        get_pos(x),
+        get_vel(x),
+    )
 end
 
+function apply_splits(wm::InertiaWM, st::InertiaState, splits)
+    all(isempty, splits) && return st
+    @unpack singles, ensembles = st
+    ne = length(ensembles)
+    @assert length(ensembles) == length(splits)
+    new_singles = Vector(singles)
+    new_ensembles = InertiaEnsemble[]
+    @inbounds for i = 1:ne
+        ens = ensembles[i]
+        if isempty(splits[i])
+            push!(new_ensembles, ens)
+            continue
+        end
+        for j = splits[i]
+            ens = apply_split(ens, j)
+            push!(new_singles, j)
+        end
+
+        if ens.rate > 1
+            push!(new_ensembles, ens)
+        else
+            @assert ens.rate >= 0 "nonsensical ensemble rate $(ens.rate)"
+            # ensemble -> individual
+            # REVIEW: this should be the end of splits
+            push!(new_singles, collapse(ens))
+        end
+    end
+    println("applied splits")
+    @show (length(singles), length(ensembles))
+    @show (length(new_singles), length(new_ensembles))
+    InertiaState(PersistentVector(new_singles),
+                 PersistentVector(new_ensembles))
+end
+
+# TODO: parameterize with world model
+function split_ppp(wm::InertiaWM, ensemble::InertiaEnsemble)
+    y = sqrt(ensemble.var)
+    ensemble.rate * max(0., 0.5 * log(y / 500.0))
+end
+
+const SplitRFS = RFGM(MRFS{InertiaSingle}(), (100, 1.0))
+
+function object_from_idx(st::InertiaState, x::Int64)
+    n = length(st.singles)
+    x <= n ? st.singles[x] : st.ensembles[x - n]
+end
+
+function all_pairs(st::InertiaState)
+    all_pairs(length(st.singles) + length(st.ensembles))
+end
+
+function all_pairs(n::Int64)
+    nk = binomial(n, 2)
+    xs = Vector{Int64}(undef, nk)
+    ys = Vector{Int64}(undef, nk)
+    c = 1
+    @inbounds for i = 1:(n-1), j = (i+1):n
+        xs[c] = i
+        ys[c] = j
+        c += 1
+    end
+    return (nk, xs, ys)
+end
 
 # TODO: Optimize for loop
 function apply_mergers(st::InertiaState, mergers::AbstractVector{T}) where {T<:Bool}
@@ -446,6 +534,45 @@ function apply_mergers(st::InertiaState, mergers::AbstractVector{T}) where {T<:B
 end
 
 
+function apply_mergers(st::InertiaState,
+                       xs::Vector{Int64},
+                       ys::Vector{Int64},
+                       mergers::AbstractVector{T}) where {T<:Bool}
+    iszero(count(mergers)) && return st
+    n = length(xs)
+    ns = length(st.singles)
+    ne = length(st.ensembles)
+    results = Dict{Int64, InertiaObject}()
+    mapping = Dict{Int64, Int64}()
+    remaining = trues(ns + ne)
+    @inbounds for i = 1:n
+        if mergers[i]
+            # lookup
+            x = xs[i]; y = ys[i]
+            remaining[x] = false
+            remaining[y] = false
+            xi = get!(mapping, x, x)
+            yi = get!(mapping, y, y)
+            a = get!(results, xi, object_from_idx(st, xi))
+            b = get!(results, yi, object_from_idx(st, yi))
+            # remap
+            delete!(results, xi)
+            delete!(results, yi)
+            mapping[x] = mapping[y] = xi
+            # merge
+            results[xi] = determ_merge(a, b)
+        end
+    end
+    singles = PersistentVector(st.singles[remaining[1:ns]])
+    new_ensembles = collect(InertiaEnsemble, values(results))
+    ensembles = vcat(new_ensembles, st.ensembles[remaining[(ns+1):end]])
+    println("applied mergers")
+    @show (count(mergers), ns, ne)
+    @show (length(singles), length(ensembles))
+    InertiaState(singles, ensembles)
+end
+
+
 function determ_merge(a::InertiaSingle, b::InertiaSingle)
     matws = zeros(NMAT)
     matws[Int64(a.mat)] += 1
@@ -454,9 +581,7 @@ function determ_merge(a::InertiaSingle, b::InertiaSingle)
     new_pos = 0.5 .* (get_pos(a) + get_pos(b))
     # REVIEW: dampen vel based on count?
     new_vel = 0.5 .* (get_vel(a) + get_vel(b))
-    var = sum((new_pos - get_pos(a)).^(2))
-    var += sum((new_pos - get_pos(b)).^(2))
-    var /= 3
+    var = norm(get_pos(a) - get_pos(b))
     InertiaEnsemble(
         2,
         matws,
@@ -520,19 +645,22 @@ end
 
 # TODO: parameterize with world model
 function merge_probability(a::InertiaSingle, b::InertiaSingle)
+    w = 0.05
     color = a.mat === b.mat ? 1.0 : 0.0
-    l2 = norm(get_pos(a) - get_pos(b))
+    l2 = norm(get_pos(a) - get_pos(b)) / max(a.size, b.size)
     ca = vec2_angle(get_vel(a), get_vel(b))
-    color * 0.5 * exp(-(l2 * ca) / max(a.size, b.size))
+    color * (w * exp(-(l2)) + w * exp(-ca))
 end
 
 function merge_probability(a::InertiaSingle, b::InertiaEnsemble)
+    w = 0.05
+    iszero(b.rate) && return 0.0
     color = b.matws[Int64(a.mat)]
     l2 = norm(get_pos(a) - get_pos(b)) / sqrt(b.var)
     ca = vec2_angle(get_vel(a), get_vel(b))
     # @show l2
     # @show ca
-    color * (0.4 * exp(-(l2)) + 0.1 * exp(-ca))
+    color * (w * exp(-(l2)) + w * exp(-ca))
 end
 
 function merge_probability(a::InertiaEnsemble, b::InertiaSingle)
@@ -540,8 +668,9 @@ function merge_probability(a::InertiaEnsemble, b::InertiaSingle)
 end
 
 function merge_probability(a::InertiaEnsemble, b::InertiaEnsemble)
-    color = norm(a.matws - b.matws)
+    w = 0.05
+    color = a.matws[1] == b.matws[1]
     l2 = norm(get_pos(a) - get_pos(b)) / (sqrt(b.var) + sqrt(a.var))
     ca = vec2_angle(get_vel(a), get_vel(b))
-    0.5 * exp(-(l2 * ca * color) / sqrt(max(a.var, b.var)))
+    !color ? 0.0 : w * exp(-(l2 * ca) / sqrt(max(a.var, b.var)))
 end

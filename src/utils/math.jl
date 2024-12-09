@@ -1,6 +1,9 @@
 export softmax,
     softmax!
 
+
+isbetween(x::Real, low::Real, high::Real) = (x >= low) && (x <= high)
+
 """
 $(TYPEDSIGNATURES)
 

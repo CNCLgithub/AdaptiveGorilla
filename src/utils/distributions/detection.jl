@@ -16,6 +16,14 @@ end
 intensity(x::Detection) = x.i
 position(x::Detection) = SVector{2, Float64}(x.x, x.y)
 
+import Base.isapprox
+
+function Base.isapprox(x::Detection, y::Detection)
+    Base.isapprox(x.x, y.x) &&
+        Base.isapprox(x.y, y.y) &&
+        Base.isapprox(x.i, y.i)
+end
+
 
 const DetectionRFS = RFGM(MRFS{Detection}(), (200, 10.0))
 

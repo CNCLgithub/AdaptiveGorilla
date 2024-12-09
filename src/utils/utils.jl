@@ -15,3 +15,10 @@ function init_walls(width::Real, height::Real)
     end
     return SVector{4, Wall}(ws)
 end
+
+
+import Base.keys
+
+function Base.keys(x::Base.Iterators.Filter)
+    Base.keys(collect(x))
+end

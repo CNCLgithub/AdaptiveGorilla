@@ -2,7 +2,7 @@ using Gen
 using Luxor
 using MOTCore
 using Parameters
-using MOTCore: _draw_circle
+using MOTCore: _draw_circle, _draw_text
 using AdaptiveGorilla
 using AdaptiveGorilla: inertia_init, InertiaSingle, InertiaEnsemble
 import MOTCore.paint
@@ -29,17 +29,21 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     # its cardinality (colour change or a number) )
 
     # println("\nobj_var $(obj.var)")
-    _draw_circle(get_pos(obj), sqrt(obj.var), "purple",
-         opacity = 1)
-        return nothing
-    end
+    std = sqrt(obj.var)
+    _draw_circle(get_pos(obj), std, "black";
+                 style = :stroke)
+    _draw_text("color: $(obj.matws); rate: $(obj.rate)", get_pos(obj))
+    return nothing
+end
 
 """
 Applies the painter to each element in the world state
 """
 function MOTCore.paint(p::Painter, st::InertiaState,
                        ws::Vector{Float64} = Float64[])
-    paint(p, st.ensemble)
+    for e = st.ensembles
+        paint(p, e)
+    end
 
     for o in st.singles
         paint(p, o)
@@ -68,9 +72,9 @@ function MOTCore.paint(state::InertiaState, ws::Vector{Float64})
         _draw_circle(pos, radius, "red", opacity = 0.8)
     end
 
-    pos = get_pos(state.ensemble)
-    radius = 40.0 * ws[end]
-    _draw_circle(pos, radius, "red", opacity = 0.8)
+    # pos = get_pos(state.ensemble)
+    # radius = 40.0 * ws[end]
+    # _draw_circle(pos, radius, "red", opacity = 0.8)
     return nothing
 end
 
