@@ -308,7 +308,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[6] # :xs
+    xs_node = kernel_ir.call_nodes[5] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -411,7 +411,7 @@ function add_baby_from_switch(prev, baby, idx)
 end
 
 function ensemble_var(wm::InertiaWM, spread::Float64)
-    var = 100.0 * spread * wm.single_size # (min(wm.area_width, wm.area_height))
+    var = spread * wm.single_size^2
 end
 
 
@@ -436,7 +436,8 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
         (e.rate .* get_pos(e) - (1 / e.rate) .* get_pos(x))
     new_vel = (1 / new_count) .*
         (e.rate .* get_vel(e) - (1 / e.rate) .* get_vel(x))
-    delta = norm(get_pos(x) - get_pos(e)) * norm(get_pos(x) - new_pos)
+    delta = sqrt(norm(get_pos(x) - get_pos(e)) *
+        norm(get_pos(x) - new_pos))
     var = ((e.rate - 1) * e.var - delta) / (new_count - 1)
     var = max(100.0, var)
     InertiaEnsemble(
@@ -533,6 +534,14 @@ function apply_mergers(st::InertiaState, mergers::AbstractVector{T}) where {T<:B
     InertiaState(singles, ens)
 end
 
+function get_maybe_add!(d::Dict, i::Int64, st::InertiaState)
+    if haskey(d, i)
+        return d[i]
+    else
+        o = d[i] = object_from_idx(st, i)
+        return o
+    end
+end
 
 function apply_mergers(st::InertiaState,
                        xs::Vector{Int64},
@@ -547,14 +556,23 @@ function apply_mergers(st::InertiaState,
     remaining = trues(ns + ne)
     @inbounds for i = 1:n
         if mergers[i]
-            # lookup
+            # lookup indeces
             x = xs[i]; y = ys[i]
             remaining[x] = false
             remaining[y] = false
+            # Int -> Int
             xi = get!(mapping, x, x)
             yi = get!(mapping, y, y)
-            a = get!(results, xi, object_from_idx(st, xi))
-            b = get!(results, yi, object_from_idx(st, yi))
+            # println("joining $x -> $y ($(xi) -> $(yi))")
+            if xi == yi
+                # println("\t already merged")
+                # already merged
+                continue
+            end
+            # Retrieve objects Int -> Obj
+            a = get_maybe_add!(results, xi, st)
+            b = get_maybe_add!(results, yi, st)
+            # println("\tx: $(typeof(a))\n\ty: $(typeof(b))")
             # remap
             delete!(results, xi)
             delete!(results, yi)
@@ -566,9 +584,9 @@ function apply_mergers(st::InertiaState,
     singles = PersistentVector(st.singles[remaining[1:ns]])
     new_ensembles = collect(InertiaEnsemble, values(results))
     ensembles = vcat(new_ensembles, st.ensembles[remaining[(ns+1):end]])
-    println("applied mergers")
-    @show (count(mergers), ns, ne)
-    @show (length(singles), length(ensembles))
+    # println("applied mergers")
+    # @show (count(mergers), ns, ne)
+    # @show (length(singles), sum(rate, ensembles))
     InertiaState(singles, ensembles)
 end
 
@@ -605,11 +623,11 @@ function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
     delta = sqrt(norm(get_pos(a) - get_pos(b)) *
         norm(get_pos(a) - new_pos))
     var = ((b.rate - 1) * b.var + delta) / (new_count - 1)
-    @show merge_probability(a, b)
-    @show a.pos
-    @show b.pos
-    @show delta
-    @show (b.var, var)
+    # @show merge_probability(a, b)
+    # @show a.pos
+    # @show b.pos
+    # @show delta
+    # @show (b.var, var)
     InertiaEnsemble(
         new_count,
         matws,
@@ -631,9 +649,6 @@ function determ_merge(a::InertiaEnsemble, b::InertiaEnsemble)
         (b.rate / new_count) .* get_pos(b)
     new_vel = (a.rate / new_count) .* get_vel(a) +
         (b.rate / new_count) .* get_vel(b)
-    # REVIEW: this feels different than the other
-    # formulations
-    #
     var = a.var + b.var
     InertiaEnsemble(
         new_count,
@@ -670,8 +685,8 @@ end
 
 function merge_probability(a::InertiaEnsemble, b::InertiaEnsemble)
     w = 0.05
-    color = a.matws[1] == b.matws[1] # HACK
-    l2 = norm(get_pos(a) - get_pos(b)) / (sqrt(b.var) + sqrt(a.var))
+    color = abs(a.matws[1] - b.matws[1]) # HACK
+    l2 = norm(get_pos(a) - get_pos(b)) / (sqrt(b.var + a.var))
     ca = vec2_angle(get_vel(a), get_vel(b))
     color * (w * exp(-(l2)) + w * exp(-ca))
 end

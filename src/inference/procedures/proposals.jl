@@ -25,7 +25,7 @@ end
 
 function single_ancestral_proposal(trace::InertiaTrace,
                                    single::Int)
-    println("single ancestral proposal")
+    # println("single ancestral proposal")
     # need to see if idx corresponds to:
     # 1. gorilla
     # 2. normal individual

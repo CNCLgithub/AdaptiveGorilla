@@ -157,6 +157,11 @@ end
     return result
 end
 
+@gen static function split_merge_kernel(st::InertiaState, wm::InertiaWM)
+    merge ~ merge_kernel(st, wm)
+    sm::InertiaState = @trace(split_kernel(merge, wm), :split)
+    return sm
+end
 
 ################################################################################
 # Dynamics
@@ -187,28 +192,25 @@ end
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
-    # Random nudges
-    ns = length(prev.singles)
-    ne = length(prev.ensembles)
-    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), prev.singles)
-    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), prev.ensembles)
-    shifted::InertiaState = step(wm, prev, forces, eshifts)
+    # Split-merge
+    s1 ~ split_merge_kernel(prev, wm)
 
-    # check variance
-    # bernoulli weights
-    merge ~ merge_kernel(shifted, wm)
-    sm = @trace(split_kernel(merge, wm), :split)
-
+    # Gorilla
     # REVIEW: add Death?
-    # Birth
-    singles = @trace(birth_process(wm, sm), :birth)
-    next::InertiaState = InertiaState(singles, sm.ensembles)
+    singles = @trace(birth_process(wm, s1), :birth)
+    s2::InertiaState = InertiaState(singles, s1.ensembles)
 
-    # predict observations as a random finite set
-    es = predict(wm, next)
+    # Random nudges
+    ns = length(singles)
+    ne = length(s2.ensembles)
+    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), s2.singles)
+    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), s2.ensembles)
+    s3::InertiaState = step(wm, s2, forces, eshifts)
+
+    # RFS observations
+    es = predict(wm, s3)
     xs ~ DetectionRFS(es)
-
-    return next
+    return s3
 end
 
 

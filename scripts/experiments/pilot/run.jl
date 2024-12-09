@@ -27,7 +27,7 @@ end
 
 function main()
     trial = 2
-    duration = 5
+    duration = 30
     att_module = :ac
     dataset = "pilot"
     gorilla_color = Light
@@ -43,7 +43,7 @@ function main()
     wm = InertiaWM(area_width = 1240.0,
                    area_height = 840.0,
                    birth_weight = 0.1,
-                   single_noise = 1.0,
+                   single_noise = 0.5,
                    stability = 0.90,
                    vel = 3.0,
                    force_low = 1.0,

@@ -42,7 +42,7 @@ export AdaptiveProtocol,
     partition::TracePartition{T} = InertiaPartition()
     planner::Planner{T} = CollisionPlanner(; mat = Light)
     divergence::PreMetric = Euclidean()
-    map_metric::PreMetric = WeightedEuclidean(S3V(0.1, 0.1, 0.8))
+    map_metric::PreMetric = WeightedEuclidean(S3V(0.075, 0.075, 0.85))
     base_steps::Int64 = 3
     buffer_size::Int64 = 100
 end
@@ -109,9 +109,9 @@ function apply_protocol!(chain::APChain, p::AdaptiveProtocol)
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
         remaining = l + base_steps
-        @show i
-        @show get_score(trace)
-        @show state.log_weights[i]
+        # @show i
+        # @show get_score(trace)
+        # @show state.log_weights[i]
         # Stage 2
         while remaining > 0
             # determine the importance of each latent
@@ -193,7 +193,7 @@ function importance(partition::TracePartition{T}, trace::T, tr::TREstimate,
         end
         ws[i] = gr
     end
-    importance = softmax(ws, 1.0)
+    importance = softmax(ws, 10.0)
 end
 
 function baby_attention_proposal()
