@@ -194,6 +194,8 @@ end
     eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), prev.ensembles)
     shifted::InertiaState = step(wm, prev, forces, eshifts)
 
+    # check variance
+    # bernoulli weights
     merge ~ merge_kernel(shifted, wm)
     sm = @trace(split_kernel(merge, wm), :split)
 

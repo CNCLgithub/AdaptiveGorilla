@@ -602,7 +602,8 @@ function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
     #     (b.rate / new_count) .* get_pos(b)
     new_vel = (1 / new_count) .* get_vel(a) +
         (b.rate / new_count) .* get_vel(b)
-    delta = norm(get_pos(a) - get_pos(b)) * norm(get_pos(a) - new_pos)
+    delta = sqrt(norm(get_pos(a) - get_pos(b)) *
+        norm(get_pos(a) - new_pos))
     var = ((b.rate - 1) * b.var + delta) / (new_count - 1)
     @show merge_probability(a, b)
     @show a.pos
@@ -632,8 +633,8 @@ function determ_merge(a::InertiaEnsemble, b::InertiaEnsemble)
         (b.rate / new_count) .* get_vel(b)
     # REVIEW: this feels different than the other
     # formulations
-    var = (a.rate / new_count) .* a.var +
-        (b.rate / new_count) .* b.var
+    #
+    var = a.var + b.var
     InertiaEnsemble(
         new_count,
         matws,
@@ -647,7 +648,7 @@ end
 function merge_probability(a::InertiaSingle, b::InertiaSingle)
     w = 0.05
     color = a.mat === b.mat ? 1.0 : 0.0
-    l2 = norm(get_pos(a) - get_pos(b)) / max(a.size, b.size)
+    l2 = norm(get_pos(a) - get_pos(b))
     ca = vec2_angle(get_vel(a), get_vel(b))
     color * (w * exp(-(l2)) + w * exp(-ca))
 end
@@ -669,8 +670,8 @@ end
 
 function merge_probability(a::InertiaEnsemble, b::InertiaEnsemble)
     w = 0.05
-    color = a.matws[1] == b.matws[1]
+    color = a.matws[1] == b.matws[1] # HACK
     l2 = norm(get_pos(a) - get_pos(b)) / (sqrt(b.var) + sqrt(a.var))
     ca = vec2_angle(get_vel(a), get_vel(b))
-    !color ? 0.0 : w * exp(-(l2 * ca) / sqrt(max(a.var, b.var)))
+    color * (w * exp(-(l2)) + w * exp(-ca))
 end
