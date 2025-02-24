@@ -44,5 +44,8 @@ function Gen_Compose.step!(chain::PFChain{<:SequentialQuery, <:AdaptiveParticleF
 
     @unpack attention = proc
     apply_protocol!(chain, attention)
+
+    # REVIEW: possibly add granularity controller here
+    # apply_controller!(chain, attention)
     return nothing
 end
