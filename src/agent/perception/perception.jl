@@ -1,20 +1,18 @@
-export AttentionProtocol,
-    AuxState,
-    apply_protocol!
-
-abstract type AttentionProtocol end
 
 """
-    AuxState(p::AttentionProtocol)
+    perceive!(::MentalState{T}, ::T, ::Choicemap) where {T<:PerceptionProtocol}
 
-Initialize the associated auxillary state.
+Infer updates to mental representations
 """
-function AuxState end
+function perceive! end
 
-# TODO : document
-function apply_protocol! end
+"""
+    PerceptionModule(::T, ...)::MentalModule{T} where {T<:PerceptionProtocol}
+
+Constructor that should be implemented by each `PerceptionProtocol`
+"""
+function PerceptionModule end
 
 include("proposals.jl")
-include("trace_partition.jl")
 include("particle_filter.jl")
-include("attention_protocols.jl")
+include("hyper_particle_protocol.jl")

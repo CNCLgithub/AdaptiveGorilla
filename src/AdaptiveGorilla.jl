@@ -17,8 +17,8 @@ using GenRFS
 using MOTCore
 using Distances
 using Accessors
-using Parameters
 using FillArrays
+using Parameters
 using Statistics
 using StaticArrays
 using Distributions
@@ -31,6 +31,11 @@ using FunctionalCollections
 include("utils/utils.jl")
 include("dgp/dgp.jl")
 include("gm/gm.jl")
+
+include("experiment.jl")
+
+include("agent/agent.jl")
+
 include("planner/planner.jl")
 include("inference/inference.jl")
 

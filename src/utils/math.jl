@@ -58,3 +58,13 @@ end
 function sosq(x::S2V, y::S2V)
     sum(@. (x - y)^(2))
 end
+
+function sigmoid(x::Float64, x0::Float64 = 0., m::Float64=1.0)
+    x = abs(x) # assume always positive 
+    1 / (1 + exp(-m*x + x0))
+end
+
+function sigmoid_grad(x::Float64, x0::Float64 = 0., m::Float64=1.0)
+    y = sigmoid(x, x0, m)
+    y * (1 - y)
+end
