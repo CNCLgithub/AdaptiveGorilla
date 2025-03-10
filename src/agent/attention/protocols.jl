@@ -106,14 +106,16 @@ function load(tr::TREstimate)
     return 20
 end
 
-function importance(partition::TracePartition{T},
-                    trace::T,
-                    tr::TREstimate,
-                    k::Int = 5) where {T<:Gen.Trace}
+function task_relevance(
+        partition::TracePartition{T},
+        trace::T,
+        tr::TREstimate,
+        k::Int = 5) where {T<:Gen.Trace}
     n = latent_size(partition, trace)
-    # No info yet -> uniform weights
-    isempty(tr) && return Fill(1.0 / n, n)
-    ws = Vector{Float64}(undef, n)
+    # REVIEW: case with empty estimate?
+    # No info yet -> -Inf
+    isempty(tr) && return Fill(-Inf, n)
+    tr = Vector{Float64}(undef, n)
     # Preallocating input results
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
     for i = 1:n
@@ -122,13 +124,24 @@ function importance(partition::TracePartition{T},
         gr = -Inf
         @inbounds for j = 1:k
             idx = idxs[j]
-            # @show idx
             d = max(dists[j], 1) # in case d = 0
             gr = logsumexp(gr, tr.trs[idx] - log(d))
         end
-        ws[i] = gr
+        tr[i] = gr
     end
-    importance = softmax(ws, 10.0)
+    return tr
+end
+
+function importance(partition::TracePartition{T},
+                    trace::T,
+                    tr::TREstimate,
+                    k::Int = 5) where {T<:Gen.Trace}
+    n = latent_size(partition, trace)
+    # No info yet -> uniform weights
+    isempty(tr) && return Fill(1.0 / n, n)
+    ws = task_relevance(partition, trace, tr, k)
+    # TODO: parameterize importance temp
+    softmax(ws, 10.0)
 end
 
 function attend!(chain::APChain, p::AdaptiveProtocol)
