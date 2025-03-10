@@ -30,14 +30,13 @@ end
 function granularity_objective(ag::MentalModule{G},
                                ac::MentalModule{A}
                                chain::APChain,
-    ) where {G<:AdaptiveGranularity, A<:AdaptiveProtocol}
+    ) where {G<:AdaptiveGranularity, A<:AdaptiveComputation}
     trs = task_relevance(ac, chain)
-     
-    
+    norm(trs) / length(trs)
 end
 
 function regranularize!(agent::Agent{V, P, A, M}) where {M<:AdaptiveGranularity,
-                                                         A<:AdaptiveProtocol,
+                                                         A<:AdaptiveComputation,
                                                          V<:HyperFilter, P}
     ws = zeros(hf.h)
     for i = 1:hf.h
@@ -49,7 +48,7 @@ function regranularize!(agent::Agent{V, P, A, M}) where {M<:AdaptiveGranularity,
 
 end
 
-function foo(chain::APChain, p::AdaptiveProtocol, g::AdaptiveGranularity)
+function foo(chain::APChain, p::AdaptiveComputation, g::AdaptiveGranularity)
     # Get object weights
     trs = compute_aligned_task_relevance(chain, p) # TODO
 

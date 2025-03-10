@@ -79,7 +79,7 @@ function test_pf()
     query = query_from_dataset(wm, dpath, 2, 10,
                                Light)
     # att = UniformProtocol()
-    att = AdaptiveProtocol()
+    att = AdaptiveComputation()
     proc = AdaptiveParticleFilter(particles = 30,
                                   attention = att)
     nsteps = length(query)

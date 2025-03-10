@@ -82,3 +82,11 @@ function estimate_marginal(perception<:MentalModule{T},
 
     return m
 end
+
+function resample_chains!(perception<:MentalModule{T},
+                          ws::Vector{Float64}) where {T<:HyperFilter}
+    pm, x = parse(perception)
+
+
+
+end

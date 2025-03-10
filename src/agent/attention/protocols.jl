@@ -34,11 +34,11 @@ function attend!(chain::APChain, p::UniformProtocol)
     return nothing
 end
 
-export AdaptiveProtocol,
+export AdaptiveComputation,
     AdaptiveAux,
-    TREstimate
+    SpatialMap
 
-@with_kw struct AdaptiveProtocol{T} <: AttentionProtocol
+@with_kw struct AdaptiveComputation{T} <: AttentionProtocol
     partition::TracePartition{T} = InertiaPartition()
     planner::Planner{T} = CollisionPlanner(; mat = Light)
     divergence::PreMetric = Euclidean()
@@ -47,32 +47,30 @@ export AdaptiveProtocol,
     buffer_size::Int64 = 100
 end
 
-mutable struct TREstimate
+mutable struct SpatialMap
     coords::CircularBuffer{S3V}
     trs::CircularBuffer{Float64}
     map::Union{Nothing, KDTree}
 end
 
-Base.isempty(x::TREstimate) = isempty(x.coords)
+Base.isempty(x::SpatialMap) = isempty(x.coords) || isempty(trs) || isnothing(map)
 
-function Base.empty!(x::TREstimate)
+function Base.empty!(x::SpatialMap)
     empty!(x.coords)
     empty!(x.trs)
     x.map = nothing
     return x
 end
 
-TREstimate(n::Int) = TREstimate(CircularBuffer{S3V}(n),
+SpatialMap(n::Int) = SpatialMap(CircularBuffer{S3V}(n),
                                 CircularBuffer{Float64}(n),
                                 nothing)
 
-mutable struct AdaptiveAux <: AuxillaryState
-    tr::TREstimate
-    new_tr::TREstimate
+mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
+    dpi::SpatialMap
+    ds::SpatialMap
 end
-AdaptiveAux(n::Int) = AdaptiveAux(TREstimate(n), TREstimate(n))
-
-AuxState(p::AdaptiveProtocol) = AdaptiveAux(p.buffer_size)
+AdaptiveAux(n::Int) = AdaptiveAux(SpatialMap(n), SpatialMap(n))
 
 function update_tr!(aux::AdaptiveAux,
                     partition::TracePartition{T},
@@ -86,7 +84,7 @@ function update_tr!(aux::AdaptiveAux,
     return nothing
 end
 
-function update_tr!(aux::AdaptiveAux, p::AdaptiveProtocol)
+function update_tr!(aux::AdaptiveAux, p::AdaptiveComputation)
     tr = aux.tr
     new_tr = aux.new_tr
     new_tr.map = KDTree(new_tr.coords, p.map_metric)
@@ -96,8 +94,9 @@ function update_tr!(aux::AdaptiveAux, p::AdaptiveProtocol)
     return nothing
 end
 
-function load(tr::TREstimate)
-    isempty(tr) && return 0
+# TODO: revisit after `importance`
+function load(p::AdaptiveComputation, x::AdaptiveAux)
+    (isempty(x.dpi) || isempty(x.ds)) && return 0
     x = logsumexp(tr.trs) - log(length(tr.trs))
     if isnan(x)
         display(tr.trs)
@@ -107,15 +106,16 @@ function load(tr::TREstimate)
 end
 
 function task_relevance(
+        x::AdaptiveAux,
         partition::TracePartition{T},
         trace::T,
-        tr::TREstimate,
         k::Int = 5) where {T<:Gen.Trace}
     n = latent_size(partition, trace)
+    @unpack dPi, dS = x
     # REVIEW: case with empty estimate?
     # No info yet -> -Inf
-    isempty(tr) && return Fill(-Inf, n)
-    tr = Vector{Float64}(undef, n)
+    isempty(tr) && return Fill(0.0, n)
+    tr = zeros(n)
     # Preallocating input results
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
     for i = 1:n
@@ -125,7 +125,7 @@ function task_relevance(
         @inbounds for j = 1:k
             idx = idxs[j]
             d = max(dists[j], 1) # in case d = 0
-            gr = logsumexp(gr, tr.trs[idx] - log(d))
+            gr = logsumexp(gr, dPi[idx] + dS[idx] - log(d))
         end
         tr[i] = gr
     end
@@ -134,7 +134,7 @@ end
 
 function importance(partition::TracePartition{T},
                     trace::T,
-                    tr::TREstimate,
+                    tr::SpatialMap,
                     k::Int = 5) where {T<:Gen.Trace}
     n = latent_size(partition, trace)
     # No info yet -> uniform weights
@@ -144,10 +144,11 @@ function importance(partition::TracePartition{T},
     softmax(ws, 10.0)
 end
 
-function attend!(chain::APChain, p::AdaptiveProtocol)
+function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputation}
+    p, aux = parse(att)
 
-    @unpack partition, planner, divergence, base_steps = p
-    @unpack state, auxillary = chain
+    @unpack partition, base_steps = p
+    @unpack state = chain
     @unpack tr = auxillary
 
     np = length(state.traces)
@@ -160,7 +161,7 @@ function attend!(chain::APChain, p::AdaptiveProtocol)
         while remaining > 0
             # determine the importance of each latent
             # can change across moves
-            w = importance(partition, trace, tr)
+            w = importance(partition, tr, trace)
             j = categorical(w) # select latent
             prop = select_prop(partition, trace, j)
 

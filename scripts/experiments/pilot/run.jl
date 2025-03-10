@@ -5,7 +5,7 @@ using DataFrames, CSV
 using AdaptiveGorilla
 
 att_modules = Dict(
-    :ac => AdaptiveProtocol,
+    :ac => AdaptiveComputation,
     :un => UniformProtocol
 )
 

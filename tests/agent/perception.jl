@@ -26,7 +26,7 @@ function test_pf()
                    gorilla_color, frames)
 
     # att = UniformProtocol()
-    att = AdaptiveProtocol()
+    att = AdaptiveComputation()
     proc = AdaptiveParticleFilter(particles = 10,
                                   attention = att)
     nsteps = length(query)
