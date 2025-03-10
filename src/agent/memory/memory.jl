@@ -27,7 +27,29 @@ struct AdaptiveGranularity <: GranularityProtocal
     object_steps::Int64
 end
 
-function adapt_granularity!(chain::APChain, p::AdaptiveProtocol, g::AdaptiveGranularity)
+function granularity_objective(ag::MentalModule{G},
+                               ac::MentalModule{A}
+                               chain::APChain,
+    ) where {G<:AdaptiveGranularity, A<:AdaptiveProtocol}
+    trs = task_relevance(ac, chain)
+     
+    
+end
+
+function regranularize!(agent::Agent{V, P, A, M}) where {M<:AdaptiveGranularity,
+                                                         A<:AdaptiveProtocol,
+                                                         V<:HyperFilter, P}
+    ws = zeros(hf.h)
+    for i = 1:hf.h
+        ws[i] = granularity_objective(ag, vstate.chains[i], astate)
+    end
+
+    ws = softmax(ws)
+    resample_chains!(vstate, ws)
+
+end
+
+function foo(chain::APChain, p::AdaptiveProtocol, g::AdaptiveGranularity)
     # Get object weights
     trs = compute_aligned_task_relevance(chain, p) # TODO
 
