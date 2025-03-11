@@ -68,3 +68,51 @@ function sigmoid_grad(x::Float64, x0::Float64 = 0., m::Float64=1.0)
     y = sigmoid(x, x0, m)
     y * (1 - y)
 end
+
+function l2log(x::Vector{T}) where {T<:Real}
+    logsqs = T(-Inf)
+    n = length(x)
+    @inbounds for i = 1:n
+        logsqs = logsumexp(2 * x[i], logsqs)
+    end
+    return logsqs
+end
+
+
+# NOTE: from: https://www.geeksforgeeks.org/program-calculate-value-ncr/
+function ncr(n::Int, r::Int)
+    # If r is greater than n, return 0
+    (r > n) && return 0
+    # If r is 0 or equal to n, return 1
+    (r == 0 || n == r) && return 1
+    # Initialize the logarithmic sum to 0
+    res = 0.0
+    # Calculate the logarithmic sum of 
+    # the numerator and denominator using loop
+    for i = 0:(r-1)
+        # Add the logarithm of (n-i) 
+        # and subtract the logarithm of (i+1)
+        res += log(n-i) - log(i+1)
+    end
+    # Convert logarithmic sum back to a normal number
+    round(Int, exp(res))
+end
+
+# NOTE: from: https://stackoverflow.com/a/794
+function combination(n::Int, p::Int, x::Int)
+    r = k = 0
+    c = Vector{Int}(undef, p)
+    @assert x <= ncr(n, p) "$(x)th lexical index DNE!"
+    for i = 0:(p-2)
+        c[i+1] = (i != 0) ? c[i] : 0
+        while true # do-while in julia
+            c[i+1] += 1
+            r = ncr(n - c[i+1], p - (i+1))
+            k = k + r
+            (k < x) || break
+        end
+        k = k - r
+    end
+    c[p] = c[p-1] + x - k
+    return c
+end

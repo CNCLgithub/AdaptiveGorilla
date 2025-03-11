@@ -1,16 +1,18 @@
 export HyperFilter,
        HyperState
 
-struct HyperFilter{P<:AbstractParticleFilter
+@with_kw struct HyperFilter{P<:AbstractParticleFilter
                   } <: PerceptionModule{W}
     "Number of hyper particle chains"
-    h::Int
+    h::Int = 4
     "Number of observations per epoch"
-    dt::Int
+    dt::Int = 12
     "Particle filter procedure"
     pf::P
-    # e.g., :kernel => x.time => :xs
-    time_prefix::Function
+    "Maps an integer to the time address in GM"
+    time_prefix::Function = x::Int -> :kernel => x => :xs
+    "Temperate for hyper particle resampling"
+    resample_temp::Float64 = 1.0
 end
 
 mutable struct HyperState <: MentalState{HyperFilter}
@@ -39,7 +41,7 @@ end
 
 function perceive!(perception<:MentalModule{T},
                    attention<:MentalModule{A},
-                   update::Gen.ChoiceMap
+                   obs::Gen.ChoiceMap
     ) where {T<:HyperFilter, A<:AttentionProtocol}
 
     pm, x = parse(perception)
@@ -54,7 +56,7 @@ function perceive!(perception<:MentalModule{T},
         chain.query = increment(chain.query, cm, new_args)
         # Stage 1: initial approximation of S^t
         step!(chain)
-        # Stage 2: attention
+        # Stage 2: attention, records dS
         attend!(chain, attention)
         chain.step += 1
         # update reference in perception module

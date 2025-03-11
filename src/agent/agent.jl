@@ -68,11 +68,11 @@ end
 function step_agent!(agent::Agent, exp::Gorillas)
 
     obs = get_obs(exp, step)
-
+    # S, attention, dS
     perceive!(agent, obs)
-
+    # Pi, dPi
     plan!(agent)
-
+    # New granularity
     regranulize!(agent)
 
 end
