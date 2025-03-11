@@ -45,16 +45,15 @@ function plan!(planner::MentalModule{T},
 end
 
 function plan_with_delta_pi!(pl::CollisionCounter, att<:AttentionProtocol, tr::InertiaTrace)
-    att_protocol, att_state = parse(att)
     _, wm = get_args(tr)
     _, states = get_retval(tr)
     state = last(states)
     @unpack walls = wm
+
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
     ep = 0.0
-    dpi = 0.0
     @inbounds for j = 1:ns
         dpi = 0.0
         single = singles[j]
@@ -63,9 +62,9 @@ function plan_with_delta_pi!(pl::CollisionCounter, att<:AttentionProtocol, tr::I
         # consider each wall
         # REVIEW: maybe just look at closest wall?
         for k = 1:4 # each wall
-            (ep, dpi) += energy(walls[k], single)
+            (ep, dpi) += colprob_and_agrad(single, walls[k])
         end
-        write_delta_pi!(att, single, dpi)
+        update_dPi!(att, single, log(dpi))
     end
     # TODO: energy for ensembles
     #

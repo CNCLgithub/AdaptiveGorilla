@@ -45,11 +45,15 @@ export AdaptiveComputation,
     map_metric::PreMetric = WeightedEuclidean(S3V(0.075, 0.075, 0.85))
     base_steps::Int64 = 3
     buffer_size::Int64 = 100
+    "Number of nearest neighbors"
+    nns::Int64 = 5
+    "Importance softmax temperature"
+    itemp::Float64 = 1.0
 end
 
 mutable struct SpatialMap
     coords::CircularBuffer{S3V}
-    trs::CircularBuffer{Float64}
+    samples::CircularBuffer{Float64}
     map::Union{Nothing, KDTree}
 end
 
@@ -57,7 +61,7 @@ Base.isempty(x::SpatialMap) = isempty(x.coords) || isempty(trs) || isnothing(map
 
 function Base.empty!(x::SpatialMap)
     empty!(x.coords)
-    empty!(x.trs)
+    empty!(x.samples)
     x.map = nothing
     return x
 end
@@ -66,31 +70,47 @@ SpatialMap(n::Int) = SpatialMap(CircularBuffer{S3V}(n),
                                 CircularBuffer{Float64}(n),
                                 nothing)
 
-mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
-    dpi::SpatialMap
-    ds::SpatialMap
-end
-AdaptiveAux(n::Int) = AdaptiveAux(SpatialMap(n), SpatialMap(n))
+function integrate!(idxs::Vector{Int32},
+                    dists::Vector{Float32}, coord,
+                    sm::SpatialMap)
+    k = min(length(idxs), length(dists))
+    knn!(idxs, dists, sm.map, coord, k)
+    x = -Inf
+    @inbounds for j = 1:k
+        idx = idxs[j]
+        d = max(dists[j], 1) # in case d = 0
+        x = logsumexp(x, sm.samples[idx] - log(d))
+    end
+return x
 
-function update_tr!(aux::AdaptiveAux,
-                    partition::TracePartition{T},
-                    trace::T,
-                    j::Int, delta::Float64) where {T}
-    coord = get_coord(partition, trace, j)
-    # @show coord
-    # @show delta
-    push!(aux.new_tr.coords, coord)
-    push!(aux.new_tr.trs, delta)
+mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
+    dPi::SpatialMap
+    dS::SpatialMap
+    mag::Float64
+end
+AdaptiveAux(n::Int) = AdaptiveAux(SpatialMap(n), SpatialMap(n), -Inf)
+
+Base.isempty(x::AdaptiveAux) = isempty(x.dPi) || isempty(dS)
+
+
+function update_dPi!(att::MentalModule{A},
+                     obj::InertiaObject,
+                     delta::Float64) where {A<:AdaptiveComputation}
+    _, aux = parse(att)
+    coord = get_coord(obj)
+    push!(aux.dPi.coords, coord)
+    push!(aux.dPi.samples, delta)
     return nothing
 end
 
-function update_tr!(aux::AdaptiveAux, p::AdaptiveComputation)
-    tr = aux.tr
-    new_tr = aux.new_tr
-    new_tr.map = KDTree(new_tr.coords, p.map_metric)
-    aux.tr = new_tr
-    empty!(tr)
-    aux.new_tr = tr
+function update_dS!(att::MentalModule{A},
+        partition::TracePartition{T},
+        trace::T,
+        j::Int, delta::Float64) where {A<:AdaptiveComputation, T}
+    _, aux = parse(att)
+    coord = get_coord(partition, trace, j)
+    push!(aux.dS.coords, coord)
+    push!(aux.dS.samples, delta)
     return nothing
 end
 
@@ -110,49 +130,31 @@ function task_relevance(
         partition::TracePartition{T},
         trace::T,
         k::Int = 5) where {T<:Gen.Trace}
-    n = latent_size(partition, trace)
     @unpack dPi, dS = x
-    # REVIEW: case with empty estimate?
+    n = latent_size(partition, trace)
+    # NOTE: case with empty estimate?
     # No info yet -> -Inf
-    isempty(tr) && return Fill(0.0, n)
+    isempty(x) && return Fill(-Inf, n)
     tr = zeros(n)
     # Preallocating input results
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
     for i = 1:n
         coord = get_coord(partition, trace, i)
-        knn!(idxs, dists, tr.map, coord, k)
-        gr = -Inf
-        @inbounds for j = 1:k
-            idx = idxs[j]
-            d = max(dists[j], 1) # in case d = 0
-            gr = logsumexp(gr, dPi[idx] + dS[idx] - log(d))
-        end
-        tr[i] = gr
+        _dpi = integrate!(idxs, dists, coord, dPi)
+        _ds  = integrate!(idxs, dists, coord, dS )
+        tr[i] = _dpi + _ds - log(k)
     end
     return tr
 end
 
-function importance(partition::TracePartition{T},
-                    trace::T,
-                    tr::SpatialMap,
-                    k::Int = 5) where {T<:Gen.Trace}
-    n = latent_size(partition, trace)
-    # No info yet -> uniform weights
-    isempty(tr) && return Fill(1.0 / n, n)
-    ws = task_relevance(partition, trace, tr, k)
-    # TODO: parameterize importance temp
-    softmax(ws, 10.0)
-end
-
 function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputation}
-    p, aux = parse(att)
+    protocol, aux = parse(att)
 
-    @unpack partition, base_steps = p
+    @unpack partition, base_steps, nns, itemp = protocol
     @unpack state = chain
-    @unpack tr = auxillary
 
     np = length(state.traces)
-    l = load(tr) # load is shared across particles
+    l = load(aux) # load is shared across particles
 
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
@@ -161,28 +163,25 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         while remaining > 0
             # determine the importance of each latent
             # can change across moves
-            w = importance(partition, tr, trace)
-            j = categorical(w) # select latent
+            deltas = task_relevance(aux, partition, trace, nns)
+            importance = softmax(deltas, itemp)
+            # select latent and C_k
+            j = categorical(importance) 
             prop = select_prop(partition, trace, j)
-
-            # Apply computation, determine dS, dPi
+            # Apply computation, estimate dS
             new_trace, alpha = prop(trace)
             dS = min(alpha, 0.)
             if log(rand()) < alpha # update particle
                 trace = new_trace
                 state.log_weights[i] += alpha
             end
-            # REVIEW: continually updating partition map
-            # Does this make AC not invertible?
-            # - Actually, an internal TRE is update so this
-            # does not change the probablities for the current
-            # time step
-            update_delta_s!(auxillary, partition, trace, j, dS)
+            # NOTE: continually updating partition map
+            update_dS!(att, partition, trace, j, dS)
             remaining -= 1
         end
 
         # baby block
-        # REVIEW: remove?
+        # NOTE: Not sure if needed
         for _ = 1:base_steps
             new_trace, w = baby_ancestral_proposal(trace)
             if log(rand()) < w
@@ -192,9 +191,6 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         end
         state.traces[i] = trace
     end
-
-    # swap internal references
-    update_tr!(auxillary, p)
 
     return nothing
 end

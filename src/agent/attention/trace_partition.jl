@@ -55,6 +55,32 @@ function latent_size(partition::InertiaPartition, tr::InertiaTrace)
     return n
 end
 
+function get_obj(partition::InertiaPartition,
+        trace::InertiaTrace, i::Int)
+
+    t = first(get_args(trace))
+    state = trace[:kernel => t]
+    ns = length(state.singles)
+    ne = length(state.ensembles)
+    idx = i
+    if !partition.singles
+        idx += ns # jump past singles
+    end
+    if !partition.ensemble
+        idx += ne # jump past ensembles
+    end
+    x = if idx <= ns
+        state.singles[idx]
+    elseif isbetween(idx, ns + 1, ne)
+        state.ensembles[idx - ns]
+    else
+        error("Index $(i) not in trace")
+    end
+    return x
+end
+
+get_coord(x::InertiaSingle) = S3V(get_pos(x)..., Float64(Int(x.mat)))
+get_coord(x::InertiaEnsemble) = S3V(get_pos(x)..., mean(x.matws))
 
 function get_coord(partition::InertiaPartition,
                    trace::InertiaTrace, i::Int)
@@ -71,10 +97,10 @@ function get_coord(partition::InertiaPartition,
     end
     coord = if idx <= ns
         x = state.singles[idx]
-        S3V(get_pos(x)..., Float64(Int(x.mat)))
+        get_coord(x)
     elseif isbetween(idx, ns + 1, ne)
         y = state.ensembles[idx - ns]
-        S3V(get_pos(y)..., mean(y.matws))
+        get_coord(y)
     else
         S3V(0., 0., 0.) # REVIEW: not sure where baby should go
     end
