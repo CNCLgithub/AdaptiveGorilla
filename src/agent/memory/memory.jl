@@ -46,10 +46,7 @@ function granularity_objective(ag::MentalModule{G},
         mag = logsumexp(mag, l2log(tr))
         len += length(tr)
     end
-    # Normalize
-    mag -= log(np)
-    len = log(len) - log(np)
-    mag - len
+    mag - log(len)
 end
 
 function sample_granularity(nsingle::Int, nensemble::Int)
