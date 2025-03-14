@@ -49,7 +49,7 @@ function granularity_objective(ag::MentalModule{G},
     mag - log(len)
 end
 
-function sample_granularity(nsingle::Int, nensemble::Int)
+function sample_granularity_move(nsingle::Int, nensemble::Int)
     ntotal = nsingle + nensemble
     nsplits = nensemble
     nmerges = ncr(ntotal, 2)
@@ -71,6 +71,7 @@ function regranularize!(mem::MentalModule{M},
              A<:AdaptiveComputation,
              V<:HyperFilter}
 
+    hf, vstate = parse(vis)
     ws = zeros(hf.h)
     for i = 1:hf.h
         ws[i] = granularity_objective(ag, vstate.chains[i], astate)
@@ -78,6 +79,12 @@ function regranularize!(mem::MentalModule{M},
 
     ws = softmax(ws)
     resample_chains!(vstate, ws)
+
+
+    for i = 1:hf.h
+        ws[i] = granularity_objective(ag, vstate.chains[i], astate)
+    end
+
 
 end
 

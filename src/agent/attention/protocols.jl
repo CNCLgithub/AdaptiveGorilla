@@ -104,8 +104,8 @@ function task_relevance(
     # NOTE: case with empty estimate?
     # No info yet -> -Inf
     isempty(x) && return Fill(-Inf, n)
-    tr = zeros(n)
-    # Preallocating input results
+    tr = Vector{Float64}(undef, n)
+    # Preallocating reused arrays
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
     for i = 1:n
         coord = get_coord(partition, trace, i)
