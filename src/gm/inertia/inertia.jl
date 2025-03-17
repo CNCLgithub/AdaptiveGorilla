@@ -398,6 +398,13 @@ function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
     return nothing
 end
 
+
+function get_last_state(t::IneritaTrace)
+    _, states = get_retval(t)
+    last(states)
+end
+
+
 function birth_weight(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
     length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
@@ -591,7 +598,7 @@ function apply_mergers(st::InertiaState,
 end
 
 
-function determ_merge(a::InertiaSingle, b::InertiaSingle)
+function apply_merge(a::InertiaSingle, b::InertiaSingle)
     matws = zeros(NMAT)
     matws[Int64(a.mat)] += 1
     matws[Int64(b.mat)] += 1
@@ -609,7 +616,7 @@ function determ_merge(a::InertiaSingle, b::InertiaSingle)
     )
 end
 
-function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
+function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     new_count = b.rate + 1
     matws = deepcopy(b.matws)
     lmul!(b.rate, matws)
@@ -637,11 +644,11 @@ function determ_merge(a::InertiaSingle, b::InertiaEnsemble)
     )
 end
 
-function determ_merge(a::InertiaEnsemble, b::InertiaSingle)
+function apply_merge(a::InertiaEnsemble, b::InertiaSingle)
     determ_merge(b, a)
 end
 
-function determ_merge(a::InertiaEnsemble, b::InertiaEnsemble)
+function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     new_count = a.rate + b.rate
     matws = a.rate .* a.matws + b.rate .* b.matws
     lmul!(1.0 / new_count, matws)

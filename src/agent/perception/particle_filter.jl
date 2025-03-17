@@ -57,3 +57,21 @@ function estimate_marginal(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticle
     end
     return acc
 end
+
+"""
+Returns the MAP trace
+"""
+function retrieve_map(chain::APChain)
+    @unpack state = chain
+    state.traces[argmax(state.log_weigths)]
+end
+
+function reinit_chain(chain::APChain)
+    traces = Vector{Any}(undef, num_particles)
+    log_weights = Vector{Float64}(undef, num_particles)
+    for i=1:num_particles
+        (traces[i], log_weights[i]) = generate(model, model_args, observations)
+    end
+    ParticleFilterState{U}(traces, Vector{U}(undef, num_particles),
+        log_weights, 0., collect(1:num_particles))
+end

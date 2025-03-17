@@ -49,20 +49,108 @@ function granularity_objective(ag::MentalModule{G},
     mag - log(len)
 end
 
-function sample_granularity_move(nsingle::Int, nensemble::Int)
+function shift_granularity(t::T, m::SplitMergeMove) where {T<:InertiaTrace)}
+    _, wm, _ = get_args(t)
+    state = get_last_state(t)
+    @unpack singles, ensembles = state
+    cm = choicemap()
+    if rand() > 0.5
+        ns = length(singles)
+        ne = length(ensemble)
+        sample_granularity_move!(cm, ns, ne)
+    else
+        cm[:s0 => :nsm] = 1 # no change
+    end
+    return cm
+end
+
+function sample_granularity_move!(cm<:Gen.ChoiceMap, nsingle::Int, nensemble::Int)
     ntotal = nsingle + nensemble
-    nsplits = nensemble
     nmerges = ncr(ntotal, 2)
     move = if nensemble > 0 && rand() > 0.5
         # sample which ensemble to split
-        SplitMove(rand(1:nensemble))
+        cm[:s0 => :nsm] = 2
+        cm[:s0 => :state => :idx] = rand(1:nensemble)
     else
         # sample which pair to merge
-        lex = rand(1:nmerges)
-        a, b = combination(ntotal, 2, lex)
-        MergeMove(a, b)
+        cm[:s0 => :nsm] = 3
+        cm[:s0 => :state => :pair] = rand(1:nmerges)
     end
+    return nothing
 end
+
+function apply_granularity_move(wm::InertiaWM, state::InertiaState, m::MergeMove)
+    @unpack singles, ensembles = state
+    ns = length(singles)
+    ne = length(ensembles)
+    a = object_from_idx(state, m.a)
+    b = object_from_idx(state, m.b)
+    e = apply_merge(a, b)
+    # need to determine what object types were merged
+    delta_ns = 0
+    delta_ns += isa(a, InertiaSingle) ? -1 : 0
+    delta_ns += isa(b, InertiaSingle) ? -1 : 0
+    delta_ne = 1
+    delta_ne += isa(a, InertiaEnsemble) ? -1 : 0
+    delta_ne += isa(b, InertiaEnsemble) ? -1 : 0
+    new_singles = Vector{InertiaSingle}(undef, ns + delta_ns)
+    new_ensembles = Vector{InertiaEnsemble}(undef, ne + delta_ne)
+    # Remove any merged singles
+    c = 1
+    for i = 1:ns
+        (isa(a, InertiaSingle) && i == m.a) && continue
+        (isa(b, InertiaSingle) && i == m.b) && continue
+        new_singles[c] = singles[i]
+    end
+    # Remove merged ensembles
+    c = 1
+    for i = 1:ne
+        (isa(a, InertiaEnsemble) && i == m.a) && continue
+        # replace `b` with `e`
+        # (keep new ensembles towards the end of the array)
+        if (isa(b, InertiaEnsemble) && i == m.b)
+            new_ensembles[c] = e
+        else
+            new_singles[c] = singles[i]
+        end
+        c += 1
+    end
+    InertiaState(new_singles, new_ensembles)
+end
+
+function apply_granularity_move(wm::InertiaWM, state::InertiaState, m::SplitMove)
+    @unpack singles, ensembles = state
+    ns = length(singles)
+    ne = length(ensembles)
+    e = ensembles[m.x]
+    # if the ensemble is a pair, we get two individuals
+    delta_ns = e.rate == 2 ? 2 : 1
+    delta_ne = e.rate == 2 ? -1 : 0
+    new_singles = Vector{InertiaSingle}(undef, ns + delta_ns)
+    new_ensembles = Vector{InertiaEnsemble}(undef, ne + delta_ne)
+    
+    new_singles[1:ns] = singles
+    if e.rate == 2 # E -> (S, S)
+        (a, b) = sample_split_pair(wm, x)
+        new_singles[ns + 1] = a
+        new_singles[ns + 2] = b
+        c = 1
+        for i = 1:ne
+            i == m.x && continue
+            new_ensembles[c] = ensembles[i]
+            c += 1
+        end
+    else # E -> (E', S)
+        s = sample_split(wm, x)
+        e = apply_split(e, s)
+        new_singles[ns + 1] = s
+        new_ensembles[:] = ensembles[1:ne]
+        new_ensembles[m.x] = e
+    end
+
+    InertiaState(new_singles, new_ensembles)
+end
+
 
 function regranularize!(mem::MentalModule{M},
                         att::MentalModule{A},
@@ -71,21 +159,26 @@ function regranularize!(mem::MentalModule{M},
              A<:AdaptiveComputation,
              V<:HyperFilter}
 
+    # Weight granularity objective
     hf, vstate = parse(vis)
     ws = zeros(hf.h)
     for i = 1:hf.h
         ws[i] = granularity_objective(ag, vstate.chains[i], astate)
     end
-
+    # Repopulate and shift granularity
     ws = softmax(ws)
-    resample_chains!(vstate, ws)
-
-
+    next_gen = multinomial(ws)
+    new_chains = Vector{APChain}(undef, hf.h)
     for i = 1:hf.h
-        ws[i] = granularity_objective(ag, vstate.chains[i], astate)
+        parent = vstate.chains[next_gen[i]] # PFChain
+        template = retrieve_map(parent) # InertiaTrace
+        cm = shift_granularity(template) # InertiaState
+        new_chains[i] = reinit_chain(parent, cm)
     end
 
-
+    vstate.age = 0 # TODO: 0 or 1? 
+    vstate.chains = new_chains
+    
 end
 
 function foo(chain::APChain, p::AdaptiveComputation, g::AdaptiveGranularity)

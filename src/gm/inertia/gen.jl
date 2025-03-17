@@ -110,8 +110,14 @@ end
 # Split-merge kernel
 ################################################################################
 
+@gen static function sample_split_pair(wm::InertiaWM, ens::InertiaEnsemble)
+    s1 ~ sample_split(wm, ens)
+    s2 ~ sample_split(wm, ens)
+    result = (s1, s2)
+    return result
+end
 
-@gen static function birth_split(wm::InertiaWM, ens::InertiaEnsemble)
+@gen static function sample_split(wm::InertiaWM, ens::InertiaEnsemble)
     ms = materials(wm)
     midx = @trace(categorical(ens.matws), :material)
     material = ms[midx]
@@ -135,12 +141,6 @@ end
     return splits
 end
 
-@gen function split_kernel(st::InertiaState, wm::InertiaWM)
-    ne = length(st.ensembles)
-    splits ~ Gen.Map(sample_split)(Fill(wm, ne), st.ensembles)
-    result::InertiaState = apply_splits(wm, st, splits)
-    return result
-end
 
 @gen static function sample_merge(st::InertiaState, x::Int64, y::Int64)
     a = object_from_idx(st, x)
@@ -213,15 +213,63 @@ end
     return s3
 end
 
+const inertia_unfold = Gen.Unfold(inertia_kernel)
 
+@gen static function no_sm(x::InertiaState, wm::InertiaWM)
+    return x
+end
+
+@gen static function split_ensemble(wm::InertiaWM, ens::InertiaEnsemble)
+    ms = materials(wm)
+    midx = @trace(categorical(ens.matws), :material)
+    material = ms[midx]
+    (ex, ey) = get_pos(ens)
+    x ~ normal(ex, sqrt(ens.var))
+    y ~ normal(ey, sqrt(ens.var))
+    (vx, vy) = get_vel(ens)
+    ang ~ von_mises(atan(vy, vx), 10.0)
+    mag ~ normal(norm(ens.vel), wm.force_low)
+    loc = S2V(x, y)
+    vel = S2V(mag*cos(ang), mag*sin(ang))
+    result::InertiaSingle = InertiaSingle(material, loc, vel)
+    return result
+end
+
+@gen static function inertia_split(st::InertiaState, wm::InertiaWM)
+    ne = length(st.ensembles)
+    idx ~ categorical(Fill(1.0 / ne, ne))
+    split ~ split_ensemble(wm, st.ensembles[idx])
+    # TODO: refactor `apply_granularity_move`
+    result::InertiaState = apply_granularity_move(Split(idx), wm, st, split)
+    return result
+end
+
+@gen static function inertia_merge(st::InertiaState, wm::InertiaWM)
+    ntotal = length(st.singles) + length(st.ensembles)
+    nmerges = ncr(ntotal, 2)
+    # sample lexographic index of 2-comb
+    pair ~ categorical(Fill(1.0 / nmerges, nmerges))
+    a, b = combination(ntotal, 2, pair)
+    # TODO: refactor `apply_granularity_move`
+    result::InertiaState = apply_granularity_move(Merge(a, b), wm, st)
+    return result
+end
+
+split_merge_switch = Switch(no_sm, inertia_split, inertia_merge)
+
+@gen static function inertia_granularity(wm::InertiaWM, x::InertiaState)
+    nsm ~ categorical([0.5, 0.25, 0.25]) # nothing - split - merge
+    state ~ split_merge_switch(nsm, x, wm)
+    return state
+end
 
 ################################################################################
 # Full models
 ################################################################################
 
-@gen static function wm_inertia(k::Int, wm::InertiaWM)
-    init_st = @trace(inertia_init(wm), :init_state)
-    states = @trace(Gen.Unfold(inertia_kernel)(k, init_st, wm), :kernel)
+@gen static function wm_inertia(k::Int, wm::InertiaWM, init_state::InertiaState)
+    s0 ~ inertia_granularity(wm, init_state)
+    kernel ~ inertia_unfold(k, s0, wm)
     result = (init_st, states)
     return result
 end
