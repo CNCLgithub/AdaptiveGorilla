@@ -36,4 +36,5 @@ function integrate!(idxs::Vector{Int32},
         d = max(dists[j], 1) # in case d = 0
         x = logsumexp(x, sm.samples[idx] - log(d))
     end
-return x
+    return x
+end

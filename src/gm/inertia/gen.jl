@@ -110,13 +110,6 @@ end
 # Split-merge kernel
 ################################################################################
 
-@gen static function sample_split_pair(wm::InertiaWM, ens::InertiaEnsemble)
-    s1 ~ sample_split(wm, ens)
-    s2 ~ sample_split(wm, ens)
-    result = (s1, s2)
-    return result
-end
-
 @gen static function sample_split(wm::InertiaWM, ens::InertiaEnsemble)
     ms = materials(wm)
     midx = @trace(categorical(ens.matws), :material)
@@ -133,14 +126,12 @@ end
     return result
 end
 
-@gen static function sample_split(wm::InertiaWM, ens::InertiaEnsemble)
-    r = split_ppp(wm, ens)
-    n ~ poisson(r)
-    c = min(Int64(ens.rate), n)
-    splits ~ Gen.Map(birth_split)(Fill(wm, c), Fill(ens, c))
-    return splits
+@gen static function sample_split_pair(wm::InertiaWM, ens::InertiaEnsemble)
+    s1 ~ sample_split(wm, ens)
+    s2 ~ sample_split(wm, ens)
+    result = (s1, s2)
+    return result
 end
-
 
 @gen static function sample_merge(st::InertiaState, x::Int64, y::Int64)
     a = object_from_idx(st, x)
@@ -148,19 +139,6 @@ end
     w = merge_probability(a, b) # how similar are a,b ?
     to_merge::Bool = @trace(bernoulli(w), :to_merge)
     return to_merge
-end
-
-@gen static function merge_kernel(st::InertiaState, wm::InertiaWM)
-    (nk, xs, ys) = all_pairs(st)
-    mergers ~ Gen.Map(sample_merge)(Fill(st, nk), xs, ys)
-    result::InertiaState = apply_mergers(st, xs, ys, mergers)
-    return result
-end
-
-@gen static function split_merge_kernel(st::InertiaState, wm::InertiaWM)
-    merge ~ merge_kernel(st, wm)
-    sm::InertiaState = @trace(split_kernel(merge, wm), :split)
-    return sm
 end
 
 ################################################################################
@@ -192,12 +170,10 @@ end
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
-    # Split-merge
-    s1 ~ split_merge_kernel(prev, wm)
 
     # Gorilla
     # REVIEW: add Death?
-    singles = @trace(birth_process(wm, s1), :birth)
+    singles = @trace(birth_process(wm, prev), :birth)
     s2::InertiaState = InertiaState(singles, s1.ensembles)
 
     # Random nudges

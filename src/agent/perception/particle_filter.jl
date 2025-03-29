@@ -2,7 +2,6 @@ export AdaptiveParticleFilter,
     APChain
 
 using GenParticleFilters
-using Gen_Compose
 using Gen_Compose: initial_args, initial_constraints,
     AuxillaryState, PFChain
 
@@ -29,6 +28,15 @@ function init_chain_common_aux(
     APChain(query, proc, state, aux, 1, typemax(1))
 end
 
+function PFChain{Q, P}(q::Q,
+                       p::P,
+                       n::Int,
+                       i::Int = 1) where
+        {Q<:IncrementalQuery,  P<:AdaptiveParticleFilter}
+    state = initialize_procedure(p, q)
+    aux = EmptyAuxState()
+    PFChain{Q, P}(q, p, state, aux, i, length(q))
+end
 
 function Gen_Compose.step!(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticleFilter})
     @unpack query, proc, state, step = chain

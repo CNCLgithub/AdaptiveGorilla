@@ -28,7 +28,7 @@ Defines the granularity mapping for a current trace format
 end
 
 function granularity_objective(ag::MentalModule{G},
-                               ac::MentalModule{A}
+                               ac::MentalModule{A},
                                chain::APChain,
     ) where {G<:AdaptiveGranularity, A<:AdaptiveComputation}
     attp, attx = parse(ac)
@@ -49,7 +49,7 @@ function granularity_objective(ag::MentalModule{G},
     mag - log(len)
 end
 
-function shift_granularity(t::T, m::SplitMergeMove) where {T<:InertiaTrace)}
+function shift_granularity(t::InertiaTrace, m::SplitMergeMove)
     _, wm, _ = get_args(t)
     state = get_last_state(t)
     @unpack singles, ensembles = state
@@ -64,7 +64,7 @@ function shift_granularity(t::T, m::SplitMergeMove) where {T<:InertiaTrace)}
     return cm
 end
 
-function sample_granularity_move!(cm<:Gen.ChoiceMap, nsingle::Int, nensemble::Int)
+function sample_granularity_move!(cm::Gen.ChoiceMap, nsingle::Int, nensemble::Int)
     ntotal = nsingle + nensemble
     nmerges = ncr(ntotal, 2)
     move = if nensemble > 0 && rand() > 0.5

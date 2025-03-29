@@ -399,7 +399,7 @@ function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
 end
 
 
-function get_last_state(t::IneritaTrace)
+function get_last_state(t::InertiaTrace)
     _, states = get_retval(t)
     last(states)
 end

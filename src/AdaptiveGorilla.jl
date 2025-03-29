@@ -20,6 +20,7 @@ using Accessors
 using FillArrays
 using Parameters
 using Statistics
+using Gen_Compose
 using StaticArrays
 using Distributions
 using LinearAlgebra
@@ -35,11 +36,6 @@ include("gm/gm.jl")
 include("experiment.jl")
 
 include("agent/agent.jl")
-
-include("planner/planner.jl")
-include("inference/inference.jl")
-
-
 
 
 end # module AdaptiveGorilla

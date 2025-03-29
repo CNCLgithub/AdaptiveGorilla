@@ -40,7 +40,6 @@ export AdaptiveComputation,
 
 @with_kw struct AdaptiveComputation{T} <: AttentionProtocol
     partition::TracePartition{T} = InertiaPartition()
-    planner::Planner{T} = CollisionPlanner(; mat = Light)
     divergence::PreMetric = Euclidean()
     map_metric::PreMetric = WeightedEuclidean(S3V(0.075, 0.075, 0.85))
     base_steps::Int64 = 3

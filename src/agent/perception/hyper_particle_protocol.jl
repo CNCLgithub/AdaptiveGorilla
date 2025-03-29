@@ -2,7 +2,7 @@ export HyperFilter,
        HyperState
 
 @with_kw struct HyperFilter{P<:AbstractParticleFilter
-                  } <: PerceptionModule{W}
+                  } <: PerceptionProtocol
     "Number of hyper particle chains"
     h::Int = 4
     "Number of observations per epoch"
@@ -16,31 +16,34 @@ export HyperFilter,
 end
 
 mutable struct HyperState <: MentalState{HyperFilter}
-    aux::AuxState
     chains::Vector{APChain}
     "age of local chains"
     age::Int64
 end
 
-function HyperState(m::HyperFilter, gm::GenarativeFunction,
-        wm::W, ws::WorldState{<:W}) where {W<:WorldModel}
+function HyperState(m::HyperFilter, wm::W, ws::WorldState{<:W}
+                    ) where {W<:WorldModel}
     pf = m.pf
-    aux = AuxState(pf.attention)
+    gm = gen_fn(wm)
+    args = (0, ws, wm) # t = 0
+    # argdiffs: only `t` changes
+    argdiffs = (Gen.UnknownChange(), Gen.NoChange(), Gen.NoChange())
+    q = IncrementalQuery(gm, Gen.choicemap(), args, argdiffs, 1)
     chains = Vector{APChain}(undef, m.h)
     @inbounds for i = 1:m.h
-        chains[i] = init_chain_common_aux(gm, wm, ws, m.pf)
+        chains[i] = initialize_chain(pf, q)
     end
-    return HyperState(aux, chains)
+    return HyperState(chains, 1)
 end
 
-function PerceptionModule(m::HyperFilter, gm::GenarativeFunction,
-        wm::W, ws::WorldState{<:W}) where {W<:WorldModel}
-    s = HyperState(m, gm, wm, ws)
+function PerceptionModule(m::HyperFilter, wm::W, ws::WorldState{<:W}
+                          ) where {W<:WorldModel}
+    s = HyperState(m, wm, ws)
     MentalModule(m, s)
 end
 
-function perceive!(perception<:MentalModule{T},
-                   attention<:MentalModule{A},
+function perceive!(perception::MentalModule{T},
+                   attention::MentalModule{A},
                    obs::Gen.ChoiceMap
     ) where {T<:HyperFilter, A<:AttentionProtocol}
 
@@ -67,7 +70,7 @@ function perceive!(perception<:MentalModule{T},
     return nothing
 end
 
-function estimate_marginal(perception<:MentalModule{T},
+function estimate_marginal(perception::MentalModule{T},
                            func::Function,
                            args::Tuple
     ) where {T<:HyperFilter}
@@ -83,12 +86,4 @@ function estimate_marginal(perception<:MentalModule{T},
     m *= 1.0 / pm.h
 
     return m
-end
-
-function resample_chains!(perception<:MentalModule{T},
-                          ws::Vector{Float64}) where {T<:HyperFilter}
-    pm, x = parse(perception)
-
-
-
 end

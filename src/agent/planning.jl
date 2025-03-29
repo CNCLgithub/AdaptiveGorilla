@@ -15,7 +15,7 @@ Constructor that should be implemented by each `PlanningProtocol`
 """
 function PlanningModule end
 
-@with_kw struct CollisionCounter <: Planner
+@with_kw struct CollisionCounter <: PlanningProtocol
     "Target appearance"
     mat::Material
     "Distance tolerance"
@@ -44,7 +44,7 @@ function plan!(planner::MentalModule{T},
     return nothing
 end
 
-function plan_with_delta_pi!(pl::CollisionCounter, att<:AttentionProtocol, tr::InertiaTrace)
+function plan_with_delta_pi!(pl::CollisionCounter, att::AttentionProtocol, tr::InertiaTrace)
     _, wm = get_args(tr)
     _, states = get_retval(tr)
     state = last(states)
