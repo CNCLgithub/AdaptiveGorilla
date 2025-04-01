@@ -8,7 +8,6 @@ using Gen_Compose: initial_args, initial_constraints,
 @with_kw struct AdaptiveParticleFilter <: Gen_Compose.AbstractParticleFilter
     particles::Int = 1
     ess::Real = particles * 0.5
-    attention::AttentionProtocol
 end
 
 
@@ -33,9 +32,12 @@ function PFChain{Q, P}(q::Q,
                        n::Int,
                        i::Int = 1) where
         {Q<:IncrementalQuery,  P<:AdaptiveParticleFilter}
-    state = initialize_procedure(p, q)
+    state = Gen.initialize_particle_filter(q.model,
+                                           q.args,
+                                           q.constraints,
+                                           p.particles)
     aux = EmptyAuxState()
-    PFChain{Q, P}(q, p, state, aux, i, length(q))
+    PFChain{Q, P}(q, p, state, aux, i, n)
 end
 
 function Gen_Compose.step!(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticleFilter})
@@ -49,7 +51,7 @@ function Gen_Compose.step!(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticle
     end
     # update the state of the particles
     Gen.particle_filter_step!(state, args, argdiffs,
-                              observations)
+                              query.constraints)
     return nothing
 end
 
@@ -71,7 +73,7 @@ Returns the MAP trace
 """
 function retrieve_map(chain::APChain)
     @unpack state = chain
-    state.traces[argmax(state.log_weigths)]
+    state.traces[argmax(state.log_weights)]
 end
 
 function reinit_chain(chain::APChain)

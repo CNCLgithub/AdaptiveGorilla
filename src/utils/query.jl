@@ -24,12 +24,12 @@ end
 
 function step_increment_args(next_args::Tuple, args::Tuple, argdiffs::Tuple)
     new_args = collect(args)
-    ndiff = count(x -> x <: UnknownChange, argdiffs)
+    ndiff = count(x -> isa(x, UnknownChange), argdiffs)
     @assert length(next_args) == ndiff "Length missmatch for diff args"
     c = 1
     @inbounds for i = 1:length(args)
-        if argdiffs[i] <: UnknownChange
-            new_arg[i] = next_args[c]
+        if isa(argdiffs[i], UnknownChange)
+            new_args[i] = next_args[c]
             c += 1
         end
     end

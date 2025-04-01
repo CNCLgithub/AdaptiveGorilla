@@ -174,19 +174,19 @@ end
     # Gorilla
     # REVIEW: add Death?
     singles = @trace(birth_process(wm, prev), :birth)
-    s2::InertiaState = InertiaState(singles, s1.ensembles)
+    s1::InertiaState = InertiaState(singles, prev.ensembles)
 
     # Random nudges
-    ns = length(singles)
-    ne = length(s2.ensembles)
-    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), s2.singles)
-    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), s2.ensembles)
-    s3::InertiaState = step(wm, s2, forces, eshifts)
+    ns = length(s1.singles)
+    ne = length(s1.ensembles)
+    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), s1.singles)
+    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), s1.ensembles)
+    s2::InertiaState = step(wm, s1, forces, eshifts)
 
     # RFS observations
-    es = predict(wm, s3)
+    es = predict(wm, s2)
     xs ~ DetectionRFS(es)
-    return s3
+    return s2
 end
 
 const inertia_unfold = Gen.Unfold(inertia_kernel)
@@ -216,7 +216,7 @@ end
     idx ~ categorical(Fill(1.0 / ne, ne))
     split ~ split_ensemble(wm, st.ensembles[idx])
     # TODO: refactor `apply_granularity_move`
-    result::InertiaState = apply_granularity_move(Split(idx), wm, st, split)
+    result::InertiaState = apply_granularity_move(SplitMove(idx), wm, st, split)
     return result
 end
 
@@ -227,14 +227,15 @@ end
     pair ~ categorical(Fill(1.0 / nmerges, nmerges))
     a, b = combination(ntotal, 2, pair)
     # TODO: refactor `apply_granularity_move`
-    result::InertiaState = apply_granularity_move(Merge(a, b), wm, st)
+    result::InertiaState = apply_granularity_move(MergeMove(a, b), wm, st)
     return result
 end
 
 split_merge_switch = Switch(no_sm, inertia_split, inertia_merge)
 
 @gen static function inertia_granularity(wm::InertiaWM, x::InertiaState)
-    nsm ~ categorical([0.5, 0.25, 0.25]) # nothing - split - merge
+    ws = split_merge_weights(wm, x)
+    nsm ~ categorical(ws) # nothing - split - merge
     state ~ split_merge_switch(nsm, x, wm)
     return state
 end
@@ -246,6 +247,5 @@ end
 @gen static function wm_inertia(k::Int, wm::InertiaWM, init_state::InertiaState)
     s0 ~ inertia_granularity(wm, init_state)
     kernel ~ inertia_unfold(k, s0, wm)
-    result = (init_st, states)
-    return result
+    return kernel
 end

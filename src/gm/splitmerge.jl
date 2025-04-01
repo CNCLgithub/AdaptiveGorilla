@@ -8,3 +8,15 @@
 
 # M(a::InertiaObject, b::InertiaObject) -> c::InertiaObject
 
+abstract type GranularityMove end
+
+struct SplitMove <: GranularityMove
+    x::Int64
+end
+
+struct MergeMove <: GranularityMove
+    a::Int64
+    b::Int64
+end
+
+const SplitMergeMove = Union{SplitMove, MergeMove}

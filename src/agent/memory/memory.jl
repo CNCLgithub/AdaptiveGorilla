@@ -2,19 +2,6 @@
 
 abstract type GranularityProtocal end
 
-abstract type GranularityMove end
-
-struct SplitMove <: GranularityMove
-    x::Int64
-end
-
-struct MergeMove <: GranularityMove
-    a::Int64
-    b::Int64
-end
-
-const SplitMergeMove = Union{SplitMove, MergeMove}
-
 """
 Defines the granularity mapping for a current trace format
 """
@@ -79,7 +66,7 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, nsingle::Int, nensemble::In
     return nothing
 end
 
-function apply_granularity_move(wm::InertiaWM, state::InertiaState, m::MergeMove)
+function apply_granularity_move(m::MergeMove, wm::InertiaWM, state::InertiaState)
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
@@ -90,9 +77,13 @@ function apply_granularity_move(wm::InertiaWM, state::InertiaState, m::MergeMove
     delta_ns = 0
     delta_ns += isa(a, InertiaSingle) ? -1 : 0
     delta_ns += isa(b, InertiaSingle) ? -1 : 0
-    delta_ne = 1
-    delta_ne += isa(a, InertiaEnsemble) ? -1 : 0
-    delta_ne += isa(b, InertiaEnsemble) ? -1 : 0
+    delta_ne = 0
+    if isa(a, InertiaSingle) && isa(b, InertiaSingle)
+        delta_ne = 1
+
+    elseif isa(a, InertiaEnsemble) && isa(b, InertiaEnsemble)
+        delta_ne = -1
+    end
     new_singles = Vector{InertiaSingle}(undef, ns + delta_ns)
     new_ensembles = Vector{InertiaEnsemble}(undef, ne + delta_ne)
     # Remove any merged singles
@@ -101,24 +92,29 @@ function apply_granularity_move(wm::InertiaWM, state::InertiaState, m::MergeMove
         (isa(a, InertiaSingle) && i == m.a) && continue
         (isa(b, InertiaSingle) && i == m.b) && continue
         new_singles[c] = singles[i]
+        c += 1
     end
     # Remove merged ensembles
     c = 1
     for i = 1:ne
-        (isa(a, InertiaEnsemble) && i == m.a) && continue
+        (isa(a, InertiaEnsemble) && i + ns == m.a) && continue
         # replace `b` with `e`
         # (keep new ensembles towards the end of the array)
-        if (isa(b, InertiaEnsemble) && i == m.b)
+        if (isa(b, InertiaEnsemble) && i + ns == m.b)
             new_ensembles[c] = e
         else
-            new_singles[c] = singles[i]
+            new_ensembles[c] = ensembles[i]
         end
         c += 1
+    end
+    # if there are no previous ensembles
+    if ne == 0
+        new_ensembles[c] = e
     end
     InertiaState(new_singles, new_ensembles)
 end
 
-function apply_granularity_move(wm::InertiaWM, state::InertiaState, m::SplitMove)
+function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState)
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)

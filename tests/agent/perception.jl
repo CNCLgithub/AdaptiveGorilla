@@ -24,17 +24,23 @@ function test_pf()
     frames = 10
     exp = Gorillas(dpath, wm, trial_idx, gorilla_idx,
                    gorilla_color, frames)
+    query = exp.init_query
+    proc = AdaptiveParticleFilter(particles = 10)
 
-    # att = UniformProtocol()
-    att = AdaptiveComputation()
-    proc = AdaptiveParticleFilter(particles = 10,
-                                  attention = att)
-    nsteps = length(query)
+    nsteps = length(exp.observations)
     logger = MemLogger(nsteps)
-    chain = run_chain(proc, query, nsteps, logger)
-    out = "/spaths/tests/inference"
-    isdir(out) || mkpath(out)
-    render_inference(wm, logger, out)
+    chain = Gen_Compose.initialize_chain(proc, query, nsteps)
+    for t = 1:(frames-1)
+        println("On frame $(t)")
+        obs = exp.observations[t]
+        new_args = (t,)
+        chain.query = increment(chain.query, obs, new_args)
+        step!(chain)
+    end
+    # chain = run_chain(proc, query, nsteps)
+    # out = "/spaths/tests/inference"
+    # isdir(out) || mkpath(out)
+    # render_inference(wm, logger, out)
 end;
 
 test_pf()

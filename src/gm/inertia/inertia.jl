@@ -376,26 +376,17 @@ function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
     return nothing
 end
 
-function write_initial_constraints!(cm::ChoiceMap, wm::InertiaWM, positions,
-                                    target_count = 4)
+function initial_state(wm::InertiaWM, positions, target_count::Int = 4)
     n = length(positions)
-    # prior over object partitioning
-    cm[:init_state => :n] = n
-    # prior over singles
+    singles = Vector{InertiaSingle}(undef, n)
+    println("Loaded $(n) objects")
     for i = 1:n
         x, y = positions[i]
-        color = i <= target_count ? 1 : 2 # Light : Dark
-        cm[:init_state => :singles => i => :material] = color
-        cm[:init_state => :singles => i => :state => :x] = x
-        cm[:init_state => :singles => i => :state => :y] = y
+        color = i <= target_count ? Light : Dark
+        # TODO: Check velocity
+        singles[i] = InertiaSingle(color, S2V(x, y), S2V(0., 0.))
     end
-    # # prior over ensemble
-    # ex, ey = mean(positions[(target_count+1):n])
-    # cm[:init_state => :ensemble => :plight] = 0.01
-    # cm[:init_state => :ensemble => :state => :x] = ex
-    # cm[:init_state => :ensemble => :state => :y] = ey
-    display(cm)
-    return nothing
+    InertiaState(singles, InertiaEnsemble[])
 end
 
 
@@ -407,6 +398,9 @@ end
 
 function birth_weight(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
+    @show length(singles)
+    @show length(ensembles)
+    display(ensembles)
     length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
         wm.birth_weight : 0.0
 end
@@ -414,11 +408,24 @@ end
 function add_baby_from_switch(prev, baby, idx)
     idx == 1 ?
         FunctionalCollections.push(prev.singles, baby) :
-        prev.singles
+        PersistentVector(prev.singles)
 end
 
 function ensemble_var(wm::InertiaWM, spread::Float64)
     var = spread * wm.single_size^2
+end
+
+function split_merge_weights(wm::InertiaWM, x::InertiaState)
+    ws = [2.0, 1.0, 1.0]
+    @unpack singles, ensembles = x
+    if isempty(ensembles)
+        ws[2] = 0.0
+    end
+    if isempty(singles)
+        ws[3] = 0.0
+    end
+    lmul!(1.0 / sum(ws), ws)
+    return ws
 end
 
 
@@ -645,7 +652,7 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
 end
 
 function apply_merge(a::InertiaEnsemble, b::InertiaSingle)
-    determ_merge(b, a)
+    apply_merge(b, a)
 end
 
 function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)

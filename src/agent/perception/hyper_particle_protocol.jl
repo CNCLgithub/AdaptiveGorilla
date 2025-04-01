@@ -21,19 +21,13 @@ mutable struct HyperState <: MentalState{HyperFilter}
     age::Int64
 end
 
-function HyperState(m::HyperFilter, wm::W, ws::WorldState{<:W}
-                    ) where {W<:WorldModel}
+function HyperState(m::HyperFilter, q::IncrementalQuery)
     pf = m.pf
-    gm = gen_fn(wm)
-    args = (0, ws, wm) # t = 0
-    # argdiffs: only `t` changes
-    argdiffs = (Gen.UnknownChange(), Gen.NoChange(), Gen.NoChange())
-    q = IncrementalQuery(gm, Gen.choicemap(), args, argdiffs, 1)
     chains = Vector{APChain}(undef, m.h)
     @inbounds for i = 1:m.h
         chains[i] = initialize_chain(pf, q)
     end
-    return HyperState(chains, 1)
+    return HyperState(chains, 0)
 end
 
 function PerceptionModule(m::HyperFilter, wm::W, ws::WorldState{<:W}
