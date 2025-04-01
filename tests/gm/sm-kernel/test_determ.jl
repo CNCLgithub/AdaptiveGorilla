@@ -1,3 +1,4 @@
+using Gen
 using MOTCore
 using AdaptiveGorilla
 using AdaptiveGorilla: inertia_init, apply_granularity_move,
@@ -42,7 +43,6 @@ function test_merge_single_ensemble()
     result = apply_granularity_move(MergeMove(1, 2), wm, state)
     @show length(result.ensembles)
     c = result.ensembles[1]
-    display(a.pos)
     display(a)
     display(b)
     display(c)
@@ -55,6 +55,7 @@ function test_merge_ensemble_ensemble()
     wm = InertiaWM()
     a = birth_ensemble(wm, 3.0)
     b = birth_ensemble(wm, 3.0)
+    state = InertiaState(InertiaSingle[], [a, b])
     # a = InertiaEnsemble(3.0,
     #                     [0.99, 0.01],
     #                     [0., 0.],
@@ -66,9 +67,12 @@ function test_merge_ensemble_ensemble()
     #                     20.,
     #                     [2.0, 0.0])
 
-
-    @show determ_merge(a, b)
-
+    result = apply_granularity_move(MergeMove(1, 2), wm, state)
+    @show length(result.ensembles)
+    c = result.ensembles[1]
+    display(a)
+    display(b)
+    display(c)
     return nothing
 end;
 
@@ -89,3 +93,4 @@ end
 
 test_merge_single_single();
 test_merge_single_ensemble();
+test_merge_ensemble_ensemble();

@@ -398,17 +398,15 @@ end
 
 function birth_weight(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
-    @show length(singles)
-    @show length(ensembles)
-    display(ensembles)
     length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
         wm.birth_weight : 0.0
 end
 
 function add_baby_from_switch(prev, baby, idx)
+    singles = PersistentVector(prev.singles)
     idx == 1 ?
-        FunctionalCollections.push(prev.singles, baby) :
-        PersistentVector(prev.singles)
+        FunctionalCollections.push(singles, baby) :
+        singles
 end
 
 function ensemble_var(wm::InertiaWM, spread::Float64)
@@ -499,8 +497,6 @@ function apply_splits(wm::InertiaWM, st::InertiaState, splits)
         end
     end
     println("applied splits")
-    @show (length(singles), length(ensembles))
-    @show (length(new_singles), length(new_ensembles))
     InertiaState(PersistentVector(new_singles),
                  PersistentVector(new_ensembles))
 end

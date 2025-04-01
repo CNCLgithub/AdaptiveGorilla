@@ -1,5 +1,6 @@
 export HyperFilter,
-       HyperState
+       HyperState,
+       PerceptionModule
 
 @with_kw struct HyperFilter{P<:AbstractParticleFilter
                   } <: PerceptionProtocol
@@ -25,19 +26,18 @@ function HyperState(m::HyperFilter, q::IncrementalQuery)
     pf = m.pf
     chains = Vector{APChain}(undef, m.h)
     @inbounds for i = 1:m.h
-        chains[i] = initialize_chain(pf, q)
+        chains[i] = Gen_Compose.initialize_chain(pf, q, m.dt)
     end
-    return HyperState(chains, 0)
+    return HyperState(chains, 1)
 end
 
-function PerceptionModule(m::HyperFilter, wm::W, ws::WorldState{<:W}
-                          ) where {W<:WorldModel}
-    s = HyperState(m, wm, ws)
+function PerceptionModule(m::HyperFilter, q::IncrementalQuery)
+    s = HyperState(m, q)
     MentalModule(m, s)
 end
 
 function perceive!(perception::MentalModule{T},
-                   attention::MentalModule{A},
+                   # attention::MentalModule{A},
                    obs::Gen.ChoiceMap
     ) where {T<:HyperFilter, A<:AttentionProtocol}
 
@@ -54,7 +54,7 @@ function perceive!(perception::MentalModule{T},
         # Stage 1: initial approximation of S^t
         step!(chain)
         # Stage 2: attention, records dS
-        attend!(chain, attention)
+        # attend!(chain, attention)
         chain.step += 1
         # update reference in perception module
         x.chains[i] = chain

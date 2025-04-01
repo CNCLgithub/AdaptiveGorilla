@@ -1,3 +1,5 @@
+export perceive!
+
 
 abstract type MentalProtocol end
 abstract type MentalState{T<:MentalProtocol} end
@@ -52,7 +54,7 @@ function plan!(agent::Agent)
     return nothing
 end
 
-function preattend! end
+function perceive! end
 function plan! end
 function attend! end
 function regranulize! end

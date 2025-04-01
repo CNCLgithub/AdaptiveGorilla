@@ -1,4 +1,4 @@
-export Experiment, Gorillas, load_from_dataset
+export Experiment, Gorillas, load_from_dataset, get_obs
 
 abstract type Experiment end
 
