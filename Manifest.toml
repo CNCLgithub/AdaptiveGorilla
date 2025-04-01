@@ -420,9 +420,7 @@ version = "0.2.3"
 
 [[deps.GenRFS]]
 deps = ["BenchmarkTools", "Cassette", "Combinatorics", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "Lazy", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions", "StatProfilerHTML", "Test", "UnicodePlots"]
-git-tree-sha1 = "7e96ae5f0bfe26f616ceb3ff6becbc21fe5801da"
-repo-rev = "master"
-repo-url = "https://github.com/CNCLgithub/GenRFS.git"
+path = "/project/env.d/jenv/dev/GenRFS"
 uuid = "56ab6c88-a2ab-44ec-99ca-7b9069b439c2"
 version = "0.1.0"
 

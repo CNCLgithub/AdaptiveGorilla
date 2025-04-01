@@ -56,6 +56,10 @@ mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
 end
 AdaptiveAux(n::Int) = AdaptiveAux(SpatialMap(n), SpatialMap(n))
 
+function AttentionModule(m::AdaptiveComputation)
+    MentalModule(m, AdaptiveAux(m.buffer_size))
+end
+
 Base.isempty(x::AdaptiveAux) = isempty(x.dPi) || isempty(dS)
 
 
@@ -82,7 +86,7 @@ end
 
 # TODO: revisit after `importance`
 function load(p::AdaptiveComputation, x::AdaptiveAux)
-    (isempty(x.dpi) || isempty(x.ds)) && return 0
+    (isempty(x.dPi) || isempty(x.dS)) && return 0
     x = logsumexp(tr.trs) - log(length(tr.trs))
     if isnan(x)
         display(tr.trs)
@@ -100,7 +104,7 @@ function task_relevance(
     n = latent_size(partition, trace)
     # NOTE: case with empty estimate?
     # No info yet -> -Inf
-    isempty(x) && return Fill(-Inf, n)
+    isempty(x) && return fill(-Inf, n)
     tr = Vector{Float64}(undef, n)
     # Preallocating reused arrays
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
@@ -120,7 +124,8 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
     @unpack state = chain
 
     np = length(state.traces)
-    l = load(aux) # load is shared across particles
+    l = load(protocol, aux) # load is shared across particles
+    l = 20 # TODO Remove
 
     for i = 1:np # iterate through each particle
         trace = state.traces[i]

@@ -9,7 +9,7 @@ mutable struct SpatialMap
     map::Union{Nothing, KDTree}
 end
 
-Base.isempty(x::SpatialMap) = isempty(x.coords) || isempty(trs) || isnothing(map)
+Base.isempty(x::SpatialMap) = isempty(x.coords) || isempty(x.samples) || isnothing(x.map)
 
 function Base.empty!(x::SpatialMap)
     empty!(x.coords)

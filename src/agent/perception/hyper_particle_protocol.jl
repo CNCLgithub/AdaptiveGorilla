@@ -37,7 +37,7 @@ function PerceptionModule(m::HyperFilter, q::IncrementalQuery)
 end
 
 function perceive!(perception::MentalModule{T},
-                   # attention::MentalModule{A},
+                   attention::MentalModule{A},
                    obs::Gen.ChoiceMap
     ) where {T<:HyperFilter, A<:AttentionProtocol}
 
@@ -54,7 +54,7 @@ function perceive!(perception::MentalModule{T},
         # Stage 1: initial approximation of S^t
         step!(chain)
         # Stage 2: attention, records dS
-        # attend!(chain, attention)
+        attend!(chain, attention)
         chain.step += 1
         # update reference in perception module
         x.chains[i] = chain
@@ -73,11 +73,11 @@ function estimate_marginal(perception::MentalModule{T},
 
     m = 0.0
 
-    for i = 1:pm.h
+    for i = 1:pf.h
         m += estimate_marginal(st.chains[i], func, args)
     end
 
-    m *= 1.0 / pm.h
+    m *= 1.0 / pf.h
 
     return m
 end

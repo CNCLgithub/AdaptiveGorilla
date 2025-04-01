@@ -1,5 +1,6 @@
 export Planner,
-    plan,
+    PlanningModule
+    plan!,
     CollisionCounter,
     energy
 
@@ -26,6 +27,10 @@ mutable struct CollisionState <: MentalState{CollisionCounter}
     expectation::Float64
 end
 
+function PlanningModule(p::CollisionCounter)
+    MentalModule(p, CollisionState(0.0))
+end
+
 function plan!(planner::MentalModule{T},
                attention::MentalModule{A},
                perception::MentalModule{V}
@@ -44,9 +49,10 @@ function plan!(planner::MentalModule{T},
     return nothing
 end
 
-function plan_with_delta_pi!(pl::CollisionCounter, att::AttentionProtocol, tr::InertiaTrace)
+function plan_with_delta_pi!(pl::CollisionCounter, att::MentalModule{A}, tr::InertiaTrace
+                             ) where {A<:AttentionProtocol}
     _, wm = get_args(tr)
-    _, states = get_retval(tr)
+    states = get_retval(tr)
     state = last(states)
     @unpack walls = wm
 
@@ -58,11 +64,13 @@ function plan_with_delta_pi!(pl::CollisionCounter, att::AttentionProtocol, tr::I
         dpi = 0.0
         single = singles[j]
         # ignore other color objects
-        single.mat == mat || continue
+        single.mat == pl.mat || continue
         # consider each wall
         # REVIEW: maybe just look at closest wall?
         for k = 1:4 # each wall
-            (ep, dpi) += colprob_and_agrad(single, walls[k])
+            (_ep, _dpi) = colprob_and_agrad(single, walls[k])
+            ep += _ep
+            dpi += _dpi
         end
         update_dPi!(att, single, log(dpi))
     end
@@ -73,10 +81,10 @@ end
 
 
 function colprob_and_agrad(x::InertiaSingle, w::Wall)
-    pos = get_pos(s)
+    pos = get_pos(x)
     d = w.d - sum(w.normal .* pos) # - s.size
-    p = sigmoid(d, s.size) # x, x0, m
-    dpdx = sigmoid_grad(d, s.size)
+    p = sigmoid(d, x.size) # x, x0, m
+    dpdx = sigmoid_grad(d, x.size)
     (p, dpdx)
 end
 

@@ -68,12 +68,13 @@ function test_hyperpf()
     pf = AdaptiveParticleFilter(particles = 10)
     hpf = HyperFilter(;dt=frames, pf=pf)
     perception = PerceptionModule(hpf, query)
+    attention = AttentionModule(AdaptiveComputation())
 
 
     for t = 1:(frames-1)
         println("On frame $(t)")
         obs = get_obs(exp, t)
-        perceive!(perception, obs)
+        perceive!(perception, attention, obs)
     end
     # nsteps = length(exp.observations)
     # logger = MemLogger(nsteps)

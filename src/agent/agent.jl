@@ -1,4 +1,13 @@
-export perceive!
+export perceive!, Agent, MentalProtocol,
+    MentalState, MentalModule,
+    PerceptionProtocol,
+    PlanningProtocol,
+    MemoryProtocol,
+    AttentionProtocol,
+    plan!,
+    attend!,
+    regranulize!,
+    step_agent!
 
 
 abstract type MentalProtocol end
