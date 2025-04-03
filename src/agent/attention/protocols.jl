@@ -36,12 +36,14 @@ end
 
 export AdaptiveComputation,
     AdaptiveAux,
-    SpatialMap
+    AttentionModule
 
 @with_kw struct AdaptiveComputation{T} <: AttentionProtocol
     partition::TracePartition{T} = InertiaPartition()
     base_steps::Int64 = 3
     buffer_size::Int64 = 100
+    "Distance metric in spatial maps"
+    map_metric::PreMetric = WeightedEuclidean(S3V(0.1, 0.1, 0.8))
     "Number of nearest neighbors"
     nns::Int64 = 5
     "Importance softmax temperature"
@@ -60,16 +62,15 @@ function AttentionModule(m::AdaptiveComputation)
     MentalModule(m, AdaptiveAux(m.buffer_size))
 end
 
-Base.isempty(x::AdaptiveAux) = isempty(x.dPi) || isempty(dS)
+Base.isempty(x::AdaptiveAux) = isempty(x.dPi) || isempty(x.dS)
 
 
 function update_dPi!(att::MentalModule{A},
                      obj::InertiaObject,
                      delta::Float64) where {A<:AdaptiveComputation}
-    _, aux = parse(att)
+    _, aux = mparse(att)
     coord = get_coord(obj)
-    push!(aux.dPi.coords, coord)
-    push!(aux.dPi.samples, delta)
+    push_sample!(aux.dPi, coord, delta)
     return nothing
 end
 
@@ -77,21 +78,29 @@ function update_dS!(att::MentalModule{A},
         partition::TracePartition{T},
         trace::T,
         j::Int, delta::Float64) where {A<:AdaptiveComputation, T}
-    _, aux = parse(att)
+    _, aux = mparse(att)
     coord = get_coord(partition, trace, j)
-    push!(aux.dS.coords, coord)
-    push!(aux.dS.samples, delta)
+    push_sample!(aux.dS, coord, delta)
+    return nothing
+end
+
+function update_task_relevance!(att::MentalModule{A}
+                                ) where {A<:AdaptiveComputation}
+    attp, attstate = mparse(att)
+    fit_map!(attstate.dPi, attp.map_metric)
+    fit_map!(attstate.dS , attp.map_metric)
     return nothing
 end
 
 # TODO: revisit after `importance`
+# Can implement by storing running average
 function load(p::AdaptiveComputation, x::AdaptiveAux)
-    (isempty(x.dPi) || isempty(x.dS)) && return 0
-    x = logsumexp(tr.trs) - log(length(tr.trs))
-    if isnan(x)
-        display(tr.trs)
-    end
-    println("Load : $(x)")
+    # isempty(x) && return 0
+    # x = logsumexp(tr.trs) - log(length(tr.trs))
+    # if isnan(x)
+    #     display(tr.trs)
+    # end
+    # println("Load : $(x)")
     return 20
 end
 
@@ -112,13 +121,24 @@ function task_relevance(
         coord = get_coord(partition, trace, i)
         _dpi = integrate!(idxs, dists, coord, dPi)
         _ds  = integrate!(idxs, dists, coord, dS )
-        tr[i] = _dpi + _ds - log(k)
+        tr[i] = _dpi + _ds
     end
     return tr
 end
 
+function attend!(att::MentalModule{A}, vis::MentalModule{V}
+                 ) where {A<:AttentionProtocol, V<:HyperFilter}
+    visp, visstate = mparse(vis)
+    update_task_relevance!(att)
+    for i = 1:visp.h
+        chain = visstate.chains[i]
+        attend!(chain, att)
+    end
+    return nothing
+end
+
 function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputation}
-    protocol, aux = parse(att)
+    protocol, aux = mparse(att)
 
     @unpack partition, base_steps, nns, itemp = protocol
     @unpack state = chain
@@ -130,12 +150,11 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
         remaining = l + base_steps
+        # determine the importance of each latent
+        deltas = task_relevance(aux, partition, trace, nns)
+        importance = softmax(deltas, itemp)
         # Stage 2
         while remaining > 0
-            # determine the importance of each latent
-            # can change across moves
-            deltas = task_relevance(aux, partition, trace, nns)
-            importance = softmax(deltas, itemp)
             # select latent and C_k
             j = categorical(importance) 
             prop = select_prop(partition, trace, j)
@@ -150,6 +169,7 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
             update_dS!(att, partition, trace, j, dS)
             remaining -= 1
         end
+
 
         # baby block
         # NOTE: Not sure if needed

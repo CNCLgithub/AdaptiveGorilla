@@ -1,5 +1,5 @@
 export perceive!, Agent, MentalProtocol,
-    MentalState, MentalModule,
+    MentalState, MentalModule, mparse,
     PerceptionProtocol,
     PlanningProtocol,
     MemoryProtocol,
@@ -24,7 +24,7 @@ Each protocol should implement this constructor
 function MentalModule end
 
 #TODO: Doc me!
-function parse(m::MentalModule)
+function mparse(m::MentalModule)
     (m.protocol, m.state)
 end
 

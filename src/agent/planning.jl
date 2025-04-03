@@ -1,8 +1,7 @@
 export Planner,
-    PlanningModule
+    PlanningModule,
     plan!,
-    CollisionCounter,
-    energy
+    CollisionCounter
 
 abstract type PlanningProtocol <: MentalProtocol end
 
@@ -38,7 +37,7 @@ function plan!(planner::MentalModule{T},
              A<:AttentionProtocol,
              V<:PerceptionProtocol}
 
-    protocol, state = parse(planner)
+    protocol, state = mparse(planner)
 
     w = estimate_marginal(perception,
                           plan_with_delta_pi!,
@@ -82,25 +81,26 @@ end
 
 function colprob_and_agrad(x::InertiaSingle, w::Wall)
     pos = get_pos(x)
-    d = w.d - sum(w.normal .* pos) # - s.size
-    p = sigmoid(d, x.size) # x, x0, m
-    dpdx = sigmoid_grad(d, x.size)
+    d = (w.d - sum(w.normal .* pos))
+    z = x.size / d
+    p = sigmoid(z, 1.0) # x, x0, m
+    dpdx = abs(sigmoid_grad(z, 3.0))
     (p, dpdx)
 end
 
-function energy(w::Wall, s::InertiaSingle)
-    pos = get_pos(s)
-    vel = get_vel(s)
-    # REVIEW: energy - incorporate speed?
-    # speed of approach
-    # rate = sum(w.normal .* vel)
-    # rate = max(1E-5, rate)
-    # distance to wall
-    # dis = norm(w.normal .* pos - w.nd) - s.size
-    dis = w.d - sum(w.normal .* pos) # - s.size
-    dis = max(1., dis)
-    # @show dis
-    e = 100.0 / abs(dis)
-    # max(0.0, log(dis) - log(rate))
-    e
-end
+# function energy(w::Wall, s::InertiaSingle)
+#     pos = get_pos(s)
+#     vel = get_vel(s)
+#     # REVIEW: energy - incorporate speed?
+#     # speed of approach
+#     # rate = sum(w.normal .* vel)
+#     # rate = max(1E-5, rate)
+#     # distance to wall
+#     # dis = norm(w.normal .* pos - w.nd) - s.size
+#     dis = w.d - sum(w.normal .* pos) # - s.size
+#     dis = max(1., dis)
+#     # @show dis
+#     e = 100.0 / abs(dis)
+#     # max(0.0, log(dis) - log(rate))
+#     e
+# end

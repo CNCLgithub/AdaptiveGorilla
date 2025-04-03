@@ -357,13 +357,16 @@ function detect_gorilla(trace::InertiaTrace,
     return result
 end
 
+_kernel_prefix(t::Int, i::Int) = :kernel => t => :xs => i
+
 # TODO: generalize observation size
 function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
                     t::Int,
                     gorilla_color::Material = Dark,
-                    gorilla_idx::Int = 9,
+                    gorilla_idx::Int = 9;
                     single_size::Float64 = 10.0,
-                    target_count::Int = 4)
+                    target_count::Int = 4,
+                    prefix = _kernel_prefix)
     n = length(positions)
     for i = 1:n
         x, y = positions[i]
@@ -371,7 +374,7 @@ function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
         if i == gorilla_idx
             mat = gorilla_color == Light ? 1.0 : 2.0
         end
-        cm[:kernel => t => :xs => i] = Detection(x, y, mat)
+        cm[prefix(t, i)] = Detection(x, y, mat)
     end
     return nothing
 end
@@ -391,7 +394,7 @@ end
 
 
 function get_last_state(t::InertiaTrace)
-    _, states = get_retval(t)
+    states = get_retval(t)
     last(states)
 end
 

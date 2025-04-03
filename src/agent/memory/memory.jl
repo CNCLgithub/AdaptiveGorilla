@@ -1,30 +1,67 @@
+export GranularityProtocal,
+    GranularityModule,
+    assess_granularity!,
+    regranularize!,
+    AdaptiveGranularity,
+    GranularityEstimates
 
-
-abstract type GranularityProtocal end
+abstract type GranularityProtocal <: MentalProtocol end
 
 """
 Defines the granularity mapping for a current trace format
 """
 @with_kw struct AdaptiveGranularity <: GranularityProtocal
-    """Ratio between objectve 1 and 2"""
-    m::Float64
-    """Number of particles to approx split-merge alpha"""
-    alpha_steps::Int64
-    """Number of objects to evaluate"""
-    object_steps::Int64
+    "Temperature for chain resampling"
+    tau::Float64 = 1.0
 end
+
+mutable struct GranularityEstimates <: MentalState{AdaptiveGranularity}
+    objectives::Vector{Float64}
+    steps::Int
+end
+
+function GranularityEstimates(n::Int)
+    GranularityEstimates(zeros(n), 0)
+end
+
+# TODO: document
+function GranularityModule(p::AdaptiveGranularity, n::Int)
+    MentalModule(p, GranularityEstimates(n))
+end
+
+
+function assess_granularity!(
+    mem::MentalModule{M},
+    att::MentalModule{A},
+    vis::MentalModule{V}
+    ) where {M<:AdaptiveGranularity,
+             A<:AdaptiveComputation,
+             V<:HyperFilter}
+    mp, mstate = mparse(mem)
+    hf, vstate = mparse(vis)
+    update_task_relevance!(att)
+    for i = 1:hf.h
+        v = granularity_objective(mem, att, vstate.chains[i])
+        mstate.objectives[i] += v
+    end
+    mstate.steps += 1
+    return nothing
+end
+
+
 
 function granularity_objective(ag::MentalModule{G},
                                ac::MentalModule{A},
                                chain::APChain,
     ) where {G<:AdaptiveGranularity, A<:AdaptiveComputation}
-    attp, attx = parse(ac)
+    attp, attx = mparse(ac)
     @unpack partition, nns = attp
     @unpack state = chain
     # Running averages
     mag = -Inf
     len = 0.0
-    np = length(state)
+    np = length(state.traces)
+    # TODO: revist
     @inbounds for i = 1:np
         tr = task_relevance(attx,
                             attp.partition,
@@ -36,14 +73,47 @@ function granularity_objective(ag::MentalModule{G},
     mag - log(len)
 end
 
-function shift_granularity(t::InertiaTrace, m::SplitMergeMove)
+function regranularize!(mem::MentalModule{M},
+                        att::MentalModule{A},
+                        vis::MentalModule{V}
+    ) where {M<:AdaptiveGranularity,
+             A<:AdaptiveComputation,
+             V<:HyperFilter}
+
+    # Resampling weights
+    memp, memstate = mparse(mem)
+    ws = softmax(memstate.objectives, memp.tau)
+    nh = length(ws)
+    # Repopulate and shift granularity
+    visp, visstate = mparse(vis)
+    next_gen = Vector{Int}(undef, nh)
+    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    new_chains = Vector{APChain}(undef, nh)
+    for i = 1:nh
+        parent = visstate.chains[next_gen[i]] # PFChain
+        template = retrieve_map(parent) # InertiaTrace
+        cm = shift_granularity(template) # InertiaState
+        new_chains[i] = reinit_chain(parent, template, cm)
+    end
+
+    visstate.age = 1 # TODO: 0 or 1?
+    visstate.chains = new_chains
+
+    fill!(memstate.objectives, 0.0)
+    memstate.steps = 0
+
+    return nothing
+end
+
+
+function shift_granularity(t::InertiaTrace)
     _, wm, _ = get_args(t)
     state = get_last_state(t)
     @unpack singles, ensembles = state
     cm = choicemap()
     if rand() > 0.5
         ns = length(singles)
-        ne = length(ensemble)
+        ne = length(ensembles)
         sample_granularity_move!(cm, ns, ne)
     else
         cm[:s0 => :nsm] = 1 # no change
@@ -148,75 +218,3 @@ function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState
 end
 
 
-function regranularize!(mem::MentalModule{M},
-                        att::MentalModule{A},
-                        vis::MentalModule{V}
-    ) where {M<:AdaptiveGranularity,
-             A<:AdaptiveComputation,
-             V<:HyperFilter}
-
-    # Weight granularity objective
-    hf, vstate = parse(vis)
-    ws = zeros(hf.h)
-    for i = 1:hf.h
-        ws[i] = granularity_objective(ag, vstate.chains[i], astate)
-    end
-    # Repopulate and shift granularity
-    ws = softmax(ws)
-    next_gen = multinomial(ws)
-    new_chains = Vector{APChain}(undef, hf.h)
-    for i = 1:hf.h
-        parent = vstate.chains[next_gen[i]] # PFChain
-        template = retrieve_map(parent) # InertiaTrace
-        cm = shift_granularity(template) # InertiaState
-        new_chains[i] = reinit_chain(parent, cm)
-    end
-
-    vstate.age = 0 # TODO: 0 or 1? 
-    vstate.chains = new_chains
-    
-end
-
-function foo(chain::APChain, p::AdaptiveComputation, g::AdaptiveGranularity)
-    # Get object weights
-    trs = compute_aligned_task_relevance(chain, p) # TODO
-
-    # greedy approach, look at lowest tr first
-    local m::SplitMergeMove, w::Float64
-    toconsider = sortperm(trs)[1:g.object_steps]
-    # merges
-    for i = toconsider[1:(g.object_steps-1)]
-        for j = toconsider[2:end]
-            _m = Merge(i, j)
-            _w = gratio(m, chain, i, trs[i], j, trs[j])
-            if w < _w
-                m = _m
-                w = _w
-            end
-        end
-    end
-    # splits
-    for i = toconsider
-        if cansplit(current_schema, i)
-            _m = Split(i)
-            _w = gratio(s, chain, i, trs[i])
-            if w < _w
-                m = _m
-                w = _w
-            end
-        end
-    end
-
-
-
-    # split-merge
-    merge_weights = compute_merge_weights()
-    to_merge = resolve_merge(merge_weights, nabla)
-
-    split_weights = compute_split_weights(to_merge)
-    to_split = resolve_split(split_weights, nabla)
-
-
-
-
-end

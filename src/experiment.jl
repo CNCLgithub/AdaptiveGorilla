@@ -58,7 +58,9 @@ function load_from_dataset(wm::WorldModel, dpath::String, i::Int,
             cm = choicemap()
             step = data[t]["positions"]
             write_obs!(cm, wm, step, t-1, gorilla_color,
-                       gorilla_idx)
+                       gorilla_idx;
+                       prefix = (t, i) -> i,
+                       )
             observations[t-1] = cm
         end
     end

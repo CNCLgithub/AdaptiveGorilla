@@ -11,7 +11,7 @@ export HyperFilter,
     "Particle filter procedure"
     pf::P
     "Maps an integer to the time address in GM"
-    time_prefix::Function = x::Int -> :kernel => x => :xs
+    time_prefix::Function = _kernel_prefix
     "Temperate for hyper particle resampling"
     resample_temp::Float64 = 1.0
 end
@@ -41,10 +41,17 @@ function perceive!(perception::MentalModule{T},
                    obs::Gen.ChoiceMap
     ) where {T<:HyperFilter, A<:AttentionProtocol}
 
-    pm, x = parse(perception)
+    pm, x = mparse(perception)
     new_args = (x.age,)
     cm = choicemap()
-    set_submap!(cm, pm.time_prefix(x.age), obs)
+    n = 1
+    while true
+        if !has_value(obs, n)
+            break
+        end
+        cm[pm.time_prefix(x.age, n)] = obs[n]
+        n += 1
+    end
 
     # update
     for i = 1:pm.h
@@ -53,8 +60,6 @@ function perceive!(perception::MentalModule{T},
         chain.query = increment(chain.query, cm, new_args)
         # Stage 1: initial approximation of S^t
         step!(chain)
-        # Stage 2: attention, records dS
-        attend!(chain, attention)
         chain.step += 1
         # update reference in perception module
         x.chains[i] = chain
@@ -68,16 +73,11 @@ function estimate_marginal(perception::MentalModule{T},
                            func::Function,
                            args::Tuple
     ) where {T<:HyperFilter}
-
-    pf, st = parse(perception)
-
+    pf, st = mparse(perception)
     m = 0.0
-
     for i = 1:pf.h
         m += estimate_marginal(st.chains[i], func, args)
     end
-
     m *= 1.0 / pf.h
-
     return m
 end
