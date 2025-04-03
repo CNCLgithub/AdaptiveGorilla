@@ -1,4 +1,5 @@
-export Experiment, Gorillas, load_from_dataset, get_obs
+export Experiment, Gorillas, load_from_dataset, get_obs,
+    render_agent_state
 
 abstract type Experiment end
 
@@ -66,4 +67,10 @@ function load_from_dataset(wm::WorldModel, dpath::String, i::Int,
     end
 
     (istate, observations)
+end
+
+function render_frame(exp::Gorillas, t::Int, objp = ObjectPainter())
+    obs = to_array(get_obs(exp, t), Detection)
+    paint(objp, obs)
+    return nothing
 end

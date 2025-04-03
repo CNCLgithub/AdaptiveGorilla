@@ -1,16 +1,14 @@
-export GranularityProtocal,
-    GranularityModule,
+export MemoryModule,
     assess_granularity!,
     regranularize!,
     AdaptiveGranularity,
     GranularityEstimates
 
-abstract type GranularityProtocal <: MentalProtocol end
 
 """
 Defines the granularity mapping for a current trace format
 """
-@with_kw struct AdaptiveGranularity <: GranularityProtocal
+@with_kw struct AdaptiveGranularity <: MemoryProtocol
     "Temperature for chain resampling"
     tau::Float64 = 1.0
 end
@@ -25,10 +23,18 @@ function GranularityEstimates(n::Int)
 end
 
 # TODO: document
-function GranularityModule(p::AdaptiveGranularity, n::Int)
+function MemoryModule(p::AdaptiveGranularity, n::Int)
     MentalModule(p, GranularityEstimates(n))
 end
 
+function print_granularity_schema(chain::APChain)
+    tr = retrieve_map(chain)
+    state = get_last_state(tr)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
+    println("Chain has: $(ns) singles; $(ne) ensembles")
+    return nothing
+end
 
 function assess_granularity!(
     mem::MentalModule{M},
@@ -41,9 +47,11 @@ function assess_granularity!(
     hf, vstate = mparse(vis)
     update_task_relevance!(att)
     for i = 1:hf.h
+        println("chain $(i)")
         v = granularity_objective(mem, att, vstate.chains[i])
-        mstate.objectives[i] += v
+        mstate.objectives[i] = logsumexp(mstate.objectives[i], v)
     end
+    @show mstate.objectives
     mstate.steps += 1
     return nothing
 end
@@ -67,37 +75,48 @@ function granularity_objective(ag::MentalModule{G},
                             attp.partition,
                             state.traces[i],
                             attp.nns)
-        mag = logsumexp(mag, l2log(tr))
-        len += length(tr)
+        @show tr
+        len = length(tr)
+        _mag = l2log(tr)
+        @show _mag
+        mag = logsumexp(mag, l2log(tr) - log(len))
     end
-    mag - log(len)
+    # lml = log_ml_estimate(state)
+    # lml + mag - log(len)
+    mag - log(np)
 end
 
 function regranularize!(mem::MentalModule{M},
                         att::MentalModule{A},
-                        vis::MentalModule{V}
+                        vis::MentalModule{V},
+                        t::Int
     ) where {M<:AdaptiveGranularity,
              A<:AdaptiveComputation,
              V<:HyperFilter}
 
     # Resampling weights
     memp, memstate = mparse(mem)
-    ws = softmax(memstate.objectives, memp.tau)
-    nh = length(ws)
-    # Repopulate and shift granularity
     visp, visstate = mparse(vis)
-    next_gen = Vector{Int}(undef, nh)
+    # not time yet
+    (t > 0 && t % visp.dt != 0) && return nothing
+
+    ws = softmax(memstate.objectives, memp.tau)
+    @show memstate.objectives
+    @show ws
+    # Repopulate and shift granularity
+    next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
-    new_chains = Vector{APChain}(undef, nh)
-    for i = 1:nh
+    for i = 1:visp.h
         parent = visstate.chains[next_gen[i]] # PFChain
         template = retrieve_map(parent) # InertiaTrace
         cm = shift_granularity(template) # InertiaState
-        new_chains[i] = reinit_chain(parent, template, cm)
+        visstate.new_chains[i] = reinit_chain(parent, template, cm)
     end
 
     visstate.age = 1 # TODO: 0 or 1?
-    visstate.chains = new_chains
+    temp_chains = visstate.chains
+    visstate.chains = visstate.new_chains
+    visstate.new_chains = temp_chains
 
     fill!(memstate.objectives, 0.0)
     memstate.steps = 0
@@ -167,28 +186,23 @@ function apply_granularity_move(m::MergeMove, wm::InertiaWM, state::InertiaState
     # Remove merged ensembles
     c = 1
     for i = 1:ne
-        (isa(a, InertiaEnsemble) && i + ns == m.a) && continue
-        # replace `b` with `e`
-        # (keep new ensembles towards the end of the array)
-        if (isa(b, InertiaEnsemble) && i + ns == m.b)
-            new_ensembles[c] = e
-        else
-            new_ensembles[c] = ensembles[i]
-        end
+        ((isa(b, InertiaEnsemble) && i + ns == m.b)  ||
+            (isa(a, InertiaEnsemble) && i + ns == m.a)) &&
+            continue
+        new_ensembles[c] = ensembles[i]
         c += 1
     end
-    # if there are no previous ensembles
-    if ne == 0
-        new_ensembles[c] = e
-    end
+    new_ensembles[c] = e
     InertiaState(new_singles, new_ensembles)
 end
 
-function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState)
+function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState,
+                                splitted::InertiaSingle)
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
     e = ensembles[m.x]
+    new_e = apply_split(e, splitted)
     # if the ensemble is a pair, we get two individuals
     delta_ns = e.rate == 2 ? 2 : 1
     delta_ne = e.rate == 2 ? -1 : 0
@@ -197,9 +211,8 @@ function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState
     
     new_singles[1:ns] = singles
     if e.rate == 2 # E -> (S, S)
-        (a, b) = sample_split_pair(wm, x)
-        new_singles[ns + 1] = a
-        new_singles[ns + 2] = b
+        new_singles[ns + 1] = collapse(new_e)
+        new_singles[ns + 2] = splitted
         c = 1
         for i = 1:ne
             i == m.x && continue
@@ -207,13 +220,10 @@ function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState
             c += 1
         end
     else # E -> (E', S)
-        s = sample_split(wm, x)
-        e = apply_split(e, s)
-        new_singles[ns + 1] = s
-        new_ensembles[:] = ensembles[1:ne]
-        new_ensembles[m.x] = e
+        new_singles[ns + 1] = splitted
+        new_ensembles[:] = ensembles[:]
+        new_ensembles[m.x] = new_e
     end
-
     InertiaState(new_singles, new_ensembles)
 end
 

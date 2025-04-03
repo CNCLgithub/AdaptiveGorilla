@@ -40,8 +40,7 @@ function select_prop end
 end
 
 function latent_size(partition::InertiaPartition, tr::InertiaTrace)
-    t = first(get_args(tr))
-    state = tr[:kernel => t]
+    state = get_last_state(tr)
     n = 0
     if partition.singles
         n += length(state.singles)
@@ -84,8 +83,7 @@ get_coord(x::InertiaEnsemble) = S3V(get_pos(x)..., mean(x.matws))
 
 function get_coord(partition::InertiaPartition,
                    trace::InertiaTrace, i::Int)
-    t = first(get_args(trace))
-    state = trace[:kernel => t]
+    state = get_last_state(trace)
     ns = length(state.singles)
     ne = length(state.ensembles)
     idx = i
@@ -108,8 +106,7 @@ end
 
 function select_prop(partition::InertiaPartition,
                      trace::InertiaTrace, i::Int)
-    t = first(get_args(trace))
-    state = trace[:kernel => t]
+    state = get_last_state(trace)
     ns = length(state.singles)
     ne = length(state.ensembles)
     idx = i

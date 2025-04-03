@@ -47,7 +47,7 @@ export AdaptiveComputation,
     "Number of nearest neighbors"
     nns::Int64 = 5
     "Importance softmax temperature"
-    itemp::Float64 = 1.0
+    itemp::Float64 = 3.0
 end
 
 mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}

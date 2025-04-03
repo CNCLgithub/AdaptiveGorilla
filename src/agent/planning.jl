@@ -20,6 +20,8 @@ function PlanningModule end
     mat::Material
     "Distance tolerance"
     tol::Float64 = 1E-4
+    "Tick rate"
+    tick_rate::Int = 1
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
@@ -32,29 +34,28 @@ end
 
 function plan!(planner::MentalModule{T},
                attention::MentalModule{A},
-               perception::MentalModule{V}
+               perception::MentalModule{V},
+               t::Int
     ) where {T<:CollisionCounter,
              A<:AttentionProtocol,
              V<:PerceptionProtocol}
 
     protocol, state = mparse(planner)
-
-    w = estimate_marginal(perception,
-                          plan_with_delta_pi!,
-                          (protocol, attention))
-
-    state.expectation = w
-
+    if t > 0 && t % protocol.tick_rate == 0
+        w = estimate_marginal(perception,
+                              plan_with_delta_pi!,
+                              (protocol, attention))
+        state.expectation += w
+    end
     return nothing
 end
 
-function plan_with_delta_pi!(pl::CollisionCounter, att::MentalModule{A}, tr::InertiaTrace
-                             ) where {A<:AttentionProtocol}
+function plan_with_delta_pi!(
+    pl::CollisionCounter, att::MentalModule{A}, tr::InertiaTrace
+    ) where {A<:AttentionProtocol}
     _, wm = get_args(tr)
-    states = get_retval(tr)
-    state = last(states)
     @unpack walls = wm
-
+    state = get_last_state(tr)
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
@@ -62,19 +63,32 @@ function plan_with_delta_pi!(pl::CollisionCounter, att::MentalModule{A}, tr::Ine
     @inbounds for j = 1:ns
         dpi = 0.0
         single = singles[j]
-        # ignore other color objects
-        single.mat == pl.mat || continue
-        # consider each wall
-        # REVIEW: maybe just look at closest wall?
-        for k = 1:4 # each wall
-            (_ep, _dpi) = colprob_and_agrad(single, walls[k])
-            ep += _ep
-            dpi += _dpi
+        # only consider targets
+        if single.mat == pl.mat
+            # consider each wall
+            # REVIEW: maybe just look at closest wall?
+            for k = 1:4 # each wall
+                (_ep, _dpi) = colprob_and_agrad(single, walls[k])
+                ep += _ep
+                dpi += _dpi
+            end
         end
         update_dPi!(att, single, log(dpi))
     end
-    # TODO: energy for ensembles
-    #
+    @inbounds for j = 1:ne
+        dpi = 0.0
+        x = ensembles[j]
+        # # target proportion of ensemble
+        # w = x.matws[Int64(pl.mat)]
+        # for k = 1:4 # each wall
+        #     (_ep, _dpi) = colprob_and_agrad(x, walls[k])
+        #     ep += _ep
+        #     dpi += _dpi
+        # end
+        # ep *= w
+        # dpi *= w
+        update_dPi!(att, x, log(dpi))
+    end
     return ep
 end
 
@@ -82,25 +96,25 @@ end
 function colprob_and_agrad(x::InertiaSingle, w::Wall)
     pos = get_pos(x)
     d = (w.d - sum(w.normal .* pos))
-    z = x.size / d
-    p = sigmoid(z, 1.0) # x, x0, m
-    dpdx = abs(sigmoid_grad(z, 3.0))
+    z = d / x.size
+    p = fast_sigmoid(z) # x, x0, m
+    dpdx = abs(fast_sigmoid_grad(z))
     (p, dpdx)
 end
 
-# function energy(w::Wall, s::InertiaSingle)
-#     pos = get_pos(s)
-#     vel = get_vel(s)
-#     # REVIEW: energy - incorporate speed?
-#     # speed of approach
-#     # rate = sum(w.normal .* vel)
-#     # rate = max(1E-5, rate)
-#     # distance to wall
-#     # dis = norm(w.normal .* pos - w.nd) - s.size
-#     dis = w.d - sum(w.normal .* pos) # - s.size
-#     dis = max(1., dis)
-#     # @show dis
-#     e = 100.0 / abs(dis)
-#     # max(0.0, log(dis) - log(rate))
-#     e
-# end
+function colprob_and_agrad(x::InertiaEnsemble, w::Wall)
+    pos = get_pos(x)
+    d = (w.d - sum(w.normal .* pos))
+    z = d / (sqrt(x.var) * x.rate)
+    p = fast_sigmoid(z) # x, x0, m
+    dpdx = abs(fast_sigmoid_grad(z))
+    (p, dpdx)
+end
+
+using MOTCore: _draw_text
+
+function render_frame(x::MentalModule{P}, t::Int) where{P<:CollisionCounter}
+    protocol, state = mparse(x)
+    c = round(state.expectation / t; digits = 2)
+    _draw_text("Bounce weight: $(c)", [-380, 380.])
+end

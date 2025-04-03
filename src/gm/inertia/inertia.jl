@@ -274,22 +274,22 @@ function predict(wm::InertiaWM, st::InertiaState)
         es[ns + i] =
             PoissonElement{Detection}(rate, detect_mixture, mix_args)
     end
-    # @show (ns, ne)
     return es
 end
 
-function observe(gm::InertiaWM, singles::AbstractVector{InertiaSingle})
-    n = length(singles)
-    es = Vector{RandomFiniteElement{DetectionObs}}(undef, n)
-    @unpack single_noise, material_noise = wm
-    @inbounds for i in 1:n
-        single = singles[i]
-        args = (single.pos, single.size * single_noise, single.material,
-                material_noise)
-        es[i] = IsoElement{Detection}(detect, args)
-    end
-    (es, gpp_mrfs(es, 200, 1.0))
-end
+# TODO: remove?
+# function observe(gm::InertiaWM, singles::AbstractVector{InertiaSingle})
+#     n = length(singles)
+#     es = Vector{RandomFiniteElement{DetectionObs}}(undef, n)
+#     @unpack single_noise, material_noise = wm
+#     @inbounds for i in 1:n
+#         single = singles[i]
+#         args = (single.pos, single.size * single_noise, single.material,
+#                 material_noise)
+#         es[i] = IsoElement{Detection}(detect, args)
+#     end
+#     (es, gpp_mrfs(es, 200, 1.0))
+# end
 
 # include("helpers.jl")
 include("gen.jl")
@@ -393,9 +393,9 @@ function initial_state(wm::InertiaWM, positions, target_count::Int = 4)
 end
 
 
-function get_last_state(t::InertiaTrace)
-    states = get_retval(t)
-    last(states)
+function get_last_state(tr::InertiaTrace)
+    t, wm, istate = get_args(tr)
+    t == 0 ? istate : last(get_retval(tr))
 end
 
 

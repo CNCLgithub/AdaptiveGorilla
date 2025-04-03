@@ -11,7 +11,7 @@ import MOTCore.paint
 """
 Initializes a canvas for the world model and state.
 """
-function MOTCore.paint(p::InitPainter, wm::InertiaWM, st::InertiaState)
+function MOTCore.paint(p::InitPainter, wm::InertiaWM)
     @unpack area_width, area_height, display_border = wm
     Drawing(area_width, area_height, p.path)
     Luxor.origin()
@@ -32,7 +32,8 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     std = sqrt(obj.var)
     _draw_circle(get_pos(obj), 3.0 * std, "black";
                  style = :stroke)
-    _draw_text("color: $(obj.matws); rate: $(obj.rate)", get_pos(obj))
+    mat = round(obj.matws[2]; digits = 2)
+    _draw_text("Dark: $(mat); rate: $(obj.rate)", get_pos(obj))
     return nothing
 end
 
@@ -50,16 +51,20 @@ function MOTCore.paint(p::Painter, st::InertiaState,
     end
 
     # visualize attention
-    if length(ws) == length(st.singles) + 1
-        @inbounds for i = eachindex(st.singles)
+    ns = length(st.singles)
+    ne = length(st.ensembles)
+    if length(ws) == ns + ne
+        @inbounds for i = 1:ns
             pos = get_pos(st.singles[i])
             radius = 40.0 * ws[i]
-            _draw_circle(pos, radius, "red", opacity = 0.8)
+            _draw_circle(pos, radius, "red", opacity = 0.4)
         end
 
-        pos = get_pos(st.ensemble)
-        radius = 40.0 * ws[end]
-        _draw_circle(pos, radius, "red", opacity = 0.8)
+        @inbounds for i = 1:ne
+            pos = get_pos(st.ensembles[i])
+            radius = 40.0 * ws[i + ns]
+            _draw_circle(pos, radius, "red", opacity = 0.4)
+        end
     end
     return nothing
 end

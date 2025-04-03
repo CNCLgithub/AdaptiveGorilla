@@ -1,12 +1,13 @@
-export perceive!, Agent, MentalProtocol,
+export Agent, MentalProtocol,
     MentalState, MentalModule, mparse,
     PerceptionProtocol,
     PlanningProtocol,
     MemoryProtocol,
     AttentionProtocol,
+    perceive!,
     plan!,
     attend!,
-    regranulize!,
+    memory!,
     step_agent!
 
 
@@ -48,25 +49,38 @@ end
 
 world_model(a::Agent) = a.world_model
 
-# TODO: dispatch
-function perceive!(agent::Agent, obs::ChoiceMap)
-    @unpack perception, attention = agent
-    perceive!(perception, attention, obs)
+function perceive!(agent::Agent, obs::ChoiceMap, t::Int)
+    # perception runs every tick
+    perceive!(agent.perception, obs)
     return nothing
 end
 
-function plan!(agent::Agent)
-    @unpack (memory, perception, planning,
-             attention) = agent
-    plan_in = transfer(memory, perception)
-    plan!(planning, attention, plan_in)
+function attend!(agent::Agent, t::Int)
+    # attention runs every tick
+    @unpack attention, perception = agent
+    attend!(attention, perception)
+    return nothing
+end
+
+function plan!(agent::Agent, t::Int)
+    @unpack planning, attention, perception = agent
+    plan!(planning, attention, perception, t)
+    return nothing
+end
+
+function memory!(agent::Agent, t::Int)
+    @unpack memory, attention, perception = agent
+    # granularity assessment occurs every tick
+    assess_granularity!(memory, attention, perception)
+    # regranularization occurs sparsely
+    regranularize!(memory, attention, perception, t)
     return nothing
 end
 
 function perceive! end
 function plan! end
 function attend! end
-function regranulize! end
+function memory! end
 
 include("perception/perception.jl")
 include("planning.jl")
@@ -76,14 +90,15 @@ include("memory/memory.jl")
 function start_exp(exp::Gorillas)
 end
 
-function step_agent!(agent::Agent, exp::Gorillas)
+function step_agent!(agent::Agent, exp::Gorillas, stepid::Int)
 
-    obs = get_obs(exp, step)
-    # S, attention, dS
-    perceive!(agent, obs)
-    # Pi, dPi
-    plan!(agent)
-    # New granularity
-    regranulize!(agent)
+    obs = get_obs(exp, stepid)
+    perceive!(agent, obs, stepid)
+    attend!(agent, stepid)
+    plan!(agent, stepid)
+    memory!(agent, stepid)
 
 end
+
+
+include("visuals.jl")

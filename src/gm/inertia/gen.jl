@@ -215,7 +215,6 @@ end
     ne = length(st.ensembles)
     idx ~ categorical(Fill(1.0 / ne, ne))
     split ~ split_ensemble(wm, st.ensembles[idx])
-    # TODO: refactor `apply_granularity_move`
     result::InertiaState = apply_granularity_move(SplitMove(idx), wm, st, split)
     return result
 end
@@ -226,7 +225,6 @@ end
     # sample lexographic index of 2-comb
     pair ~ categorical(Fill(1.0 / nmerges, nmerges))
     a, b = combination(ntotal, 2, pair)
-    # TODO: refactor `apply_granularity_move`
     result::InertiaState = apply_granularity_move(MergeMove(a, b), wm, st)
     return result
 end

@@ -18,6 +18,7 @@ end
 
 mutable struct HyperState <: MentalState{HyperFilter}
     chains::Vector{APChain}
+    new_chains::Vector{APChain}
     "age of local chains"
     age::Int64
 end
@@ -25,10 +26,11 @@ end
 function HyperState(m::HyperFilter, q::IncrementalQuery)
     pf = m.pf
     chains = Vector{APChain}(undef, m.h)
+    new_chains = Vector{APChain}(undef, m.h)
     @inbounds for i = 1:m.h
         chains[i] = Gen_Compose.initialize_chain(pf, q, m.dt)
     end
-    return HyperState(chains, 1)
+    return HyperState(chains, new_chains, 1)
 end
 
 function PerceptionModule(m::HyperFilter, q::IncrementalQuery)
@@ -37,9 +39,8 @@ function PerceptionModule(m::HyperFilter, q::IncrementalQuery)
 end
 
 function perceive!(perception::MentalModule{T},
-                   attention::MentalModule{A},
                    obs::Gen.ChoiceMap
-    ) where {T<:HyperFilter, A<:AttentionProtocol}
+    ) where {T<:HyperFilter}
 
     pm, x = mparse(perception)
     new_args = (x.age,)

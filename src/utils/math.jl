@@ -69,6 +69,16 @@ function sigmoid_grad(x::Float64, x0::Float64 = 0., m::Float64=1.0)
     y * (1 - y)
 end
 
+function fast_sigmoid(x::Real)
+    x = abs(x)
+    (1/x) / (1 + (1/x))
+end
+
+function fast_sigmoid_grad(x::Real)
+    x = abs(x)
+    1 / (x + 1)^2
+end
+
 function l2log(x::Vector{T}) where {T<:Real}
     logsqs = T(-Inf)
     n = length(x)

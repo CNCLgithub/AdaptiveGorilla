@@ -11,11 +11,14 @@
 abstract type GranularityMove end
 
 struct SplitMove <: GranularityMove
+    "Ensemble index"
     x::Int64
 end
 
 struct MergeMove <: GranularityMove
+    "Global object index"
     a::Int64
+    "Global object index"
     b::Int64
 end
 
