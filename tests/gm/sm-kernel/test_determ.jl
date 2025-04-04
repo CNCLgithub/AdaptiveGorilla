@@ -76,21 +76,6 @@ function test_merge_ensemble_ensemble()
     return nothing
 end;
 
-function test_apply_mergers()
-    println("test apply_mergers")
-    wm = InertiaWM()
-    tr, _ = Gen.generate(AdaptiveGorilla.inertia_init,
-                         (wm,),
-                         choicemap(:n => 5))
-    st = get_retval(tr)
-    (nk, xs, ys) = AdaptiveGorilla.all_pairs(st)
-    ms = falses(nk)
-    # a + b, a + c, a + d, a + e, b + c,...
-    # (a + b) + (a + c) + (b + c) = (a + b + c)
-    ms[1] = ms[2] = ms[5] = true
-    AdaptiveGorilla.apply_mergers(st, xs, ys, ms)
-end
-
 test_merge_single_single();
 test_merge_single_ensemble();
 test_merge_ensemble_ensemble();

@@ -45,13 +45,14 @@ function assess_granularity!(
              V<:HyperFilter}
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
-    update_task_relevance!(att)
+    # REVIEW: why does adding the line below
+    # always lead to the last hparticle dominating?
+    # update_task_relevance!(att)
     for i = 1:hf.h
-        println("chain $(i)")
         v = granularity_objective(mem, att, vstate.chains[i])
         mstate.objectives[i] = logsumexp(mstate.objectives[i], v)
     end
-    @show mstate.objectives
+    # @show mstate.objectives
     mstate.steps += 1
     return nothing
 end
@@ -65,25 +66,30 @@ function granularity_objective(ag::MentalModule{G},
     attp, attx = mparse(ac)
     @unpack partition, nns = attp
     @unpack state = chain
+    trace = retrieve_map(chain)
+    tr = task_relevance(attx,
+                        attp.partition,
+                        trace,
+                        attp.nns)
+    len = length(tr)
+    mag = l2log(tr) - (log(len))
     # Running averages
-    mag = -Inf
-    len = 0.0
-    np = length(state.traces)
-    # TODO: revist
-    @inbounds for i = 1:np
-        tr = task_relevance(attx,
-                            attp.partition,
-                            state.traces[i],
-                            attp.nns)
-        @show tr
-        len = length(tr)
-        _mag = l2log(tr)
-        @show _mag
-        mag = logsumexp(mag, l2log(tr) - log(len))
-    end
+    # mag = -Inf
+    # @inbounds for i = 1:np
+    #     tr = task_relevance(attx,
+    #                         attp.partition,
+    #                         state.traces[i],
+    #                         attp.nns)
+    #     @show tr
+    #     len = length(tr)
+    #     _mag = l2log(tr)
+    #     # @show _mag
+    #     mag = logsumexp(mag, _mag - log(len^2))
+    # end
+    # mag -= log(np)
+    # mag
     # lml = log_ml_estimate(state)
-    # lml + mag - log(len)
-    mag - log(np)
+    # lml + mag
 end
 
 function regranularize!(mem::MentalModule{M},
@@ -97,6 +103,7 @@ function regranularize!(mem::MentalModule{M},
     # Resampling weights
     memp, memstate = mparse(mem)
     visp, visstate = mparse(vis)
+    attp, attx = mparse(att)
     # not time yet
     (t > 0 && t % visp.dt != 0) && return nothing
 
@@ -107,10 +114,16 @@ function regranularize!(mem::MentalModule{M},
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
     for i = 1:visp.h
+        # parent = visstate.chains[i] # PFChain
         parent = visstate.chains[next_gen[i]] # PFChain
         template = retrieve_map(parent) # InertiaTrace
-        cm = shift_granularity(template) # InertiaState
+        tr = task_relevance(attx,
+                            attp.partition,
+                            template,
+                            attp.nns)
+        cm = shift_granularity(template, tr)
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
+        # visstate.new_chains[i] = reinit_chain(parent, template)
     end
 
     visstate.age = 1 # TODO: 0 or 1?
@@ -118,14 +131,14 @@ function regranularize!(mem::MentalModule{M},
     visstate.chains = visstate.new_chains
     visstate.new_chains = temp_chains
 
-    fill!(memstate.objectives, 0.0)
+    fill!(memstate.objectives, -Inf)
     memstate.steps = 0
 
     return nothing
 end
 
 
-function shift_granularity(t::InertiaTrace)
+function shift_granularity(t::InertiaTrace, tre::Vector{Float64})
     _, wm, _ = get_args(t)
     state = get_last_state(t)
     @unpack singles, ensembles = state
@@ -133,7 +146,7 @@ function shift_granularity(t::InertiaTrace)
     if rand() > 0.5
         ns = length(singles)
         ne = length(ensembles)
-        sample_granularity_move!(cm, ns, ne)
+        sample_granularity_move!(cm, tre, ns, ne)
     else
         cm[:s0 => :nsm] = 1 # no change
     end
@@ -143,7 +156,8 @@ end
 function sample_granularity_move!(cm::Gen.ChoiceMap, nsingle::Int, nensemble::Int)
     ntotal = nsingle + nensemble
     nmerges = ncr(ntotal, 2)
-    move = if nensemble > 0 && rand() > 0.5
+    split_prob = nensemble / (nensemble + nmerges)
+    move = if rand() < split_prob
         # sample which ensemble to split
         cm[:s0 => :nsm] = 2
         cm[:s0 => :state => :idx] = rand(1:nensemble)
@@ -151,6 +165,31 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, nsingle::Int, nensemble::In
         # sample which pair to merge
         cm[:s0 => :nsm] = 3
         cm[:s0 => :state => :pair] = rand(1:nmerges)
+    end
+    return nothing
+end
+
+function sample_granularity_move!(cm::Gen.ChoiceMap, ws::Vector{Float64},
+                                  nsingle::Int, nensemble::Int)
+    ntotal = nsingle + nensemble
+    nmerges = ncr(ntotal, 2)
+    split_prob = nensemble / (nensemble + nmerges)
+    move = if rand() < split_prob
+        # sample which ensemble to split
+        split_ws = softmax(ws[nsingle+1:end])
+        cm[:s0 => :nsm] = 2
+        cm[:s0 => :state => :idx] = categorical(split_ws)
+    else
+        # sample which pair to merge
+        npairs = ncr(ntotal, 2)
+        pairs = Vector{Float64}(undef, npairs)
+        for i = 1:npairs
+            (a, b) = combination(ntotal, 2, i)
+            pairs[i] = log1mexp(logsumexp(ws[a], ws[b]))
+        end
+        pairs = softmax(pairs, 0.001)
+        cm[:s0 => :nsm] = 3
+        cm[:s0 => :state => :pair] = categorical(pairs)
     end
     return nothing
 end

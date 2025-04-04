@@ -1,5 +1,5 @@
 export Experiment, Gorillas, load_from_dataset, get_obs,
-    render_agent_state
+    render_agent_state, run_analyses
 
 abstract type Experiment end
 
@@ -73,4 +73,10 @@ function render_frame(exp::Gorillas, t::Int, objp = ObjectPainter())
     obs = to_array(get_obs(exp, t), Detection)
     paint(objp, obs)
     return nothing
+end
+
+function run_analyses(exp::Gorillas, agent::Agent)
+    gorilla_p = estimate_marginal(agent.perception,
+                                  detect_gorilla, ())
+    Dict(:gorilla_p => gorilla_p)
 end

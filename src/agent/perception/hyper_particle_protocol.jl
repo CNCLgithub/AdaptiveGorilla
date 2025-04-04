@@ -1,6 +1,7 @@
 export HyperFilter,
-       HyperState,
-       PerceptionModule
+    HyperState,
+    PerceptionModule,
+    estimate_marginal
 
 @with_kw struct HyperFilter{P<:AbstractParticleFilter
                   } <: PerceptionProtocol

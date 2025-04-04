@@ -92,6 +92,7 @@ end
 
 get_pos(e::InertiaEnsemble) = e.pos
 get_vel(e::InertiaEnsemble) = e.vel
+get_var(e::InertiaEnsemble) = e.var
 rate(e::InertiaEnsemble) = e.rate
 
 struct InertiaState <: WorldState{InertiaWM}
@@ -260,20 +261,26 @@ function predict(wm::InertiaWM, st::InertiaState)
                 Float64(Int(single.mat)),
                 material_noise)
         # bw = inbounds(pos, bbmin, bbmax) ? 0.95 : 0.05
-        es[i] = PoissonElement{Detection}(1.0, detect, args)
-        # es[i] = IsoElement{Detection}(detect, args)
+        # NOTE: Manualy set so logpdf(1) > logpdf(0)
+        es[i] = NegBinomElement{Detection}(2, 0.4, detect, args)
+        # es[i] = PoissonElement{Detection}(1.0, detect, args)
+        # es[i] = BernoulliElement{Detection}(0.99, detect, args)
     end
     # the ensemble
     @inbounds for i = 1:ne
         @unpack matws, rate, pos, var = ensembles[i]
         mix_args = (matws,
                     [pos, pos],
-                    [sqrt(var), sqrt(var)],
+                    [var, var],
                     [1.0, 2.0],
                     [material_noise, material_noise])
         es[ns + i] =
             PoissonElement{Detection}(rate, detect_mixture, mix_args)
     end
+    # catch all ensemble
+    # es[end] =
+    #     PoissonElement{Detection}(0.1, detect,
+    #                               (S2V([0., 0.]), 1000.0, 0.5, 10.0))
     return es
 end
 
@@ -308,7 +315,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[5] # :xs
+    xs_node = kernel_ir.call_nodes[4] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -332,29 +339,30 @@ function detect_gorilla(trace::InertiaTrace,
                         temp::Float64 = 1.0)
 
     t = first(get_args(trace))
+    t == 0 && return -Inf # TODO: fix issue with `reinit_chain`
     rfs = extract_rfs_subtrace(trace, t)
     pt = rfs.ptensor
     scores = rfs.pscores
     nx,ne,np = size(pt)
     result = -Inf
-    state = trace[:kernel => t]
-    if (nx != nobj + 1 ) #|| length(state.singles) != 5)
+    state = get_last_state(trace)
+    if (nx != nobj + 1 )
+        # No gorilla yet
+        return result
+    end
+    ns = length(state.singles)
+    if ns == 0
+        # No individuals to detect gorilla
         return result
     end
     @inbounds for p = 1:np
-        targets_tracked = true
-        for x = 1:ntargets
-            pt[x, ne, p] || continue
-            targets_tracked = false
-            break
-        end
-        gorilla_detected = !pt[nx, ne, p]
-
-        if targets_tracked && gorilla_detected
-            result = logsumexp(result, scores[p] - rfs.score)
+        for s = 1:ns
+            pt[nx, s, p] || continue
+            result = logsumexp(result, scores[p])
         end
     end
-    return result
+    result -= rfs.score
+    return exp(result)
 end
 
 _kernel_prefix(t::Int, i::Int) = :kernel => t => :xs => i
@@ -534,19 +542,6 @@ function all_pairs(n::Int64)
     return (nk, xs, ys)
 end
 
-# TODO: Optimize for loop
-function apply_mergers(st::InertiaState, mergers::AbstractVector{T}) where {T<:Bool}
-    ens = st.ensemble
-    n = min(length(st.singles), length(mergers))
-    @inbounds for i = 1:n
-        if mergers[i]
-            ens = determ_merge(st.singles[i], ens)
-        end
-    end
-    singles = PersistentVector(st.singles[.!(mergers)])
-    InertiaState(singles, ens)
-end
-
 function get_maybe_add!(d::Dict, i::Int64, st::InertiaState)
     if haskey(d, i)
         return d[i]
@@ -556,59 +551,11 @@ function get_maybe_add!(d::Dict, i::Int64, st::InertiaState)
     end
 end
 
-function apply_mergers(st::InertiaState,
-                       xs::Vector{Int64},
-                       ys::Vector{Int64},
-                       mergers::AbstractVector{T}) where {T<:Bool}
-    iszero(count(mergers)) && return st
-    n = length(xs)
-    ns = length(st.singles)
-    ne = length(st.ensembles)
-    results = Dict{Int64, InertiaObject}()
-    mapping = Dict{Int64, Int64}()
-    remaining = trues(ns + ne)
-    @inbounds for i = 1:n
-        if mergers[i]
-            # lookup indeces
-            x = xs[i]; y = ys[i]
-            remaining[x] = false
-            remaining[y] = false
-            # Int -> Int
-            xi = get!(mapping, x, x)
-            yi = get!(mapping, y, y)
-            # println("joining $x -> $y ($(xi) -> $(yi))")
-            if xi == yi
-                # println("\t already merged")
-                # already merged
-                continue
-            end
-            # Retrieve objects Int -> Obj
-            a = get_maybe_add!(results, xi, st)
-            b = get_maybe_add!(results, yi, st)
-            # println("\tx: $(typeof(a))\n\ty: $(typeof(b))")
-            # remap
-            delete!(results, xi)
-            delete!(results, yi)
-            mapping[x] = mapping[y] = xi
-            # merge
-            results[xi] = determ_merge(a, b)
-        end
-    end
-    singles = PersistentVector(st.singles[remaining[1:ns]])
-    new_ensembles = collect(InertiaEnsemble, values(results))
-    ensembles = vcat(new_ensembles, st.ensembles[remaining[(ns+1):end]])
-    # println("applied mergers")
-    # @show (count(mergers), ns, ne)
-    # @show (length(singles), sum(rate, ensembles))
-    InertiaState(singles, ensembles)
-end
-
 
 function apply_merge(a::InertiaSingle, b::InertiaSingle)
     matws = zeros(NMAT)
-    matws[Int64(a.mat)] += 1
-    matws[Int64(b.mat)] += 1
-    lmul!(0.5, matws)
+    matws[Int64(a.mat)] += 0.5
+    matws[Int64(b.mat)] += 0.5
     new_pos = 0.5 .* (get_pos(a) + get_pos(b))
     # REVIEW: dampen vel based on count?
     new_vel = 0.5 .* (get_vel(a) + get_vel(b))
@@ -624,23 +571,17 @@ end
 
 function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     new_count = b.rate + 1
+    # materials
     matws = deepcopy(b.matws)
     lmul!(b.rate, matws)
     matws[Int64(a.mat)] += 1
     lmul!(1.0 / new_count, matws)
-    new_pos = get_pos(b) + (get_pos(a) - get_pos(b)) / new_count
-    # new_pos = (1 / new_count) .* get_pos(a) +
-    #     (b.rate / new_count) .* get_pos(b)
-    new_vel = (1 / new_count) .* get_vel(a) +
-        (b.rate / new_count) .* get_vel(b)
-    delta = sqrt(norm(get_pos(a) - get_pos(b)) *
-        norm(get_pos(a) - new_pos))
-    var = ((b.rate - 1) * b.var + delta) / (new_count - 1)
-    # @show merge_probability(a, b)
-    # @show a.pos
-    # @show b.pos
-    # @show delta
-    # @show (b.var, var)
+    # movement and variance
+    delta_pos = (get_pos(a) - get_pos(b)) / new_count
+    delta_vel = (get_vel(a) - get_vel(b)) / new_count
+    new_pos = get_pos(b) + delta_pos
+    new_vel = get_vel(b) + delta_vel
+    var = get_var(b) + norm(delta_pos) + norm(delta_vel)
     InertiaEnsemble(
         new_count,
         matws,

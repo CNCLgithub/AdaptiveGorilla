@@ -30,7 +30,7 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
 
     # println("\nobj_var $(obj.var)")
     std = sqrt(obj.var)
-    _draw_circle(get_pos(obj), 3.0 * std, "black";
+    _draw_circle(get_pos(obj), 1.5 * std, "black";
                  style = :stroke)
     mat = round(obj.matws[2]; digits = 2)
     _draw_text("Dark: $(mat); rate: $(obj.rate)", get_pos(obj))

@@ -126,3 +126,26 @@ function combination(n::Int, p::Int, x::Int)
     c[p] = c[p-1] + x - k
     return c
 end
+
+function comb_index(n::Int, s::Vector{Int})
+    k = length(s)
+    index = 0
+    j = 1;
+    for i = 0:(k-1)
+        while j < s[i+1]
+            index += ncr(n - j, k - i - 1);
+            j += 1
+        end
+    end
+    return index
+end
+
+const NEGLN2 = -log(2)
+
+"""
+Numerically accurate evaluation of log(1 - exp(x)) for x < 0.
+See [Maechler2012accurate] https://cran.r-project.org/web/packages/Rmpfr/vignettes/log1mexp-note.pdf
+"""
+function log1mexp(x::Float64)
+    x  > NEGLN2 ? log(-expm1(x)) : log1p(-exp(x))
+end
