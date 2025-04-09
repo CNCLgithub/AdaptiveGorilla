@@ -3,84 +3,95 @@ using ArgParse
 using Gen_Compose
 using DataFrames, CSV
 using AdaptiveGorilla
+using Statistics: mean
 
-att_modules = Dict(
-    :ac => AdaptiveComputation,
-    :un => UniformProtocol
-)
+# att_modules = Dict(
+#     :ac => AdaptiveComputation,
+#     :un => UniformProtocol
+# )
 
-att_configs = Dict(
-    :ac => "$(@__DIR__)/ac.json",
-    :un => "$(@__DIR__)/un.json",
-)
+# att_configs = Dict(
+#     :ac => "$(@__DIR__)/ac.json",
+#     :un => "$(@__DIR__)/un.json",
+# )
 
-function gorilla_exp(logger)
-    bfr = buffer(logger)
-    n = length(bfr)
-    pgorilla = 0.0
-    for i = 1:n
-        pgorilla += bfr[i][:pgorilla]
+DATASET = "pilot"
+DPATH   = "/spaths/datasets/$(DATASET).json"
+FRAMES  = 41
+RENDER  = false
+G_IDX   = 9
+CHAINS  = 5
+NTRIALS = 3
+GORILLACOLORS = [Light, Dark]
+
+WM = InertiaWM(area_width = 1240.0,
+               area_height = 840.0,
+               birth_weight = 0.1,
+               single_noise = 0.5,
+               stability = 0.65,
+               vel = 3.0,
+               force_low = 1.0,
+               force_high = 5.0,
+               material_noise = 0.001,
+               ensemble_shape = 1.2,
+               ensemble_scale = 1.0)
+
+
+
+function run_trial(exp)
+    query = exp.init_query
+    pf = AdaptiveParticleFilter(particles = 15)
+    hpf = HyperFilter(;dt=10, pf=pf, h=5)
+    perception = PerceptionModule(hpf, query)
+    attention = AttentionModule(
+        AdaptiveComputation(;
+                            itemp=3.0,
+                            base_steps=5,
+                            )
+    )
+    planning = PlanningModule(CollisionCounter(; mat=Light))
+    memory = MemoryModule(AdaptiveGranularity(; tau=1.0), hpf.h)
+
+    agent = Agent(perception, planning, memory, attention)
+
+    ndetected = 0
+
+    for t = 1:(FRAMES - 1)
+        println("On frame $(t)")
+        step_agent!(agent, exp, t)
+        _results = run_analyses(exp, agent)
+        if _results[:gorilla_p] > 0.5
+            ndetected += 1
+        end
+        if ndetected > 10
+            break
+        end
     end
-    pgorilla /= n
-    return pgorilla
+
+    return ndetected
 end
 
 function main()
-    trial = 2
-    duration = 30
-    att_module = :ac
-    dataset = "pilot"
-    gorilla_color = Light
-    chains = 1
 
     result = DataFrame(:trial => Int64[],
-                       :color => Symbol[],
+                       :color => Int64[],
                        :chain => Int64[],
-                       :pgorilla => Float64[])
+                       :ndetected => Int64[])
 
-    # wm_config = load_json("$(@__DIR__)/wm.json")
-    # wm = InertiaWM(;wm_config...)
-    wm = InertiaWM(area_width = 1240.0,
-                   area_height = 840.0,
-                   birth_weight = 0.1,
-                   single_noise = 0.5,
-                   stability = 0.90,
-                   vel = 3.0,
-                   force_low = 1.0,
-                   force_high = 5.0,
-                   material_noise = 0.001,
-                   ensemble_shape = 1.2,
-                   ensemble_scale = 1.0,
-                   wall_rep_m = 0.0)
-    display(wm)
-    dpath = "/spaths/datasets/$(dataset).json"
-    query = query_from_dataset(wm, dpath, trial, duration, gorilla_color)
 
-    att_config = load_json(att_configs[att_module])
-    att = att_modules[att_module](;att_config...)
-    proc = AdaptiveParticleFilter(;load_json("$(@__DIR__)/pf.json")...,
-                                  attention = att)
-    nsteps = length(query)
 
-    chain = 1
-    logger = MemLogger(nsteps)
-    run_chain(proc, query, nsteps, logger)
-    pgorilla = gorilla_exp(logger)
-    push!(result, (trial, Symbol(gorilla_color), chain, pgorilla))
-    # for chain = 1:chains
-    #     logger = MemLogger(nsteps)
-    #     run_chain(proc, query, nsteps, logger)
-    #     pgorilla = gorilla_exp(logger)
-    #     push!(result, (trial, Symbol(gorilla_color), chain, pgorilla))
-    # end
 
+    for trial_idx = 1:NTRIALS, gorilla_color = GORILLACOLORS
+        exp = Gorillas(DPATH, WM, trial_idx, G_IDX,
+                       gorilla_color, FRAMES)
+        for c = 1:CHAINS
+            ndetected = run_trial(exp)
+            push!(result, (trial_idx, Int(gorilla_color), c, ndetected))
+        end
+    end
     display(result)
-
-    out = "/spaths/experiments/$(dataset)/$(trial)_$(gorilla_color)"
-    isdir(out) || mkpath(out)
-    CSV.write("$(out).csv", result)
-    render_inference(wm, logger, out)
-
+    grouped = groupby(result, :color)
+    display(combine(grouped, :ndetected => mean))
 end;
 
 

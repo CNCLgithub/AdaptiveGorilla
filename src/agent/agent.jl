@@ -102,3 +102,4 @@ end
 
 
 include("visuals.jl")
+include("experiments.jl")

@@ -75,8 +75,4 @@ function render_frame(exp::Gorillas, t::Int, objp = ObjectPainter())
     return nothing
 end
 
-function run_analyses(exp::Gorillas, agent::Agent)
-    gorilla_p = estimate_marginal(agent.perception,
-                                  detect_gorilla, ())
-    Dict(:gorilla_p => gorilla_p)
-end
+function run_analyses end

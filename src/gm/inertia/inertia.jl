@@ -455,14 +455,12 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     lmul!(e.rate, matws)
     matws[Int64(x.mat)] -= 1
     lmul!(1.0 / new_count, matws)
-    new_pos = (1 / new_count) .*
-        (e.rate .* get_pos(e) - (1 / e.rate) .* get_pos(x))
-    new_vel = (1 / new_count) .*
-        (e.rate .* get_vel(e) - (1 / e.rate) .* get_vel(x))
-    delta = sqrt(norm(get_pos(x) - get_pos(e)) *
-        norm(get_pos(x) - new_pos))
-    var = ((e.rate - 1) * e.var - delta) / (new_count - 1)
-    var = max(100.0, var)
+    delta_pos = (get_pos(e) - get_pos(x)) / new_count
+    delta_vel = (get_vel(e) - get_vel(x)) / new_count
+    new_pos = get_pos(e) + delta_pos
+    new_vel = get_vel(e) + delta_vel
+    var = get_var(e) - norm(delta_pos) - norm(delta_vel)
+    var = max(10.0, var)
     InertiaEnsemble(
         new_count,
         matws,
@@ -599,11 +597,11 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     new_count = a.rate + b.rate
     matws = a.rate .* a.matws + b.rate .* b.matws
     lmul!(1.0 / new_count, matws)
-    new_pos = (a.rate / new_count) .* get_pos(a) +
-        (b.rate / new_count) .* get_pos(b)
-    new_vel = (a.rate / new_count) .* get_vel(a) +
-        (b.rate / new_count) .* get_vel(b)
-    var = a.var + b.var
+    delta_pos = (get_pos(a) - get_pos(b)) / new_count
+    delta_vel = (get_vel(a) - get_vel(b)) / new_count
+    new_pos = get_pos(b) + delta_pos
+    new_vel = get_vel(b) + delta_vel
+    var = 0.5 * (a.var + b.var) + norm(delta_pos) + norm(delta_vel)
     InertiaEnsemble(
         new_count,
         matws,

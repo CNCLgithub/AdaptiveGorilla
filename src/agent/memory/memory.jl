@@ -185,7 +185,9 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, ws::Vector{Float64},
         pairs = Vector{Float64}(undef, npairs)
         for i = 1:npairs
             (a, b) = combination(ntotal, 2, i)
-            pairs[i] = log1mexp(logsumexp(ws[a], ws[b]))
+            # prevent log(-x) in next line
+            w = min(0.0, logsumexp(ws[a], ws[b]))
+            pairs[i] = log1mexp(w)
         end
         pairs = softmax(pairs, 0.001)
         cm[:s0 => :nsm] = 3

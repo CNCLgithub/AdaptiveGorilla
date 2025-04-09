@@ -1,5 +1,6 @@
 using Gen
 using MOTCore
+using DataFrames
 using Gen_Compose
 using AdaptiveGorilla
 using AdaptiveGorilla: S3V
@@ -19,14 +20,14 @@ function test_agent()
                    ensemble_shape = 1.2,
                    ensemble_scale = 1.0)
     dpath = "/spaths/datasets/pilot.json"
-    trial_idx = 1
+    trial_idx = 4
     gorilla_idx = 9
     gorilla_color = Light
     frames = 41
     exp = Gorillas(dpath, wm, trial_idx, gorilla_idx,
                    gorilla_color, frames)
     query = exp.init_query
-    pf = AdaptiveParticleFilter(particles = 20)
+    pf = AdaptiveParticleFilter(particles = 15)
     hpf = HyperFilter(;dt=10, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
@@ -45,13 +46,21 @@ function test_agent()
     out = "/spaths/tests/agent_state"
     isdir(out) || mkpath(out)
 
+    results = DataFrame(
+        :frame => Int64[],
+        :gorilla_p => Float64[]
+    )
+
     for t = 1:(frames - 1)
         println("On frame $(t)")
         step_agent!(agent, exp, t)
-        results = run_analyses(exp, agent)
-        display(results)
+        _results = run_analyses(exp, agent)
+        _results[:frame] = t
+        push!(results, _results)
         render && render_agent_state(exp, agent, t, out)
     end
+
+    display(results)
 
     return nothing
 end

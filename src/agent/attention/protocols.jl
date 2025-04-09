@@ -43,7 +43,7 @@ export AdaptiveComputation,
     base_steps::Int64 = 3
     buffer_size::Int64 = 100
     "Distance metric in spatial maps"
-    map_metric::PreMetric = WeightedEuclidean(S3V(0.05, 0.05, 0.9))
+    map_metric::PreMetric = WeightedEuclidean(S3V(0.1, 0.1, 0.8))
     "Number of nearest neighbors"
     nns::Int64 = 5
     "Importance softmax temperature"
