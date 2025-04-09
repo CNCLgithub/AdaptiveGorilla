@@ -269,11 +269,12 @@ function predict(wm::InertiaWM, st::InertiaState)
     # the ensemble
     @inbounds for i = 1:ne
         @unpack matws, rate, pos, var = ensembles[i]
+        varw = var * single_noise
         mix_args = (matws,
-                    [pos, pos],
-                    [var, var],
+                    Fill(pos, 2),
+                    Fill(varw, 2),
                     [1.0, 2.0],
-                    [material_noise, material_noise])
+                    Fill(material_noise, 2))
         es[ns + i] =
             PoissonElement{Detection}(rate, detect_mixture, mix_args)
     end
@@ -348,7 +349,7 @@ function detect_gorilla(trace::InertiaTrace,
     state = get_last_state(trace)
     if (nx != nobj + 1 )
         # No gorilla yet
-        return result
+        return exp(result)
     end
     ns = length(state.singles)
     if ns == 0
@@ -557,7 +558,7 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     new_pos = 0.5 .* (get_pos(a) + get_pos(b))
     # REVIEW: dampen vel based on count?
     new_vel = 0.5 .* (get_vel(a) + get_vel(b))
-    var = norm(get_pos(a) - get_pos(b))
+    var = 2 * norm(get_pos(a) - get_pos(b))
     InertiaEnsemble(
         2,
         matws,

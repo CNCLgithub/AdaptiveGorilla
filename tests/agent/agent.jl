@@ -18,22 +18,24 @@ function test_agent()
                    force_high = 5.0,
                    material_noise = 0.001,
                    ensemble_shape = 1.2,
-                   ensemble_scale = 1.0)
+                   ensemble_scale = 1.0,
+                   ensemble_var_shift = 0.4)
     dpath = "/spaths/datasets/pilot.json"
     trial_idx = 4
     gorilla_idx = 9
-    gorilla_color = Light
+    gorilla_color = Dark
     frames = 41
     exp = Gorillas(dpath, wm, trial_idx, gorilla_idx,
                    gorilla_color, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 15)
-    hpf = HyperFilter(;dt=10, pf=pf, h=5)
+    hpf = HyperFilter(;dt=40, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
         AdaptiveComputation(;
                             itemp=3.0,
                             base_steps=5,
+                            load = 0,
                             map_metric=WeightedEuclidean(S3V(0.1, 0.1, 0.8)),
                             )
     )
@@ -48,7 +50,8 @@ function test_agent()
 
     results = DataFrame(
         :frame => Int64[],
-        :gorilla_p => Float64[]
+        :gorilla_p => Float64[],
+        :collision_p => Float64[]
     )
 
     for t = 1:(frames - 1)

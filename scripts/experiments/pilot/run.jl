@@ -20,8 +20,8 @@ DPATH   = "/spaths/datasets/$(DATASET).json"
 FRAMES  = 41
 RENDER  = false
 G_IDX   = 9
-CHAINS  = 5
-NTRIALS = 3
+CHAINS  = 3
+NTRIALS = 1
 GORILLACOLORS = [Light, Dark]
 
 WM = InertiaWM(area_width = 1240.0,
@@ -60,6 +60,7 @@ function run_trial(exp)
         println("On frame $(t)")
         step_agent!(agent, exp, t)
         _results = run_analyses(exp, agent)
+        @show _results[:collision_p]
         if _results[:gorilla_p] > 0.5
             ndetected += 1
         end

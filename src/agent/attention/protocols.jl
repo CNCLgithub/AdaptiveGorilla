@@ -48,6 +48,8 @@ export AdaptiveComputation,
     nns::Int64 = 5
     "Importance softmax temperature"
     itemp::Float64 = 3.0
+    "Load - constant for now"
+    load::Int64 = 20
 end
 
 mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
@@ -140,36 +142,34 @@ end
 function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputation}
     protocol, aux = mparse(att)
 
-    @unpack partition, base_steps, nns, itemp = protocol
+    @unpack partition, base_steps, nns, itemp, load = protocol
     @unpack state = chain
 
     np = length(state.traces)
-    l = load(protocol, aux) # load is shared across particles
-    l = 20 # TODO Remove
+    # l = load(protocol, aux) # load is shared across particles
 
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
-        remaining = l + base_steps
         # determine the importance of each latent
         deltas = task_relevance(aux, partition, trace, nns)
         importance = softmax(deltas, itemp)
         # Stage 2
-        while remaining > 0
-            # select latent and C_k
-            j = categorical(importance) 
-            prop = select_prop(partition, trace, j)
-            # Apply computation, estimate dS
-            new_trace, alpha = prop(trace)
-            dS = min(alpha, 0.)
-            if log(rand()) < alpha # update particle
-                trace = new_trace
-                state.log_weights[i] += alpha
+        # select latent and C_k
+        for j = 1:length(deltas)
+            steps = base_steps + round(Int, load * importance[j])
+            for _ = 1:steps
+                prop = select_prop(partition, trace, j)
+                # Apply computation, estimate dS
+                new_trace, alpha = prop(trace)
+                dS = min(alpha, 0.)
+                if log(rand()) < alpha # update particle
+                    trace = new_trace
+                    state.log_weights[i] += alpha
+                end
+                # NOTE: continually updating partition map
+                update_dS!(att, partition, trace, j, dS)
             end
-            # NOTE: continually updating partition map
-            update_dS!(att, partition, trace, j, dS)
-            remaining -= 1
         end
-
 
         # baby block
         # NOTE: Not sure if needed
