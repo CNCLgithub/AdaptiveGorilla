@@ -18,7 +18,7 @@ function render_frame(perception::MentalModule{V},
                             attp.partition,
                             trace,
                             attp.nns)
-        importance = softmax(tr)
+        importance = softmax(tr, attp.itemp)
         paint(objp, state, importance)
     end
     return nothing

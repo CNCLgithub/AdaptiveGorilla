@@ -128,9 +128,10 @@ end
 function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
+    # (stability, force_low, force_high)
     (stability,
-     force_low / rate,
-     force_high / rate)
+     force_low / sqrt(rate),
+     force_high / sqrt(rate))
 end
 
 
@@ -235,7 +236,7 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
-    new_var = var * update[3]
+    new_var = max(10., var + update[3])
     # @show (var, update[3])
     setproperties(e; pos = new_pos,
                   vel = new_vel,
@@ -340,22 +341,22 @@ function detect_gorilla(trace::InertiaTrace,
                         temp::Float64 = 1.0)
 
     t = first(get_args(trace))
-    t == 0 && return -Inf # TODO: fix issue with `reinit_chain`
+    t == 0 && return 0.0 # TODO: fix issue with `reinit_chain`
     rfs = extract_rfs_subtrace(trace, t)
     pt = rfs.ptensor
     scores = rfs.pscores
     nx,ne,np = size(pt)
-    result = -Inf
     state = get_last_state(trace)
     if (nx != nobj + 1 )
         # No gorilla yet
-        return exp(result)
+        return 0.0
     end
     ns = length(state.singles)
     if ns == 0
         # No individuals to detect gorilla
-        return result
+        return 0.0
     end
+    result = -Inf
     @inbounds for p = 1:np
         for s = 1:ns
             pt[nx, s, p] || continue
@@ -391,7 +392,6 @@ end
 function initial_state(wm::InertiaWM, positions, target_count::Int = 4)
     n = length(positions)
     singles = Vector{InertiaSingle}(undef, n)
-    println("Loaded $(n) objects")
     for i = 1:n
         x, y = positions[i]
         color = i <= target_count ? Light : Dark

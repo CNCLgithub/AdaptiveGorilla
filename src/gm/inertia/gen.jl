@@ -161,8 +161,8 @@ end
 @gen static function inertia_ensemble(wm::InertiaWM,
                                       e::InertiaEnsemble)
     force ~ inertia_force(wm, e)
-    spread ~ uniform(1.0 - wm.ensemble_var_shift,
-                     1.0 + wm.ensemble_var_shift)
+    spread ~ uniform(-wm.ensemble_var_shift,
+                     wm.ensemble_var_shift)
     result::S3V = S3V(force[1], force[2], spread)
     return result
 end

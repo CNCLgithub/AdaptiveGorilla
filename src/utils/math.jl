@@ -70,7 +70,7 @@ function sigmoid_grad(x::Float64, x0::Float64 = 0., m::Float64=1.0)
 end
 
 function fast_sigmoid(x::Real)
-    x = abs(x)
+    x = abs(x) + 0.001
     (1/x) / (1 + (1/x))
 end
 

@@ -10,7 +10,7 @@ struct Detection
     x::Float64
     "Y location"
     y::Float64
-    "Color intensity [0, 1]"
+    "Color intensity [1, 2]"
     i::Float64
 end
 intensity(x::Detection) = x.i

@@ -11,6 +11,7 @@ Defines the granularity mapping for a current trace format
 @with_kw struct AdaptiveGranularity <: MemoryProtocol
     "Temperature for chain resampling"
     tau::Float64 = 1.0
+    shift::Bool = true
 end
 
 mutable struct GranularityEstimates <: MentalState{AdaptiveGranularity}
@@ -56,8 +57,6 @@ function assess_granularity!(
     mstate.steps += 1
     return nothing
 end
-
-
 
 function granularity_objective(ag::MentalModule{G},
                                ac::MentalModule{A},
@@ -108,8 +107,6 @@ function regranularize!(mem::MentalModule{M},
     (t > 0 && t % visp.dt != 0) && return nothing
 
     ws = softmax(memstate.objectives, memp.tau)
-    @show memstate.objectives
-    @show ws
     # Repopulate and shift granularity
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
@@ -121,7 +118,8 @@ function regranularize!(mem::MentalModule{M},
                             attp.partition,
                             template,
                             attp.nns)
-        cm = shift_granularity(template, tr)
+        cm = memp.shift ?
+            shift_granularity(template, tr) : noshift(template)
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
         # visstate.new_chains[i] = reinit_chain(parent, template)
     end
@@ -137,6 +135,12 @@ function regranularize!(mem::MentalModule{M},
     return nothing
 end
 
+
+function noshift(t::InertiaTrace)
+    cm = choicemap()
+    cm[:s0 => :nsm] = 1 # no change
+    return cm
+end
 
 function shift_granularity(t::InertiaTrace, tre::Vector{Float64})
     _, wm, _ = get_args(t)

@@ -75,4 +75,21 @@ function render_frame(exp::Gorillas, t::Int, objp = ObjectPainter())
     return nothing
 end
 
+function collision_expectation(exp::Gorillas)
+    (_, wm, _) = exp.init_query.args
+    n = length(exp.observations)
+    e = 0.0
+    for t = 1:n
+        detections = to_array(get_obs(exp, t), Detection)
+        for d = detections
+            intensity(d) != 1.0 && continue
+            for k = 1:4 # each wall
+                _ep, _ = colprob_and_agrad(position(d), wm.walls[k])
+                e += _ep
+            end
+        end
+    end
+    return e
+end
+
 function run_analyses end

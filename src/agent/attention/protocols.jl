@@ -153,10 +153,13 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         # determine the importance of each latent
         deltas = task_relevance(aux, partition, trace, nns)
         importance = softmax(deltas, itemp)
+        nobj = length(deltas)
+        steps_per_obj = round(Int, base_steps / nobj)
         # Stage 2
         # select latent and C_k
-        for j = 1:length(deltas)
-            steps = base_steps + round(Int, load * importance[j])
+        for j = 1:nobj
+            steps = steps_per_obj +
+                round(Int, load * importance[j])
             for _ = 1:steps
                 prop = select_prop(partition, trace, j)
                 # Apply computation, estimate dS
@@ -173,7 +176,7 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
 
         # baby block
         # NOTE: Not sure if needed
-        for _ = 1:base_steps
+        for _ = 1:steps_per_obj
             new_trace, w = baby_ancestral_proposal(trace)
             if log(rand()) < w
                 trace = new_trace
