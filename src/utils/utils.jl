@@ -2,6 +2,8 @@ include("types.jl")
 include("math.jl")
 include("distributions/distributions.jl")
 include("io.jl")
+include("datastructures.jl")
+include("query.jl")
 
 const WALL_ANGLES = [0.0, pi/2, pi, 3/2 * pi]
 
@@ -14,4 +16,11 @@ function init_walls(width::Real, height::Real)
        ws[i] = Wall(sign * sum(normal .* v), normal)
     end
     return SVector{4, Wall}(ws)
+end
+
+
+import Base.keys
+
+function Base.keys(x::Base.Iterators.Filter)
+    Base.keys(collect(x))
 end

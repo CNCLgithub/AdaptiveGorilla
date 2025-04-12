@@ -50,18 +50,21 @@ rstudio_dest="${SENV[envd]}/rstudio"
     wget "$cont_pull_url" -O "${cont_dest}"
 
 [[ "${@}" =~ "cont_build" ]] && echo "building ${SENV[def]} -> ${SENV[cont]}" &&
-    docker build -t "${SENV[cont]}" "${SENV[envd]}"
+    docker build -t "${SENV[cont]}" \
+        --build-arg USER_ID=$(id -u) \
+        --build-arg GROUP_ID=$(id -g) \
+        "${SENV[envd]}"
 
 #################################################################################
 # Python setup
 #################################################################################
 [[ "${@}" =~ "python" ]] || echo "Not touching python"
-[[ "${@}" =~ "all" ]] || [[ "${@}" =~ "python" ]] &&
-    echo "building python env at ${SENV[pyenv]}" &&
-    $SING exec "${cont_dest}" bash -c "virtualenv ${SENV[pyenv]} && \
-    source ${SENV[pyenv]}/bin/activate && \
-    python -m pip install --upgrade pip" &&
-    ./env.d/run.sh python -m pip install --no-cache-dir -r /project/env.d/requirements.txt
+# [[ "${@}" =~ "all" ]] || [[ "${@}" =~ "python" ]] &&
+#     echo "building python env at ${SENV[pyenv]}" &&
+#     $SING exec "${cont_dest}" bash -c "virtualenv ${SENV[pyenv]} && \
+#     source ${SENV[pyenv]}/bin/activate && \
+#     python -m pip install --upgrade pip" &&
+#     ./env.d/run.sh python -m pip install --no-cache-dir -r /project/env.d/requirements.txt
 
 #################################################################################
 # Julia setup

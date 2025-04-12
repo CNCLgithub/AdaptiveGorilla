@@ -17,10 +17,12 @@ using GenRFS
 using MOTCore
 using Distances
 using Accessors
-using Parameters
 using FillArrays
+using Parameters
 using Statistics
+using Gen_Compose
 using StaticArrays
+using Distributions
 using LinearAlgebra
 using DataStructures
 using NearestNeighbors
@@ -30,10 +32,10 @@ using FunctionalCollections
 include("utils/utils.jl")
 include("dgp/dgp.jl")
 include("gm/gm.jl")
-include("planner/planner.jl")
-include("inference/inference.jl")
 
+include("experiment.jl")
 
+include("agent/agent.jl")
 
 
 end # module AdaptiveGorilla

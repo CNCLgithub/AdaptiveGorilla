@@ -5,8 +5,7 @@ using AdaptiveGorilla
 dataset = "pilot"
 ntrials = 10
 duration = 100
-out_dir = "output/datasets"
-isdir(out_dir) || mkpath(out_dir)
+out_dir = "/spaths/datasets"
 out_path = "$(out_dir)/$(dataset).json"
 
 function main()

@@ -118,33 +118,3 @@ function query_from_dataset(wm::WorldModel, dpath::String, i::Int,
 end
 
 
-using Luxor: finish
-
-function render_inference(wm::InertiaWM, logger::ChainLogger,
-                          path::String)
-    bfr = buffer(logger)
-    n = length(bfr)
-
-    # Initialize some of the painters
-    objp = ObjectPainter()
-    idp = IDPainter()
-
-    for i = 1:n
-        step = bfr[i]
-        state = step[:map_state]
-        aux = step[:aux]
-
-        init = InitPainter(path = "$(path)/$(i).png",
-                           background = "white")
-
-        obs = step[:xs]
-        # Apply the painters
-        paint(init, wm, state)
-        paint(objp, state)
-        paint(idp, state)
-        paint(objp, obs)
-        paint(state, aux)
-        finish()
-    end
-    return nothing
-end

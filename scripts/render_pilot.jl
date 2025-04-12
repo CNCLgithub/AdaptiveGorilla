@@ -3,7 +3,7 @@ using AdaptiveGorilla
 
 dataset = "pilot"
 ntrials = 10
-duration = 30
+duration = 40
 
 function main()
     wm = SchollWM(n_dots = 8,

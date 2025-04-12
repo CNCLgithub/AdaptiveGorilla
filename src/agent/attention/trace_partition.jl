@@ -40,14 +40,13 @@ function select_prop end
 end
 
 function latent_size(partition::InertiaPartition, tr::InertiaTrace)
-    t = first(get_args(tr))
-    state = tr[:kernel => t]
+    state = get_last_state(tr)
     n = 0
     if partition.singles
         n += length(state.singles)
     end
     if partition.ensemble
-        n += 1
+        n += length(state.ensembles)
     end
     if partition.baby
         n += 1
@@ -55,25 +54,57 @@ function latent_size(partition::InertiaPartition, tr::InertiaTrace)
     return n
 end
 
+# function get_obj(partition::InertiaPartition,
+#         trace::InertiaTrace, i::Int)
+
+#     t = first(get_args(trace))
+#     state = trace[:kernel => t]
+#     ns = length(state.singles)
+#     ne = length(state.ensembles)
+#     idx = i
+#     if !partition.singles
+#         idx += ns # jump past singles
+#     end
+#     if !partition.ensemble
+#         idx += ne # jump past ensembles
+#     end
+#     x = if idx <= ns
+#         state.singles[idx]
+#     elseif isbetween(idx, ns + 1, ne)
+#         state.ensembles[idx - ns]
+#     else
+#         error("Index $(i) not in trace")
+#     end
+#     return x
+# end
+
+get_coord(x::InertiaSingle) = S3V(get_pos(x)..., Float32(Int(x.mat)))
+function get_coord(x::InertiaEnsemble)
+    m = 0.0
+    for (i, matw) = enumerate(x.matws)
+        m += matw * Float32(i)
+    end
+    S3V(get_pos(x)..., m)
+end
 
 function get_coord(partition::InertiaPartition,
                    trace::InertiaTrace, i::Int)
-    t = first(get_args(trace))
-    state = trace[:kernel => t]
-    n = length(state.singles)
+    state = get_last_state(trace)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
     idx = i
     if !partition.singles
-        idx += n
+        idx += ns # jump past singles
     end
     if !partition.ensemble
-        idx += 1
+        idx += ne # jump past ensembles
     end
-    coord = if idx <= n
+    coord = if idx <= ns
         x = state.singles[idx]
-        S3V(get_pos(x)..., Float64(Int(x.mat)))
-    elseif idx == n + 1
-        y = state.ensemble
-        S3V(get_pos(y)..., mean(y.matws))
+        get_coord(x)
+    elseif isbetween(idx, ns + 1, ne)
+        y = state.ensembles[idx - ns]
+        get_coord(y)
     else
         S3V(0., 0., 0.) # REVIEW: not sure where baby should go
     end
@@ -81,22 +112,23 @@ end
 
 function select_prop(partition::InertiaPartition,
                      trace::InertiaTrace, i::Int)
-    t = first(get_args(trace))
-    state = trace[:kernel => t]
-    n = length(state.singles)
+    state = get_last_state(trace)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
     idx = i
     if !partition.singles
-        idx += n
+        idx += ns # jump past singles
     end
     if !partition.ensemble
-        idx += 1
+        idx += ne # jump past ensembles
     end
-    prop = if idx <= n
-        bernoulli(0.5) ?
-            tr -> single_ancestral_proposal(tr, idx) :
-            tr -> apply_random_walk(tr, baby_local_proposal, (idx,))
-    elseif idx == n + 1
-        ensemble_ancestral_proposal
+    prop = if idx <= ns
+        tr -> single_ancestral_proposal(tr, idx)
+        # bernoulli(0.5) ?
+        #     tr -> single_ancestral_proposal(tr, idx) :
+        #     tr -> baby_local_transform(tr, idx)
+    elseif isbetween(idx, ns + 1, ne)
+        tr -> ensemble_ancestral_proposal(tr, idx - ns)
     else
         baby_ancestral_proposal
     end

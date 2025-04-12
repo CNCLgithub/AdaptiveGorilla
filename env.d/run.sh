@@ -40,8 +40,8 @@ COMMAND="$@"
 #################################################################################
 # Mount additional file systems
 #################################################################################
-CONTENV="${SENV[sing]} run"
-mounts=(${SENV[mounts]})
+CONTENV="${SENV[sing]} run -u $(id -u):$(id -g)"
+mounts=("${SENV[mounts]}")
 BS=""
 echo "( ) Adding mount points"
 for i in "${mounts[@]}"; do

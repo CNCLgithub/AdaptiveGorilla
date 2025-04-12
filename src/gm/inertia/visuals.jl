@@ -2,7 +2,7 @@ using Gen
 using Luxor
 using MOTCore
 using Parameters
-using MOTCore: _draw_circle
+using MOTCore: _draw_circle, _draw_text
 using AdaptiveGorilla
 using AdaptiveGorilla: inertia_init, InertiaSingle, InertiaEnsemble
 import MOTCore.paint
@@ -11,7 +11,7 @@ import MOTCore.paint
 """
 Initializes a canvas for the world model and state.
 """
-function MOTCore.paint(p::InitPainter, wm::InertiaWM, st::InertiaState)
+function MOTCore.paint(p::InitPainter, wm::InertiaWM)
     @unpack area_width, area_height, display_border = wm
     Drawing(area_width, area_height, p.path)
     Luxor.origin()
@@ -28,33 +28,43 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     # TODO: figure out how to visualize this (dash around emsemble, see its center( a dot?),
     # its cardinality (colour change or a number) )
 
-    _draw_circle(get_pos(obj), obj.var, "purple",
-         opacity = 1)
-        return nothing
-    end
+    # println("\nobj_var $(obj.var)")
+    std = sqrt(obj.var)
+    _draw_circle(get_pos(obj), 1.5 * std, "black";
+                 style = :stroke)
+    mat = round(obj.matws[2]; digits = 2)
+    _draw_text("Dark: $(mat); rate: $(obj.rate)", get_pos(obj))
+    return nothing
+end
 
 """
 Applies the painter to each element in the world state
 """
 function MOTCore.paint(p::Painter, st::InertiaState,
                        ws::Vector{Float64} = Float64[])
-    paint(p, st.ensemble)
+    for e = st.ensembles
+        paint(p, e)
+    end
 
     for o in st.singles
         paint(p, o)
     end
 
     # visualize attention
-    if length(ws) == length(st.singles) + 1
-        @inbounds for i = eachindex(st.singles)
+    ns = length(st.singles)
+    ne = length(st.ensembles)
+    if length(ws) == ns + ne
+        @inbounds for i = 1:ns
             pos = get_pos(st.singles[i])
             radius = 40.0 * ws[i]
-            _draw_circle(pos, radius, "red", opacity = 0.8)
+            _draw_circle(pos, radius, "red", opacity = 0.4)
         end
 
-        pos = get_pos(st.ensemble)
-        radius = 40.0 * ws[end]
-        _draw_circle(pos, radius, "red", opacity = 0.8)
+        @inbounds for i = 1:ne
+            pos = get_pos(st.ensembles[i])
+            radius = 40.0 * ws[i + ns]
+            _draw_circle(pos, radius, "red", opacity = 0.4)
+        end
     end
     return nothing
 end
@@ -67,9 +77,9 @@ function MOTCore.paint(state::InertiaState, ws::Vector{Float64})
         _draw_circle(pos, radius, "red", opacity = 0.8)
     end
 
-    pos = get_pos(state.ensemble)
-    radius = 40.0 * ws[end]
-    _draw_circle(pos, radius, "red", opacity = 0.8)
+    # pos = get_pos(state.ensemble)
+    # radius = 40.0 * ws[end]
+    # _draw_circle(pos, radius, "red", opacity = 0.8)
     return nothing
 end
 

@@ -11,7 +11,7 @@ function test_render_frame()
                    area_height = 840)
     state = inertia_init(wm)
     # Initialize the painters
-    init = InitPainter(path = "test.png",
+    init = InitPainter(path = "/spaths/tests/test.png",
                        background = "white")
     objp = ObjectPainter()
     idp = IDPainter()
@@ -31,8 +31,8 @@ function test_render_scene()
     wm = InertiaWM(; area_width = 1240,
                    area_height = 840)
     # display(wm)
-    _, states = wm_inertia(20, wm)
-    render_scene(wm, states, "states")
+    _, states = wm_inertia(120, wm)
+    render_scene(wm, states, "/spaths/tests/states")
     return nothing
 end
 test_render_scene();

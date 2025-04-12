@@ -16,7 +16,8 @@ function gen_trial(wm::SchollWM, n::Int64) # TODO: generalize: initial cond and 
                 -area_height * 0.5 + delta)
     bbmax = S2V(area_width * 0.5 - delta,
                 area_height * 0.5 - delta)
-    gorilla = SVector(600.0, 240.0)
+    gorilla_x = uniform(620.0, 650.0)
+    gorilla = SVector(gorilla_x, 240.0)
     result = Vector{Dict}(undef,n)
     for j in 1:n # frames
         state = states[j]
