@@ -191,11 +191,11 @@ end
 
 const inertia_unfold = Gen.Unfold(inertia_kernel)
 
-@gen static function no_sm(x::InertiaState, wm::InertiaWM)
+@gen  function no_sm(x::InertiaState, wm::InertiaWM)
     return x
 end
 
-@gen static function split_ensemble(wm::InertiaWM, ens::InertiaEnsemble)
+@gen  function split_ensemble(wm::InertiaWM, ens::InertiaEnsemble)
     ms = materials(wm)
     midx = @trace(categorical(ens.matws), :material)
     material = ms[midx]
@@ -211,7 +211,7 @@ end
     return result
 end
 
-@gen static function inertia_split(st::InertiaState, wm::InertiaWM)
+@gen  function inertia_split(st::InertiaState, wm::InertiaWM)
     ne = length(st.ensembles)
     idx ~ categorical(Fill(1.0 / ne, ne))
     split ~ split_ensemble(wm, st.ensembles[idx])
@@ -219,7 +219,7 @@ end
     return result
 end
 
-@gen static function inertia_merge(st::InertiaState, wm::InertiaWM)
+@gen  function inertia_merge(st::InertiaState, wm::InertiaWM)
     ntotal = length(st.singles) + length(st.ensembles)
     nmerges = ncr(ntotal, 2)
     # sample lexographic index of 2-comb
@@ -231,7 +231,7 @@ end
 
 split_merge_switch = Switch(no_sm, inertia_split, inertia_merge)
 
-@gen static function inertia_granularity(wm::InertiaWM, x::InertiaState)
+@gen  function inertia_granularity(wm::InertiaWM, x::InertiaState)
     ws = split_merge_weights(wm, x)
     nsm ~ categorical(ws) # nothing - split - merge
     state ~ split_merge_switch(nsm, x, wm)

@@ -5,6 +5,9 @@ using Gen_Compose
 using AdaptiveGorilla
 using AdaptiveGorilla: S3V
 using Distances: WeightedEuclidean
+using Profile
+using StatProfilerHTML
+using BenchmarkTools
 
 function test_agent()
     render = true
@@ -24,7 +27,7 @@ function test_agent()
     trial_idx = 4
     gorilla_idx = 9
     gorilla_color = Dark
-    frames = 41
+    frames = 21
     exp = Gorillas(dpath, wm, trial_idx, gorilla_idx,
                    gorilla_color, frames)
     query = exp.init_query
@@ -34,15 +37,15 @@ function test_agent()
     attention = AttentionModule(
         AdaptiveComputation(;
                             itemp=0.1,
-                            base_steps=18,
-                            load = 0,
+                            base_steps=8,
+                            load = 10,
                             buffer_size = 200,
                             map_metric=WeightedEuclidean(S3V(0.05, 0.05, 0.9)),
                             )
     )
     planning = PlanningModule(CollisionCounter(; mat=Light))
     memory = MemoryModule(AdaptiveGranularity(; tau=1.0,
-                                              shift=false), hpf.h)
+                                              shift=true), hpf.h)
 
     # Cool, =)
     agent = Agent(perception, planning, memory, attention)
@@ -56,6 +59,7 @@ function test_agent()
         :collision_p => Float64[]
     )
     gt_exp = AdaptiveGorilla.collision_expectation(exp)
+    # @profilehtml for t = 1:(frames - 1)
     for t = 1:(frames - 1)
         step_agent!(agent, exp, t)
         _results = run_analyses(exp, agent)
@@ -70,4 +74,6 @@ function test_agent()
     return nothing
 end
 
-test_agent();
+# b = @benchmark test_agent()
+# display(b)
+test_agent()

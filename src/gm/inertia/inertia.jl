@@ -269,13 +269,15 @@ function predict(wm::InertiaWM, st::InertiaState)
     end
     # the ensemble
     @inbounds for i = 1:ne
+        # TODO: replace `HomogenousMixture`; has allocs
         @unpack matws, rate, pos, var = ensembles[i]
         varw = var * single_noise
-        mix_args = (matws,
-                    Fill(pos, 2),
-                    Fill(varw, 2),
-                    [1.0, 2.0],
-                    Fill(material_noise, 2))
+        # mix_args = (matws,
+        #             [pos, pos],
+        #             [varw, varw],
+        #             [1.0, 2.0],
+        #             [material_noise, material_noise])
+        mix_args = (pos, varw, matws[1], material_noise)
         es[ns + i] =
             PoissonElement{Detection}(rate, detect_mixture, mix_args)
     end

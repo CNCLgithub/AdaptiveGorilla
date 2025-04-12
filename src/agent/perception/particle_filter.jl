@@ -23,7 +23,7 @@ function PFChain{Q, P}(q::Q,
                                            q.constraints,
                                            p.particles)
     aux = EmptyAuxState()
-    PFChain{Q, P}(q, p, state, aux, i, n)
+    PFChain{IncrementalQuery, AdaptiveParticleFilter}(q, p, state, aux, i, n)
 end
 
 function Gen_Compose.step!(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticleFilter})

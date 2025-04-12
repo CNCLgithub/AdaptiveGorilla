@@ -54,7 +54,7 @@ end
 Gen.has_output_grad(::DetectionRV) = false
 Gen.logpdf_grad(::DetectionRV, value, args...) = (nothing,)
 
-detect_mixture = HomogeneousMixture(detect, [0, 0, 0, 0])
+detect_mixture = HomoMixture(detect, [0, 0, 0, 0])
 
 import MOTCore.paint
 
@@ -74,3 +74,36 @@ function MOTCore.paint(p::ObjectPainter,  obs::AbstractVector{T}
     end
     return nothing
 end
+
+
+struct DetectionMixture <: Gen.Distribution{Detection} end
+
+detect_mixture = DetectionMixture()
+
+function Gen.random(::DetectionMixture, mu_pos::SVector{2, Float64},
+                    var_pos::Float64, material_weight::Float64, var_material::Float64)
+    x,y = Gen.random(broadcasted_normal, mu_pos, var_pos)
+    mu_material = Gen.random(bernoulli, material_weight) ? 1.0 : 2.0
+    i = Gen.random(normal, mu_material, var_material) # REVIEW: reimplement with Beta distribution
+    Detection(x, y, i)
+end
+
+function Gen.logpdf(::DetectionMixture, x::Detection, mu_pos::SVector{2, Float64},
+                    var_pos::Float64, material_weight::Float64, var_material::Float64)
+    px, py = position(x)
+    intx = intensity(x)
+    pdf_int_light = log(material_weight) +
+        Gen.logpdf(normal, intx, 1.0, var_material)
+    pdf_int_dark = log(1.0 - material_weight) +
+        Gen.logpdf(normal, intx, 0.0, var_material)
+    pdf_int = logsumexp(pdf_int_light, pdf_int_dark)
+
+    Gen.logpdf(normal, px, mu_pos[1], var_pos) +
+        Gen.logpdf(normal, py, mu_pos[2], var_pos) +
+        pdf_int
+end
+
+(::DetectionMixture)(mp, vp, mm, vm) = Gen.random(detect, mp, vp, mm, vm)
+
+Gen.has_output_grad(::DetectionMixture) = false
+Gen.logpdf_grad(::DetectionMixture, value, args...) = (nothing,)
