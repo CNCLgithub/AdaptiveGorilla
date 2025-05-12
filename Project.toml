@@ -28,6 +28,7 @@ ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [compat]
 Distributions = "0.25.113"
@@ -35,3 +36,4 @@ Gen = "0.4.7"
 GenRFS = "0.1.0"
 ProgressMeter = "1.10.4"
 Statistics = "1.11.1"
+UnicodePlots = "3.7.2"

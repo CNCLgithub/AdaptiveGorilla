@@ -2,7 +2,7 @@
 
 julia_version = "1.11.1"
 manifest_format = "2.0"
-project_hash = "6d9fb31323fd4afb71e848b36b170c425da07a08"
+project_hash = "d002341c9375341b24243f7e9017868b6ad461d5"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -753,7 +753,7 @@ version = "4.2.0"
 
 [[deps.MOTCore]]
 deps = ["Accessors", "CSV", "DataFrames", "Distributions", "FillArrays", "Gen", "JSON", "LinearAlgebra", "Luxor", "Parameters", "Revise", "StaticArrays"]
-git-tree-sha1 = "bf98492c6543f7915b53467b3b842b5fe25236c6"
+git-tree-sha1 = "de6ff6e011b633db3df2da0355453d920d5d1c61"
 repo-rev = "master"
 repo-url = "https://github.com/CNCLgithub/MOTCore.jl.git"
 uuid = "5c8d5ed6-9297-4b4e-8c36-1078fadcc608"
