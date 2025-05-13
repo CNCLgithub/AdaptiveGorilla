@@ -7,45 +7,9 @@ using StaticArrays
 using UnicodePlots
 using Statistics: mean
 using LinearAlgebra: norm
-using AdaptiveGorilla: ncr
+using AdaptiveGorilla: ncr, S2V
 using Accessors: setproperties
 using MOTCore: scholl_delta, scholl_init
-
-
-const S2V = SVector{2, Float64}
-
-# function gen_trial(wm::SchollWM, nframes::Int64)
-#     _, states = wm_scholl(nframes, wm)
-#     steps = Vector{Vector{S2V}}(undef,nframes)
-#     @inbounds for j in 1:nframes
-#         state = states[j]
-#         objects = state.objects
-#         no = length(objects)
-#         step = Vector{S2V}(undef, no)
-#         for k in 1:no
-#             obj = objects[k]
-#             step[k] = obj.pos
-#         end
-#         steps[j] = step
-#     end
-#     gorilla = Dict(
-#         # onset time
-#         :frame =>
-#             uniform_discrete(round(Int64, 0.4 * nframes),
-#                              round(Int64, 0.6 * nframes)),
-#         :parent =>
-#             uniform_discrete(1, wm.n_dots),
-#         # speed to move across
-#         :speedx => normal(wm.vel, 1.0),
-#         :speedy => normal(wm.vel, 1.0),
-#     )
-#     Dict(
-#         :positions => steps,
-#         :gorilla =>  gorilla,
-#     )
-# end
-
-
 
 include("running_stats.jl")
 
