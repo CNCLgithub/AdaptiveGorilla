@@ -6,7 +6,7 @@ using FillArrays
 using StaticArrays
 using UnicodePlots
 using Statistics: mean
-using LinearAlgebra: norm
+using LinearAlgebra: norm, cross, dot
 using AdaptiveGorilla: ncr, S2V
 using Accessors: setproperties
 using MOTCore: scholl_delta, scholl_init
@@ -96,12 +96,48 @@ end
 end
 
 # Assumes length(targets) > 1
-function target_coherence(st::SchollState, targets::Vector{Int64})
-    dist = 0.0
-    for tgt = targets
-        dist += norm(get_pos(st.objects[tgt]))
+function target_coherence(st::SchollState, targets::Vector{Int64},
+                          w::Float64 = 1.0)
+    dist_pos = 0.0
+    dist_vel = 0.0
+    n = length(targets)
+    c = 0
+    @inbounds for i = 1:(n-1)
+        obj_a = st.objects[i]
+        pos_a = get_pos(obj_a)
+        vel_a = get_vel(obj_a)
+        for j = (i+1):n
+            obj_b = st.objects[j]
+            pos_b = get_pos(obj_b)
+            vel_b = get_vel(obj_b)
+
+            dist_pos += norm(pos_a - pos_b)
+            dist_vel += angle_between(vel_a, vel_b)
+            c += 1
+        end
     end
-    dist
+    (dist_pos + w * dist_vel) / c
+end
+
+angle_between(a::S2V, b::S2V) = atand(norm(cross(a,b)),dot(a,b))
+
+function target_ecc(st::SchollState, targets::Vector{Int64})
+    n = length(targets)
+    ecc = 0.0
+    @inbounds for i = 1:n
+        obj = st.objects[i]
+        pos = get_pos(obj)
+        ecc = max(ecc, norm(pos))
+    end
+    ecc
+end
+
+function metric_target(f::Function, target::Float64, args...)
+    function clamped(st::SchollState)
+        y = f(st, args...)
+        return abs(y - target)
+    end
+    return clamped
 end
 
 function target_speed(st::SchollState, target::Int64)
@@ -113,6 +149,7 @@ function main()
     dataset = "target_ensemble"
     version = "0.1"
     nscenes = 6
+    nexamples = 2
     fps = 24
     duration = 10 # seconds
     frames = fps * duration
@@ -129,16 +166,20 @@ function main()
         area_width = 720.0,
         area_height = 480.0,
         vel=4.5,
-        vel_min = 3.5,
-        vel_max = 5.5,
+        vel_min = 3.0,
+        vel_max = 6.0,
         vel_step = 0.8,
         vel_prob = 0.50
     )
 
     # dataset parameters
     metrics = Metrics(
-        [x -> target_coherence(x, [1,2,3]), x -> target_speed(x, 4)],
-        [:tco, :tvl]
+        [
+            x -> target_coherence(x, [1,2,3], 0.01),
+            x -> target_speed(x, 4),
+            x -> target_ecc(x, [1,2,3])
+        ],
+        [:tco, :tvl, :tec]
     )
     nm = length(metrics.funcs)
 
@@ -147,18 +188,19 @@ function main()
 
     tco_mu, tco_sd = stats[:tco]
     tvl_mu, tvl_sd = stats[:tvl]
+    tec_mu, tec_sd = stats[:tec]
 
     frame_targets = [
-        tco_mu - 5*tco_sd;
-        tvl_mu;
+        tco_mu - 3*tco_sd;
+        1.5*wm.vel;
+        0.25 * wm.area_height;
     ]
     targets = repeat(frame_targets, inner = (1, frames))
 
     trials = []
-    # # total of 12 trials
     for i = 1:nscenes
         trial, vals =
-            gen_trial(wm, targets, metrics, 20, 100)
+            gen_trial(wm, targets, metrics, 30, 100)
         push!(trials, trial)
 
         for (mi, m) = enumerate(metrics.names)
@@ -168,7 +210,6 @@ function main()
                            title = String(m),
                            xlabel = "time",
                            name = "target",
-                           # ylim = (H[mi]-1.0, E[mi]+1.0)
                            )
             lineplot!(plt, 1:frames, vs, name = "measured")
             display(plt)
@@ -180,7 +221,22 @@ function main()
                            :duration => duration,
                            :fps => fps,
                            :frames => frames)
-    open(out_path, "w") do io
+    open("$(out_dir)/dataset.json", "w") do io
+        JSON3.write(io, data)
+    end
+    trials = []
+    for i = 1:nexamples
+        trial, vals =
+            gen_trial(wm, targets, metrics, 30, 100)
+        push!(trials, trial)
+    end
+    data = Dict()
+    data[:trials] = trials
+    data[:manifest] = Dict(:ntrials => nexamples,
+                           :duration => duration,
+                           :fps => fps,
+                           :frames => frames)
+    open("$(out_dir)/examples.json", "w") do io
         JSON3.write(io, data)
     end
     cp(@__FILE__, "$(out_dir)/script.jl"; force = true)

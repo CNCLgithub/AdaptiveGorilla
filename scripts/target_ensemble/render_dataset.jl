@@ -5,9 +5,9 @@ using MOTCore: state_from_positions, render_scene
 
 wm = SchollWM(;
               n_dots=8,
+              dot_radius = 5.0,
               area_width = 720.0,
-              area_height = 480.0,
-              dot_radius = 20.0,
+              area_height =480.0,
               vel=3.0,
               vel_step = 0.75,
               vel_prob = 0.15
