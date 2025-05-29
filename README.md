@@ -6,6 +6,10 @@ A computational model of inattentional blindness
 
 > Note: This is a work in progress.
 
+## News
+
+- A version of this work will be presented at CCN 2025!
+
 ## Installation
 
 1. Clone the repo `git clone git@github.com:CNCLgithub/AdaptiveGorilla.git`
