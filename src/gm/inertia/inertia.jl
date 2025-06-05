@@ -79,6 +79,7 @@ end
 
 get_pos(s::InertiaSingle) = s.pos
 get_vel(s::InertiaSingle) = s.vel
+get_size(s::InertiaSingle) = s.size
 
 # PPP
 struct InertiaEnsemble <: InertiaObject

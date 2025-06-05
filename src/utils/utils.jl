@@ -13,7 +13,7 @@ function init_walls(width::Real, height::Real)
     @inbounds for (i, theta) in enumerate(WALL_ANGLES)
        normal = S2V(cos(theta), sin(theta))
        sign = (-1)^(i > 2)
-       ws[i] = Wall(sign * sum(normal .* v), normal)
+       ws[i] = Wall(sign * dot(normal, v), normal)
     end
     return SVector{4, Wall}(ws)
 end
