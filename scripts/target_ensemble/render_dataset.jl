@@ -18,7 +18,7 @@ targets = [true, true, true, true, false, false, false, false]
 
 function main()
     dname = "target_ensemble"
-    version = 0.1
+    version = "2025-06-09_W96KtK"
     dpath = "/spaths/datasets/$(dname)/$(version)"
     local dataset
     open("$(dpath)/dataset.json", "r") do f

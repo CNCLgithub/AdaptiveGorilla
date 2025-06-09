@@ -1,5 +1,6 @@
 using Gen
 using CSV
+using Dates
 using JSON3
 using MOTCore
 using FillArrays
@@ -9,14 +10,14 @@ using Statistics: mean
 using LinearAlgebra: norm, cross, dot
 using AdaptiveGorilla: ncr, S2V
 using Accessors: setproperties
-using MOTCore: scholl_delta, scholl_init
+using MOTCore: scholl_delta, scholl_init, in_bounds
 
 include("running_stats.jl")
 
-function gen_trial(wm::SchollWM, targets,
-                   metrics::Metrics,
-                   rejuv_steps::Int64 = 100,
-                   particles = 10)
+function gen_targets(wm::SchollWM, targets,
+                     metrics::Metrics,
+                     rejuv_steps::Int64 = 100,
+                     particles = 10)
     nsteps = size(targets, 2)
     pf = initialize_particle_filter(peak_chain, (0, wm, metrics),
                                     choicemap(), particles)
@@ -43,18 +44,24 @@ function gen_trial(wm::SchollWM, targets,
     # Extract MAP
     best_idx = argmax(get_log_weights(pf))
     best_tr = pf.traces[best_idx]
-    (_, sofar) = get_retval(best_tr)
+    (_, states) = get_retval(best_tr)
     nmetrics = length(metrics.funcs)
     vals = Vector{SVector{nmetrics, Float64}}(undef, nsteps)
     for i = 1:nsteps
-        vals[i] = SVector{nmetrics, Float64}(metrics((sofar[i],)))
+        vals[i] = SVector{nmetrics, Float64}(metrics((states[i],)))
     end
 
+    return states, vals
+end
+
+function package_states(wm::SchollWM,
+                        states::AbstractArray{SchollState})
+    frames = length(states)
     gorilla = Dict(
         # onset time
         :frame =>
-            uniform_discrete(round(Int64, 0.4 * nsteps),
-                             round(Int64, 0.6 * nsteps)),
+            uniform_discrete(round(Int64, 0.4 * frames),
+                             round(Int64, 0.6 * frames)),
         :parent =>
             uniform_discrete(1, wm.n_dots),
         # speed to move across
@@ -62,10 +69,89 @@ function gen_trial(wm::SchollWM, targets,
         :speedy => normal(wm.vel, 1.0),
     )
     trial = Dict(
-        :positions => map(extract_positions, sofar),
+        :positions => map(extract_positions, states),
         :gorilla =>  gorilla,
     )
-    return trial, vals
+    return trial
+end
+
+# out of bounds
+function oob(radius::Float64, x::Float64, y::Float64,
+             w::Float64, h::Float64)
+    dx = abs(x + sign(x)*radius)
+    dy = abs(y + sign(y)*radius)
+    (dx >= 0.5 * w) || (dy >= 0.5 * h)
+end
+
+import Base.length
+Base.length(x::SchollState) = length(x.objects)
+
+function count_collisions(states::AbstractArray{SchollState},
+                          wm::SchollWM, display=false)
+    nobj = length(states[1])
+    nframes = length(states)
+    col_frame = fill(-Inf, nobj)
+    r = wm.dot_radius #* 2.0
+    w = wm.area_width
+    h = wm.area_height
+    # iterate through time steps
+    count = 0
+    max_x = 0.0
+    max_y = 0.0
+    for t = 1:nframes
+        for i = 1:nobj
+            obj = states[t].objects[i]
+            x, y = get_pos(obj)
+            last_col = col_frame[i]
+            # if oob(r, x, y, w, h) && (t - last_col) > 3
+            # if (t - last_col) > 3 && !in_bounds(wm, get_pos(obj))
+            if (t - last_col) > 2 && oob(r, x, y, w, h)
+                count += 1
+                col_frame[i] = t
+                if display
+                    println("Collision at $(t) obj $(i)")
+                end
+            end
+            max_x = max(abs(x), max_x)
+            max_y = max(abs(y), max_y)
+        end
+    end
+    if display
+        @show max_x
+        @show max_y
+    end
+    return count
+end
+
+function gen_distractors(wm::SchollWM, t::Int64,
+                         ccount::Int64)
+    _, states = wm_scholl(t, wm)
+    cc = count_collisions(states, wm)
+    @time while cc !== ccount
+        _, states = wm_scholl(t, wm)
+        cc = count_collisions(states, wm)
+    end
+    @show cc
+    return states
+end
+
+function combine_states(targets::AbstractArray{SchollState},
+                        distractors::AbstractArray{SchollState})
+    @assert length(targets) == length(distractors) "State lengths missmatch"
+    n = length(targets)
+    nt = length(targets[1])
+    nd = length(distractors[1])
+    no = nt + nd
+    states = Vector{SchollState}(undef, n)
+    @inbounds for i = 1:n
+        objects = Vector{Dot}(undef, no)
+        objects[1:nt] = targets[i].objects
+        objects[(nt+1):no] = distractors[i].objects
+        tgts = falses(no)
+        tgts[1:nt] .= true
+        states[i] = SchollState(objects, tgts)
+    end
+    return states
 end
 
 function extract_positions(state::SchollState)
@@ -147,21 +233,27 @@ end
 function main()
 
     dataset = "target_ensemble"
-    version = "0.1"
+    version = "0.2"
     nscenes = 6
-    nexamples = 2
+    nexamples = 3
     fps = 24
     duration = 10 # seconds
     frames = fps * duration
     data_dir = "/spaths/datasets/$(dataset)"
     isdir(data_dir) || mkdir(data_dir)
-    out_dir = "$(data_dir)/$(version)"
+
+
+    out_dir = mktempdir(data_dir;
+                        prefix = "$(Dates.today())_",
+                        cleanup = false)
+    println("Creating dataset in: $(out_dir)")
+
     isdir(out_dir) || mkdir(out_dir)
     out_path = "$(out_dir)/dataset.json"
 
     wm = SchollWM(
         ;
-        n_dots = 8,
+        n_dots = 4, # NOTE: set to half
         dot_radius = 5.0,
         area_width = 720.0,
         area_height = 480.0,
@@ -198,10 +290,20 @@ function main()
     targets = repeat(frame_targets, inner = (1, frames))
 
     trials = []
-    for i = 1:nscenes
-        trial, vals =
-            gen_trial(wm, targets, metrics, 30, 100)
+    counts = Vector{Int64}(undef, nscenes)
+    i = 1
+    while i <= nscenes
+        part_a, vals =
+            gen_targets(wm, targets, metrics, 30, 100)
+        ccount = count_collisions(part_a, wm, true)
+        # almost impossible with less than 3 collisions
+        # to sample distractor portion
+        ccount < 3 && continue
+        part_b = gen_distractors(wm, frames, ccount)
+        states = combine_states(part_a, part_b)
+        trial = package_states(wm, states)
         push!(trials, trial)
+        counts[i] = ccount
 
         for (mi, m) = enumerate(metrics.names)
             vs = map(x -> x[mi], vals)
@@ -214,9 +316,11 @@ function main()
             lineplot!(plt, 1:frames, vs, name = "measured")
             display(plt)
         end
+        i += 1
     end
     data = Dict()
     data[:trials] = trials
+    data[:counts] = counts
     data[:manifest] = Dict(:ntrials => nscenes,
                            :duration => duration,
                            :fps => fps,
@@ -226,8 +330,12 @@ function main()
     end
     trials = []
     for i = 1:nexamples
-        trial, vals =
-            gen_trial(wm, targets, metrics, 30, 100)
+        part_a, vals =
+            gen_targets(wm, targets, metrics, 30, 100)
+        ccount = count_collisions(part_a, wm, true)
+        part_b = gen_distractors(wm, frames, ccount)
+        states = combine_states(part_a, part_b)
+        trial = package_states(wm, states)
         push!(trials, trial)
     end
     data = Dict()

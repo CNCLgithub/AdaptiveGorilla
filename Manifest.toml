@@ -753,9 +753,7 @@ version = "4.2.0"
 
 [[deps.MOTCore]]
 deps = ["Accessors", "CSV", "DataFrames", "Distributions", "FillArrays", "Gen", "JSON", "LinearAlgebra", "Luxor", "Parameters", "Revise", "StaticArrays"]
-git-tree-sha1 = "de6ff6e011b633db3df2da0355453d920d5d1c61"
-repo-rev = "master"
-repo-url = "https://github.com/CNCLgithub/MOTCore.jl.git"
+path = "/project/env.d/jenv/dev/MOTCore"
 uuid = "5c8d5ed6-9297-4b4e-8c36-1078fadcc608"
 version = "0.1.0"
 
