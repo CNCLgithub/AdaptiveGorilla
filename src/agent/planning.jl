@@ -77,9 +77,8 @@ function plan_with_delta_pi!(
                 ep = -Inf
             end
         end
-        end
-        update_dPi!(att, single, dpi)
     end
+    update_dPi!(att, single, dpi)
     @inbounds for j = 1:ne
         dpi = -Inf
         x = ensembles[j]

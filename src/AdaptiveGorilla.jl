@@ -33,7 +33,7 @@ include("utils/utils.jl")
 include("dgp/dgp.jl")
 include("gm/gm.jl")
 
-include("experiment.jl")
+include("experiments/experiments.jl")
 
 include("agent/agent.jl")
 
