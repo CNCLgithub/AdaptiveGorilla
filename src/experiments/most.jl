@@ -1,5 +1,8 @@
-# TODO: exports
-# export...
+export MostExp
+
+#################################################################################
+# Constructors
+#################################################################################
 
 struct MostExp <: Experiment
     "Number of time steps"
@@ -12,6 +15,68 @@ struct MostExp <: Experiment
     init_query::IncrementalQuery
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Initializes a trial for the Most et al (2001) experiment.
+
+---
+
+Arguments:
+- `dpath`: Path to the JSON dataset
+- `wm` : Inertia World model
+- `trial_idx`: The trial index
+- `gorilla_color`: Gorilla appearance
+- `frames`: The number of frames to load.
+
+---
+
+# Dataset format defined in protobuff
+
+```proto
+syntax = "proto3";
+
+message Dot {
+  float x = 1;
+  float y = 2;
+}
+
+message Gorilla {
+  float frame = 1;
+  float parent = 2;
+  float speedx = 3;
+  float speedy = 4;
+}
+
+message Probe {
+  uint32 frame = 1;
+  uint32 obj = 2;
+}
+
+message Step {
+  repeated Dot dots = 1;
+}
+
+message Trial {
+  repeated Step steps = 1;
+  optional Gorilla gorilla = 2;
+  repeated Probe probes = 3;
+  optional uint32 disappear = 4;
+}
+
+message Manifest {
+  uint32 fps = 1;
+  unit32 duration = 2;
+  uint32 ntrials = 3;
+  uint32 nframes = 4;
+}
+
+message Dataset {
+  repeated Trial trials = 1;
+  optional Manifest = 2;
+}
+```
+"""
 function MostExp(dpath::String, wm::InertiaWM,
                  trial_idx::Int64, gorilla_color::Material,
                  frames::Int64)
@@ -29,24 +94,54 @@ function MostExp(dpath::String, wm::InertiaWM,
     MostExp(frames, gorilla_color, obs, q)
 end
 
-function get_obs(exp::MostExp, idx::Int64)
-    exp.observations[idx]
+#################################################################################
+# API
+#################################################################################
+
+function run_analyses(exp::MostExp, agent::Agent)
+    gorilla_p = estimate_marginal(agent.perception,
+                                  detect_gorilla, ())
+    col_p = planner_expectation(agent.planning)
+    Dict(:gorilla_p => gorilla_p,
+         :collision_p => col_p)
 end
 
 """
 $(TYPEDSIGNATURES)
 
-Loads scene `i` from the dataset, and generates observations
+Runs the agent on the next frame of the trial and
+returns a `Dict` containing:
+
+- the probability that the agent noticed the gorilla
+- The agent's expectation over the number of event counts
 """
+function step_agent!(agent::Agent, exp::MostExp, stepid::Int)
+    obs = get_obs(exp, stepid)
+    perceive!(agent, obs, stepid)
+    attend!(agent, stepid)
+    plan!(agent, stepid)
+    memory!(agent, stepid)
+    run_analyses(exp, agent)
+end
+
+#################################################################################
+# Helpers
+#################################################################################
+
+function get_obs(exp::MostExp, idx::Int64)
+    exp.observations[idx]
+end
+
 function load_most_trial(wm::WorldModel,
                          dpath::String,
                          trial_idx::Int,
                          time_steps::Int = 10,
                          gorilla_color::Material = Dark)
+    println("Loading $(time_steps) frames")
     trial_length = 0
     open(dpath, "r") do io
         manifest = JSON3.read(io)["manifest"]
-        trial_length = manifest["duration"]
+        trial_length = manifest["frames"]
     end
 
     trial_length = min(trial_length, time_steps)
@@ -60,7 +155,7 @@ function load_most_trial(wm::WorldModel,
         positions = data["positions"]
     end
     # first frame gets GT
-    istate = initial_state(wm, data["positions"][1])
+    istate = initial_state(wm, positions[1])
     for t = 2:trial_length
         cm = choicemap()
         # Observations associated with each object
@@ -81,19 +176,20 @@ function load_most_trial(wm::WorldModel,
             x0 = 0.5 * wm.area_width
             x = x0 - delta_t * gorilla["speedx"]
             write_obs_mask!(
-                cm, wm, t, i, S2V(x, 0.0), gorilla_color;
+                cm, wm, t, nobj+1, S2V(x, 0.0), gorilla_color;
                 prefix = (t, i) -> i,
             )
         end
         observations[t-1] = cm
     end
 
+    println("Created $(length(observations)) observations")
     (istate, observations)
 end
 
 function render_frame(exp::MostExp, t::Int, objp = ObjectPainter())
     obs = to_array(get_obs(exp, t), Detection)
-    paint(objp, obs)
+    MOTCore.paint(objp, obs)
     return nothing
 end
 
@@ -112,4 +208,25 @@ function collision_expectation(exp::MostExp)
         end
     end
     return e
+end
+
+# TODO: part of API instead of helper?
+function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
+    objp = ObjectPainter()
+    idp = IDPainter()
+
+
+    init = InitPainter(path = "$(path)/$(t).png",
+                       background = "white")
+
+    _, wm, _ = exp.init_query.args
+    # setup
+    MOTCore.paint(init, wm)
+    # observations
+    render_frame(exp, t, objp)
+    # inferred states
+    render_frame(agent.perception, agent.attention, objp)
+    render_frame(agent.planning, t)
+    finish()
+    return nothing
 end

@@ -20,13 +20,12 @@ function test_agent()
                    ensemble_shape = 1.2,
                    ensemble_scale = 1.0,
                    ensemble_var_shift = 5.0)
-    dpath = "/spaths/datasets/pilot.json"
+    dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 4
-    gorilla_idx = 9
     gorilla_color = Dark
-    frames = 41
-    exp = Gorillas(dpath, wm, trial_idx, gorilla_idx,
-                   gorilla_color, frames)
+    frames = 200
+    exp = MostExp(dpath, wm, trial_idx,
+                  gorilla_color, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 5)
     hpf = HyperFilter(;dt=6, pf=pf, h=5)
@@ -42,7 +41,7 @@ function test_agent()
     )
     planning = PlanningModule(CollisionCounter(; mat=Light))
     memory = MemoryModule(AdaptiveGranularity(; tau=1.0,
-                                              shift=false), hpf.h)
+                                              shift=true), hpf.h)
 
     # Cool, =)
     agent = Agent(perception, planning, memory, attention)
@@ -57,8 +56,7 @@ function test_agent()
     )
     gt_exp = AdaptiveGorilla.collision_expectation(exp)
     for t = 1:(frames - 1)
-        step_agent!(agent, exp, t)
-        _results = run_analyses(exp, agent)
+        _results = step_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
         render && render_agent_state(exp, agent, t, out)

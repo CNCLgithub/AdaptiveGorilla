@@ -1,6 +1,3 @@
-export render_agent_state
-
-
 using Luxor: finish
 
 
@@ -19,27 +16,8 @@ function render_frame(perception::MentalModule{V},
                             trace,
                             attp.nns)
         importance = softmax(tr, attp.itemp)
-        paint(objp, state, importance)
+        MOTCore.paint(objp, state, importance)
     end
     return nothing
 end
 
-function render_agent_state(exp::Gorillas, agent::Agent, t::Int, path::String)
-    objp = ObjectPainter()
-    idp = IDPainter()
-
-
-    init = InitPainter(path = "$(path)/$(t).png",
-                       background = "white")
-
-    _, wm, _ = exp.init_query.args
-    # setup
-    paint(init, wm)
-    # observations
-    render_frame(exp, t, objp)
-    # inferred states
-    render_frame(agent.perception, agent.attention, objp)
-    render_frame(agent.planning, t)
-    finish()
-    return nothing
-end

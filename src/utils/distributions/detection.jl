@@ -56,6 +56,7 @@ Gen.logpdf_grad(::DetectionRV, value, args...) = (nothing,)
 
 detect_mixture = HomogeneousMixture(detect, [0, 0, 0, 0])
 
+using Luxor: sethue, box, Point, setopacity
 import MOTCore.paint
 
 function MOTCore.paint(p::ObjectPainter,  obs::AbstractVector{T}

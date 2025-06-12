@@ -9,16 +9,6 @@ using ProgressMeter
 using AdaptiveGorilla: S3V
 using Distances: WeightedEuclidean
 
-# att_modules = Dict(
-#     :ac => AdaptiveComputation,
-#     :un => UniformProtocol
-# )
-
-# att_configs = Dict(
-#     :ac => "$(@__DIR__)/ac.json",
-#     :un => "$(@__DIR__)/un.json",
-# )
-
 DATASET = "pilot"
 DPATH   = "/spaths/datasets/$(DATASET).json"
 # MODEL = :full
@@ -78,8 +68,7 @@ function run_trial!(pbar, exp)
     colp = 0.0
 
     for t = 1:(FRAMES - 1)
-        step_agent!(agent, exp, t)
-        _results = run_analyses(exp, agent)
+        _results = step_agent!(agent, exp, t)
         colp = _results[:collision_p]
         if _results[:gorilla_p] > 0.5
             ndetected += 1

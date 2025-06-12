@@ -1,20 +1,16 @@
-export Planner,
-    PlanningModule,
-    plan!,
-    CollisionCounter
-
-abstract type PlanningProtocol <: MentalProtocol end
-
-function plan! end
-
+export CollisionCounter,
+    CollisionState
 
 """
-    PlanningModule(::T, ...)::MentalModule{T} where {T<:PlanningProtocol}
+(TYPEDEF)
 
-Constructor that should be implemented by each `PlanningProtocol`
+Protocol for counting collisions of objects that match target appearance `mat`.
+
+---
+
+$(TYPEDFIELDS)
+
 """
-function PlanningModule end
-
 @with_kw struct CollisionCounter <: PlanningProtocol
     "Target appearance"
     mat::Material
@@ -32,6 +28,20 @@ function PlanningModule(p::CollisionCounter)
     MentalModule(p, CollisionState(0.0))
 end
 
+# helper to extract planning state
+function planner_expectation(pm::MentalModule{T}) where {T<:CollisionCounter}
+    planner, state = mparse(pm)
+    state.expectation
+end
+
+"""
+
+$(SIGNATURES)
+
+Computes the marginal over collision counts.
+
+Also updates the \$\\delta \\pi\$ records in the attention module.
+"""
 function plan!(planner::MentalModule{T},
                attention::MentalModule{A},
                perception::MentalModule{V},
@@ -77,8 +87,8 @@ function plan_with_delta_pi!(
                 ep = -Inf
             end
         end
+        update_dPi!(att, single, dpi)
     end
-    update_dPi!(att, single, dpi)
     @inbounds for j = 1:ne
         dpi = -Inf
         x = ensembles[j]
@@ -114,13 +124,13 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall)
     v_orth = dot(v, w.normal)
     distance = abs(w.d - dot(x, w.normal))
     # Distribution over near future
-    var = 0.5 * v_orth
+    var = 0.5 * abs(v_orth)
     mu = 0.5 * v_orth + get_size(obj)
     pred = Normal(mu, var)
     # CCDF up to wall
-    p = logccdf(pred, distance)
+    p = Distributions.logccdf(pred, distance)
     # pdf is the derivative of the cdf
-    dpdx = logpdf(pred, distance)
+    dpdx = Distributions.logpdf(pred, distance)
     (p, dpdx)
 end
 
@@ -129,18 +139,19 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     vel = get_vel(obj)
     var = get_var(obj)
     vel_orth = dot(vel, w.normal)
-    var_orth = dot(var, w.normal)
     distance = abs(w.d - dot(x, w.normal))
     # Distribution over near future
     # Variance integrates ensemble spread
     # This dilutes probability density
-    var = 0.5 * (v_orth + var_orth)
-    mu = 0.5 * v_orth
-    pred = Normal(mu, var)
+    sigma = 0.5 * (vel_orth + var)
+    mu = 0.5 * vel_orth
+    pred = Normal(mu, sigma)
     # CCDF up to wall
-    p = logccdf(pred, distance)
+    p = Distributions.logccdf(pred, distance)
     # pdf is the derivative of the cdf
-    dpdx = logpdf(pred, distance)
+    dpdx = Distributions.logpdf(pred, distance)
+    @show p, dpdx
+    error()
     (p, dpdx)
 end
 

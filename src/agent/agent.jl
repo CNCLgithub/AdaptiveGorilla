@@ -47,8 +47,6 @@ mutable struct Agent{
     attention::MentalModule{A}
 end
 
-world_model(a::Agent) = a.world_model
-
 function perceive!(agent::Agent, obs::ChoiceMap, t::Int)
     # perception runs every tick
     perceive!(agent.perception, obs)
@@ -82,24 +80,11 @@ function plan! end
 function attend! end
 function memory! end
 
-include("perception/perception.jl")
-include("planning.jl")
-include("attention/attention.jl")
-include("memory/memory.jl")
+# Mental module implementations
+include("perception/perception.jl") # Hyper-particle filter
+include("planning/planning.jl") # Event counting and planning-as-inference
+include("attention/attention.jl") # Adaptive computation
+include("memory/memory.jl") # Granularity optimizer
 
-function start_exp(exp::Gorillas)
-end
-
-function step_agent!(agent::Agent, exp::Gorillas, stepid::Int)
-
-    obs = get_obs(exp, stepid)
-    perceive!(agent, obs, stepid)
-    attend!(agent, stepid)
-    plan!(agent, stepid)
-    memory!(agent, stepid)
-
-end
-
-
+# agent-tailored visualizations
 include("visuals.jl")
-include("experiments.jl")

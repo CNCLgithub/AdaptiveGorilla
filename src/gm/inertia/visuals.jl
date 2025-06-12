@@ -1,10 +1,10 @@
 using Gen
-using Luxor
 using MOTCore
 using Parameters
 using MOTCore: _draw_circle, _draw_text
 using AdaptiveGorilla
 using AdaptiveGorilla: inertia_init, InertiaSingle, InertiaEnsemble
+using Luxor: origin, background, Drawing, sethue, box, Point
 import MOTCore.paint
 
 
@@ -14,7 +14,7 @@ Initializes a canvas for the world model and state.
 function MOTCore.paint(p::InitPainter, wm::InertiaWM)
     @unpack area_width, area_height, display_border = wm
     Drawing(area_width, area_height, p.path)
-    Luxor.origin()
+    origin()
     background(p.background)
     sethue(0.2, 0.2, 0.2)
     box(Point(0, 0),
@@ -43,11 +43,11 @@ Applies the painter to each element in the world state
 function MOTCore.paint(p::Painter, st::InertiaState,
                        ws::Vector{Float64} = Float64[])
     for e = st.ensembles
-        paint(p, e)
+        MOTCore.paint(p, e)
     end
 
     for o in st.singles
-        paint(p, o)
+        MOTCore.paint(p, o)
     end
 
     # visualize attention
@@ -111,7 +111,7 @@ Applies the `IDPainter` to each thing in the world state
 """
 function MOTCore.paint(p::IDPainter, st::InertiaState)
     for i in eachindex(st.singles)
-        paint(p, st.singles[i], i)
+        MOTCore.paint(p, st.singles[i], i)
     end
     return nothing
 end

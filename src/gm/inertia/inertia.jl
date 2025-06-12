@@ -7,7 +7,13 @@ import MOTCore: get_pos
 ################################################################################
 
 """
+$(TYPEDEF)
+
 Model that uses inertial change points to "explain" interactions
+
+---
+
+$(TYPEDFIELDS)
 """
 @with_kw struct InertiaWM <: WorldModel
 
@@ -63,9 +69,18 @@ end
 
 materials(wm::InertiaWM) = wm.materials
 
+"Object representations for `InertiaWM`"
 abstract type InertiaObject <: Object end
 
-# Iso or bernoulli
+"""
+$(TYPEDEF)
+
+An individual object representation for `InertiaWM`
+
+---
+
+$(TYPEDFIELDS)
+"""
 @with_kw struct InertiaSingle <: InertiaObject
     mat::Material
     pos::S2V
@@ -81,7 +96,16 @@ get_pos(s::InertiaSingle) = s.pos
 get_vel(s::InertiaSingle) = s.vel
 get_size(s::InertiaSingle) = s.size
 
-# PPP
+"""
+$(TYPEDEF)
+
+An ensemble object representation for `InertiaWM`.
+Acts like a [Poission-point-process](https://en.wikipedia.org/wiki/Poisson_point_process)
+
+---
+
+$(TYPEDFIELDS)
+"""
 struct InertiaEnsemble <: InertiaObject
     rate::Float64
     matws::Vector{Float64}
@@ -382,36 +406,17 @@ end
 
 _kernel_prefix(t::Int, i::Int) = :kernel => t => :xs => i
 
-# TODO: generalize observation size
-function write_obs!(cm::ChoiceMap, wm::InertiaWM, positions,
-                    t::Int,
-                    gorilla_color::Material = Dark,
-                    gorilla_idx::Int = 9;
-                    single_size::Float64 = 10.0,
-                    target_count::Int = 4,
-                    prefix = _kernel_prefix)
-    n = length(positions)
-    for i = 1:n
-        x, y = positions[i]
-        mat = i <= target_count ? 1.0 : 2.0 # Light : Dark
-        if i == gorilla_idx
-            mat = gorilla_color == Light ? 1.0 : 2.0
-        end
-        cm[prefix(t, i)] = Detection(x, y, mat)
-    end
-    return nothing
-end
-
 function write_obs_mask!(
     cm::ChoiceMap, wm::InertiaWM,
     t::Int,
     i::Int,
     xy,
-    mat::Material,
+    mat::Material;
     prefix = _kernel_prefix
     )
     x, y = xy
-    cm[prefix(t, i)] = Detection(x, y, Int64(mat))
+    intensity = mat == Light ? 1.0 : 2.0
+    cm[prefix(t, i)] = Detection(x, y, intensity)
     return nothing
 end
 
