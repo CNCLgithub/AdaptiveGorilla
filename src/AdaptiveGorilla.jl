@@ -30,13 +30,8 @@ using DocStringExtensions
 using FunctionalCollections
 
 include("utils/utils.jl")
-include("dgp/dgp.jl")
 include("gm/gm.jl")
-
-
 include("agent/agent.jl")
-
-# TODO: finish moving
 include("experiments/experiments.jl")
 
 end # module AdaptiveGorilla
