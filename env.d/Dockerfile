@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM julia:1.11.1
+FROM julia:1.11.5
 
 ARG USER_ID
 ARG GROUP_ID
