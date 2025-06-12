@@ -2,6 +2,7 @@
 .idea
 *.log
 tmp/
+output/
 
 *.py[cod]
 *.egg
