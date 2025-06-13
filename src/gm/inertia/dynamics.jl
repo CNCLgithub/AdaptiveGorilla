@@ -1,0 +1,141 @@
+function object_bounds(wm::InertiaWM)
+    @unpack area_width, area_height = wm
+    xs = S2V(-0.5*area_width, 0.5*area_width)
+    ys = S2V(-0.5*area_height, 0.5*area_height)
+    (xs, ys)
+end
+
+function birth_weight(wm::InertiaWM, st::InertiaState)
+    @unpack singles, ensembles = st
+    length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
+        wm.birth_weight : 0.0
+end
+
+function add_baby_from_switch(prev, baby, idx)
+    singles = PersistentVector(prev.singles)
+    idx == 1 ?
+        FunctionalCollections.push(singles, baby) :
+        singles
+end
+
+function force_prior(o::InertiaSingle, wm::InertiaWM)
+    @unpack stability, force_low, force_high = wm
+    (stability, force_low, force_high)
+end
+
+function force_prior(e::InertiaEnsemble, wm::InertiaWM)
+    @unpack stability, force_low, force_high = wm
+    @unpack rate = e
+    # (stability, force_low, force_high)
+    (stability,
+     force_low / rate,
+     force_high / rate)
+end
+
+function step(wm::InertiaWM,
+              state::InertiaState,
+              supdates::AbstractVector{S2V},
+              eupdates::AbstractVector{S3V})
+    @unpack singles, ensembles = state
+    step(wm, singles, ensembles, supdates, eupdates)
+end
+
+function step(wm::InertiaWM,
+              singles::AbstractVector{InertiaSingle},
+              ensembles::AbstractVector{InertiaEnsemble},
+              supdates::AbstractVector{S2V},
+              eupdates::AbstractVector{S3V})
+    @unpack walls = wm
+    ns = length(singles)
+    new_singles = Vector{InertiaSingle}(undef, ns)
+    @assert ns == length(supdates) "$(length(supdates)) updates but only $ns singles"
+    ne = length(ensembles)
+    new_ensembles = Vector{InertiaEnsemble}(undef, ne)
+    @assert ne == length(eupdates) "$(length(eupdates)) updates but only $ne ensembles"
+    @inbounds for i = 1:ns
+        obj = singles[i]
+        # force accumalator
+        facc = MVector{2, Float64}(supdates[i])
+        # interactions with walls
+        for w in walls
+            force!(facc, wm, w, obj)
+        end
+        new_singles[i] = update_state(obj, wm, facc)
+    end
+    @inbounds for i = 1:ne
+        new_ensembles[i] = update_state(ensembles[i], wm,
+                                        eupdates[i])
+    end
+    # println("step ns=$(length(new_singles))")
+    InertiaState(PersistentVector(new_singles),
+                 PersistentVector(new_ensembles))
+end
+
+"""Computes the force of A -> B"""
+function force!(f::MVector{2, Float64}, ::InertiaWM, ::Object, ::Object)
+    return nothing
+end
+
+function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, s::InertiaSingle)
+    pos = get_pos(s)
+    @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = wm
+    n = LinearAlgebra.norm(w.normal .* pos + w.nd)
+    f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
+    return nothing
+end
+
+# REVIEW: wall -> ensemble force
+function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, e::InertiaEnsemble)
+    # @unpack pos = d
+    # @unpack wall_rep_m, wall_rep_a, wall_rep_x0 = dm
+    # n = LinearAlgebra.norm(w.normal .* pos + w.nd)
+    # f .+= wall_rep_m * exp(-1 * (wall_rep_a * (n - wall_rep_x0))) * w.normal
+    return nothing
+end
+
+"""
+    update_state(::Object, ::GM, ::MVector{2, Float64})
+
+resolve force on object
+"""
+function update_state end
+
+function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
+    # treating force directly as velocity;
+    # update velocity by x percentage;
+    # but f isn't normalized to be similar to v
+    @unpack mat, pos, vel, size = s
+    @unpack area_height, area_width = wm
+    # vx, vy = f
+    vx, vy = vel + f
+    vx = clamp(vx, -10., 10.)
+    vy = clamp(vy, -10., 10.)
+    x = clamp(pos[1] + vx,
+              -area_width * 0.5,
+              area_width * 0.5)
+    y = clamp(pos[2] + vy,
+              -area_height * 0.5,
+              area_height * 0.5)
+    new_pos = S2V(x, y)
+    new_vel = S2V(vx, vy)
+    # @show (vel, f, new_vel)
+    InertiaSingle(mat, new_pos, new_vel, size)
+end
+
+
+function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
+    iszero(e.rate) && return e
+    @unpack pos, vel, var = e
+    f = S2V(update[1], update[2])
+    bx, by = wm.dimensions
+    # new_vel = dx, dy = f
+    new_vel = dx, dy = vel + f
+    x, y = pos
+    new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
+                  clamp(y + dy, -0.5 * by, 0.5 * by))
+    new_var = max(10., var + update[3])
+    # @show (var, update[3])
+    setproperties(e; pos = new_pos,
+                  vel = new_vel,
+                  var = new_var)
+end

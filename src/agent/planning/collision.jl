@@ -21,11 +21,14 @@ $(TYPEDFIELDS)
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
+    "Count"
     expectation::Float64
+    "Amount of frames until next estimate"
+    cooldown::Int64
 end
 
 function PlanningModule(p::CollisionCounter)
-    MentalModule(p, CollisionState(0.0))
+    MentalModule(p, CollisionState(0.0, 0))
 end
 
 # helper to extract planning state
@@ -55,7 +58,10 @@ function plan!(planner::MentalModule{T},
         w = estimate_marginal(perception,
                               plan_with_delta_pi!,
                               (protocol, attention))
-        state.expectation += w
+        if rand() < w
+            state.expectation += 1
+        end
+        # state.expectation += w
     end
     return nothing
 end
@@ -69,22 +75,17 @@ function plan_with_delta_pi!(
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
-    ecount = 0.0
     ep = -Inf
     @inbounds for j = 1:ns
         dpi = -Inf
         single = singles[j]
         # only consider targets
-        single.mat != pl.mat && continue
-        # consider each wall
-        # REVIEW: maybe just look at closest wall?
-        for k = 1:4 # each wall
-            (_ep, _dpi) = colprob_and_agrad(single, walls[k])
-            ep = logsumexp(ep, _ep)
-            dpi = logsumexp(dpi, _dpi)
-            if log(rand()) < ep
-                ecount += 1
-                ep = -Inf
+        if single.mat == pl.mat
+            # REVIEW: maybe just look at closest wall?
+            for k = 1:4 # each wall
+                (_ep, _dpi) = colprob_and_agrad(single, walls[k])
+                ep = logsumexp(ep, _ep)
+                dpi = logsumexp(dpi, _dpi)
             end
         end
         update_dPi!(att, single, dpi)
@@ -94,18 +95,16 @@ function plan_with_delta_pi!(
         x = ensembles[j]
         # target proportion of ensemble
         w = x.matws[Int64(pl.mat)]
-        for k = 1:4 # each wall
-            (_ep, _dpi) = colprob_and_agrad(x, walls[k])
-            ep = logsumexp(ep, log(w) + _ep)
-            dpi = logsumexp(dpi, log(w) + _dpi)
-            if log(rand()) < ep
-                ecount += 1
-                ep = -Inf
+        if w  > 0.1
+            for k = 1:4 # each wall
+                (_ep, _dpi) = colprob_and_agrad(x, walls[k])
+                ep = logsumexp(ep, _ep)
+                dpi = logsumexp(dpi, _dpi)
             end
         end
         update_dPi!(att, x, dpi)
     end
-    return ecount
+    return exp(ep)
 end
 
 function colprob_and_agrad(pos::S2V, w::Wall)
@@ -113,8 +112,6 @@ function colprob_and_agrad(pos::S2V, w::Wall)
     d = max(0.1, (w.d - sum(w.normal .* pos)) - 10)
     p = exp(min(0.0, -log(d) - 1))
     dpdx = min(1.0, 1 / d )
-    # p = fast_sigmoid(z) # x, x0, m
-    # dpdx = abs(fast_sigmoid_grad(z))
     (p, dpdx)
 end
 
@@ -135,6 +132,9 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall)
 end
 
 function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
+    r = rate(obj)
+    l = 1.0 - materials(obj)[1] # prop not light
+    penalty = iszero(l) ? 0.0 : log(r) + log(l)
     x = get_pos(obj)
     vel = get_vel(obj)
     var = get_var(obj)
@@ -143,15 +143,17 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     # Distribution over near future
     # Variance integrates ensemble spread
     # This dilutes probability density
-    sigma = 0.5 * (vel_orth + var)
+    sigma = 0.5 * (abs(vel_orth) + 0.1*var)
     mu = 0.5 * vel_orth
     pred = Normal(mu, sigma)
+    display(pred)
+    @show distance
     # CCDF up to wall
     p = Distributions.logccdf(pred, distance)
+    p -= penalty
     # pdf is the derivative of the cdf
     dpdx = Distributions.logpdf(pred, distance)
-    @show p, dpdx
-    error()
+    dpdx -= penalty
     (p, dpdx)
 end
 

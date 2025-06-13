@@ -87,8 +87,10 @@ function granularity_objective(ag::MentalModule{G},
     # end
     # mag -= log(np)
     # mag
-    # lml = log_ml_estimate(state)
-    # lml + mag
+    lml = log_ml_estimate(state)
+    # @show mag
+    # @show lml
+    lml + mag
 end
 
 function regranularize!(mem::MentalModule{M},
@@ -157,119 +159,36 @@ function shift_granularity(t::InertiaTrace, tre::Vector{Float64})
     return cm
 end
 
-function sample_granularity_move!(cm::Gen.ChoiceMap, nsingle::Int, nensemble::Int)
-    ntotal = nsingle + nensemble
-    nmerges = ncr(ntotal, 2)
-    split_prob = nensemble / (nensemble + nmerges)
-    move = if rand() < split_prob
-        # sample which ensemble to split
-        cm[:s0 => :nsm] = 2
-        cm[:s0 => :state => :idx] = rand(1:nensemble)
-    else
-        # sample which pair to merge
-        cm[:s0 => :nsm] = 3
-        cm[:s0 => :state => :pair] = rand(1:nmerges)
-    end
-    return nothing
-end
-
 function sample_granularity_move!(cm::Gen.ChoiceMap, ws::Vector{Float64},
                                   nsingle::Int, nensemble::Int)
     ntotal = nsingle + nensemble
+    nsplit = nensemble
     nmerges = ncr(ntotal, 2)
-    split_prob = nensemble / (nensemble + nmerges)
+    # REVIEW: does this promote merging?
+    split_prob = nsplit / (nsplit + nmerges)
     move = if rand() < split_prob
         # sample which ensemble to split
         split_ws = softmax(ws[nsingle+1:end])
-        cm[:s0 => :nsm] = 2
+        cm[:s0 => :nsm] = 2 # split branch
         cm[:s0 => :state => :idx] = categorical(split_ws)
     else
         # sample which pair to merge
         npairs = ncr(ntotal, 2)
         pairs = Vector{Float64}(undef, npairs)
+        # Coarse importance filter
+        importance = softmax(ws, 3000.0) #TODO: hyper parameter
         for i = 1:npairs
             (a, b) = combination(ntotal, 2, i)
-            # prevent log(-x) in next line
-            w = min(0.0, logsumexp(ws[a], ws[b]))
-            pairs[i] = log1mexp(w)
+            # Pr(Merge) inv. prop. importance
+            pairs[i] = 1.0 - (importance[a] + importance[b])
         end
-        pairs = softmax(pairs, 0.001)
-        cm[:s0 => :nsm] = 3
-        cm[:s0 => :state => :pair] = categorical(pairs)
+        # Greedy optimization
+        # pairs = softmax(pairs, 0.1) #TODO: hyper parameter
+        # pair_idx = categorical(pairs)
+        pair_idx = argmax(pairs)
+        cm[:s0 => :nsm] = 3 # merge branch
+        cm[:s0 => :state => :pair] = pair_idx
     end
     return nothing
 end
-
-function apply_granularity_move(m::MergeMove, wm::InertiaWM, state::InertiaState)
-    @unpack singles, ensembles = state
-    ns = length(singles)
-    ne = length(ensembles)
-    a = object_from_idx(state, m.a)
-    b = object_from_idx(state, m.b)
-    e = apply_merge(a, b)
-    # need to determine what object types were merged
-    delta_ns = 0
-    delta_ns += isa(a, InertiaSingle) ? -1 : 0
-    delta_ns += isa(b, InertiaSingle) ? -1 : 0
-    delta_ne = 0
-    if isa(a, InertiaSingle) && isa(b, InertiaSingle)
-        delta_ne = 1
-
-    elseif isa(a, InertiaEnsemble) && isa(b, InertiaEnsemble)
-        delta_ne = -1
-    end
-    new_singles = Vector{InertiaSingle}(undef, ns + delta_ns)
-    new_ensembles = Vector{InertiaEnsemble}(undef, ne + delta_ne)
-    # Remove any merged singles
-    c = 1
-    for i = 1:ns
-        (isa(a, InertiaSingle) && i == m.a) && continue
-        (isa(b, InertiaSingle) && i == m.b) && continue
-        new_singles[c] = singles[i]
-        c += 1
-    end
-    # Remove merged ensembles
-    c = 1
-    for i = 1:ne
-        ((isa(b, InertiaEnsemble) && i + ns == m.b)  ||
-            (isa(a, InertiaEnsemble) && i + ns == m.a)) &&
-            continue
-        new_ensembles[c] = ensembles[i]
-        c += 1
-    end
-    new_ensembles[c] = e
-    InertiaState(new_singles, new_ensembles)
-end
-
-function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState,
-                                splitted::InertiaSingle)
-    @unpack singles, ensembles = state
-    ns = length(singles)
-    ne = length(ensembles)
-    e = ensembles[m.x]
-    new_e = apply_split(e, splitted)
-    # if the ensemble is a pair, we get two individuals
-    delta_ns = e.rate == 2 ? 2 : 1
-    delta_ne = e.rate == 2 ? -1 : 0
-    new_singles = Vector{InertiaSingle}(undef, ns + delta_ns)
-    new_ensembles = Vector{InertiaEnsemble}(undef, ne + delta_ne)
-    
-    new_singles[1:ns] = singles
-    if e.rate == 2 # E -> (S, S)
-        new_singles[ns + 1] = collapse(new_e)
-        new_singles[ns + 2] = splitted
-        c = 1
-        for i = 1:ne
-            i == m.x && continue
-            new_ensembles[c] = ensembles[i]
-            c += 1
-        end
-    else # E -> (E', S)
-        new_singles[ns + 1] = splitted
-        new_ensembles[:] = ensembles[:]
-        new_ensembles[m.x] = new_e
-    end
-    InertiaState(new_singles, new_ensembles)
-end
-
 

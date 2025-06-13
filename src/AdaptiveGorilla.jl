@@ -1,9 +1,23 @@
 """
-A model of inattentional blindness.
+Implementation of \"It's a feature not a bug: Multi-granular world models explain inattentional blindness\"
+
+# Citation
+
+```bib
+@article{belledonne_feature,
+  author   = \"Belledonne, Mario and Yildirim, Ilker\",
+  title    = \"It's a feature not a bug: Multi-granular world models explain inattentional blindness\",
+  journal  = \"TBD\",
+  year     = TBD,
+  volume   = \"TBD\",
+  number   = \"TBD\",
+  pages    = \"TBD\",
+}
+```
 
 ---
 
-EXPORTS:
+# Exports
 
 $(EXPORTS)
 

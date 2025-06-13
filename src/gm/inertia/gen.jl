@@ -81,19 +81,6 @@ birth_switch = Gen.Switch(give_birth, no_birth)
     return result
 end
 
-@gen static function birth_ensemble(wm::InertiaWM, rate::Float64)
-    # assuming | materials | = 2
-    # NOTE: could replace with dirichlet
-    plight ~ beta(0.5, 0.5)
-    mws = S2V(plight, 1.0 - plight)
-    loc, vel = @trace(state_prior(wm), :state)
-    spread ~ inv_gamma(wm.ensemble_shape, wm.ensemble_scale)
-    var = ensemble_var(wm, spread)
-    ensemble::InertiaEnsemble =
-        InertiaEnsemble(rate, mws, loc, var, vel)
-    return ensemble
-end
-
 ################################################################################
 # Prior over initial state
 ################################################################################
@@ -131,14 +118,6 @@ end
     s2 ~ sample_split(wm, ens)
     result = (s1, s2)
     return result
-end
-
-@gen static function sample_merge(st::InertiaState, x::Int64, y::Int64)
-    a = object_from_idx(st, x)
-    b = object_from_idx(st, y)
-    w = merge_probability(a, b) # how similar are a,b ?
-    to_merge::Bool = @trace(bernoulli(w), :to_merge)
-    return to_merge
 end
 
 ################################################################################
@@ -233,7 +212,7 @@ split_merge_switch = Switch(no_sm, inertia_split, inertia_merge)
 
 @gen static function inertia_granularity(wm::InertiaWM, x::InertiaState)
     ws = split_merge_weights(wm, x)
-    nsm ~ categorical(ws) # nothing - split - merge
+    nsm ~ categorical(ws) # 1 => nothing, 2 => split, 3 => merge
     state ~ split_merge_switch(nsm, x, wm)
     return state
 end

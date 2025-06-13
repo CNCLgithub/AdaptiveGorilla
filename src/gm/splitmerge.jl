@@ -32,3 +32,19 @@ struct MergeMove <: GranularityMove
 end
 
 const SplitMergeMove = Union{SplitMove, MergeMove}
+
+
+"""
+
+    apply_granularity_move(m::SplitMergeMove, wm::WorldModel, state,...)
+
+Applies a granularity move to a given state, returning a new state.
+
+---
+
+# Methods
+
+$(METHODLIST)
+
+"""
+function apply_granularity_move end

@@ -8,12 +8,13 @@ using Distances: WeightedEuclidean
 
 function test_agent()
     render = true
-    wm = InertiaWM(area_width = 1240.0,
-                   area_height = 840.0,
+    wm = InertiaWM(area_width = 720.0,
+                   area_height = 480.0,
                    birth_weight = 0.01,
+                   single_size = 5.0,
                    single_noise = 0.5,
                    stability = 0.5,
-                   vel = 3.5,
+                   vel = 3.0,
                    force_low = 1.0,
                    force_high = 5.0,
                    material_noise = 0.001,
@@ -23,7 +24,7 @@ function test_agent()
     dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 4
     gorilla_color = Dark
-    frames = 200
+    frames = 60
     exp = MostExp(dpath, wm, trial_idx,
                   gorilla_color, frames)
     query = exp.init_query
@@ -32,9 +33,9 @@ function test_agent()
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
         AdaptiveComputation(;
-                            itemp=0.1,
-                            base_steps=18,
-                            load = 0,
+                            itemp=10.0,
+                            base_steps=8,
+                            load = 10,
                             buffer_size = 200,
                             map_metric=WeightedEuclidean(S3V(0.05, 0.05, 0.9)),
                             )
@@ -63,9 +64,9 @@ function test_agent()
     end
 
     @show gt_exp
-    display(results)
+    show(results; truncate = frames)
 
-    return nothing
+    return results
 end
 
 test_agent();
