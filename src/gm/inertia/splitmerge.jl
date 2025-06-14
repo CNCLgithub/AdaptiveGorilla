@@ -115,7 +115,8 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     matws[Int64(b.mat)] += 0.5
     new_pos = 0.5 .* (get_pos(a) + get_pos(b))
     # REVIEW: dampen vel based on count?
-    new_vel = 0.5 .* (get_vel(a) + get_vel(b))
+    # [2025-06-13 Fri] switched factor from 0.5 -> 0.25
+    new_vel = 0.25 .* (get_vel(a) + get_vel(b))
     var = 2 * norm(get_pos(a) - get_pos(b))
     InertiaEnsemble(
         2,
