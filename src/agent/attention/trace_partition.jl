@@ -54,30 +54,6 @@ function latent_size(partition::InertiaPartition, tr::InertiaTrace)
     return n
 end
 
-# function get_obj(partition::InertiaPartition,
-#         trace::InertiaTrace, i::Int)
-
-#     t = first(get_args(trace))
-#     state = trace[:kernel => t]
-#     ns = length(state.singles)
-#     ne = length(state.ensembles)
-#     idx = i
-#     if !partition.singles
-#         idx += ns # jump past singles
-#     end
-#     if !partition.ensemble
-#         idx += ne # jump past ensembles
-#     end
-#     x = if idx <= ns
-#         state.singles[idx]
-#     elseif isbetween(idx, ns + 1, ne)
-#         state.ensembles[idx - ns]
-#     else
-#         error("Index $(i) not in trace")
-#     end
-#     return x
-# end
-
 get_coord(x::InertiaSingle) = S3V(get_pos(x)..., Float32(Int(x.mat)))
 function get_coord(x::InertiaEnsemble)
     m = 0.0
@@ -102,7 +78,7 @@ function get_coord(partition::InertiaPartition,
     coord = if idx <= ns
         x = state.singles[idx]
         get_coord(x)
-    elseif isbetween(idx, ns + 1, ne)
+    elseif isbetween(idx, ns + 1, ns+ne)
         y = state.ensembles[idx - ns]
         get_coord(y)
     else
@@ -124,10 +100,7 @@ function select_prop(partition::InertiaPartition,
     end
     prop = if idx <= ns
         tr -> single_ancestral_proposal(tr, idx)
-        # bernoulli(0.5) ?
-        #     tr -> single_ancestral_proposal(tr, idx) :
-        #     tr -> baby_local_transform(tr, idx)
-    elseif isbetween(idx, ns + 1, ne)
+    elseif isbetween(idx, ns + 1, ns+ne)
         tr -> ensemble_ancestral_proposal(tr, idx - ns)
     else
         baby_ancestral_proposal

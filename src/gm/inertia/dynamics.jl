@@ -27,9 +27,10 @@ function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
     # (stability, force_low, force_high)
-    (stability,
-     force_low / rate,
-     force_high / rate)
+    (stability, force_low, force_high)
+    # (stability,
+    #  force_low / sqrt(rate),
+    #  force_high / sqrt(rate))
 end
 
 function step(wm::InertiaWM,
@@ -54,7 +55,7 @@ function step(wm::InertiaWM,
     @assert ne == length(eupdates) "$(length(eupdates)) updates but only $ne ensembles"
     @inbounds for i = 1:ns
         obj = singles[i]
-        # force accumalator
+        # force accumulator
         facc = MVector{2, Float64}(supdates[i])
         # interactions with walls
         for w in walls
@@ -128,8 +129,10 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     @unpack pos, vel, var = e
     f = S2V(update[1], update[2])
     bx, by = wm.dimensions
-    # new_vel = dx, dy = f
-    new_vel = dx, dy = vel + f
+    dx, dy = vel + f
+    dx = clamp(dx, -wm.vel * 1.5, wm.vel * 1.5)
+    dy = clamp(dy, -wm.vel * 1.5, wm.vel * 1.5)
+    new_vel = S2V(dx, dy)
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))

@@ -146,8 +146,8 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     sigma = 0.5 * (abs(vel_orth) + 0.1*var)
     mu = 0.5 * vel_orth
     pred = Normal(mu, sigma)
-    display(pred)
-    @show distance
+    # display(pred)
+    # @show distance
     # CCDF up to wall
     p = Distributions.logccdf(pred, distance)
     p -= penalty

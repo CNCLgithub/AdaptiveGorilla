@@ -1,6 +1,6 @@
 
 """
-    perceive!(::MentalState{T}, ::T, ::Choicemap) where {T<:PerceptionProtocol}
+    perceive!(::MentalState{T}, ::T, ::ChoiceMap) where {T<:PerceptionProtocol}
 
 Infer updates to mental representations
 """

@@ -72,25 +72,10 @@ function granularity_objective(ag::MentalModule{G},
                         attp.nns)
     len = length(tr)
     mag = l2log(tr) - (log(len))
-    # Running averages
-    # mag = -Inf
-    # @inbounds for i = 1:np
-    #     tr = task_relevance(attx,
-    #                         attp.partition,
-    #                         state.traces[i],
-    #                         attp.nns)
-    #     @show tr
-    #     len = length(tr)
-    #     _mag = l2log(tr)
-    #     # @show _mag
-    #     mag = logsumexp(mag, _mag - log(len^2))
-    # end
-    # mag -= log(np)
-    # mag
-    lml = log_ml_estimate(state)
+    # lml = log_ml_estimate(state)
     # @show mag
     # @show lml
-    lml + mag
+    # lml + mag
 end
 
 function regranularize!(mem::MentalModule{M},

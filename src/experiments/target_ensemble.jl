@@ -4,11 +4,32 @@ export TEnsExp
 # Constructors
 #################################################################################
 
+"""
+$(TYPEDEF)
+
+The Target-Ensemble experiment (study 2).
+
+Each trial has a sister that is identical in terms of motion, but has all colors
+swapped (including the gorilla).
+
+In one case, only one of the targets bounces against the wall, rendering the rest
+not relevant for the task. The gorilla may appear on either the lone target, or
+on one of the grouped targets.
+
+In the other case, the targets are matched for the number of bounces but are not
+otherwise restricted in terms of how many of them can bounce off walls. In this
+case, the gorilla appears on the same objects as the previous condition, with
+all of the parent objects being not relevant to the same degree.
+
+The targets are always Light objects.
+"""
 struct TEnsExp <: Experiment
     "Number of time steps"
     frames::Int64
-    "Gorilla appearance"
-    gorilla_color::Material
+    "Whether the parent is lone or grouped object"
+    lone_parent::Bool
+    "Whether to swap colors (included gorilla)"
+    swap_colors::Bool
     "Observations for model"
     observations::Vector{ChoiceMap}
     "Query to initialize percept"
@@ -80,10 +101,11 @@ message Dataset {
 ```
 """
 function TEnsExp(dpath::String, wm::InertiaWM, trial_idx::Int64,
-                 gorilla_color::Material,
+                 swap_color::Bool,
+                 lone_parent::Bool,
                  frames::Int64)
-    ws, obs = load_tens_trial(wm, dpath, trial_idx, frames,
-                              gorilla_color)
+    ws, obs = load_tens_trial(wm, dpath, trial_idx, lone_parent,
+                              swap_color; frames=frames)
 
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
@@ -93,7 +115,7 @@ function TEnsExp(dpath::String, wm::InertiaWM, trial_idx::Int64,
     init_cm = choicemap()
     init_cm[:s0 => :nsm] = 1
     q = IncrementalQuery(gm, init_cm, args, argdiffs, 1)
-    TEnsExp(frames, gorilla_color, obs, q)
+    TEnsExp(frames, lone_parent, swap_color, obs, q)
 end
 
 #################################################################################
@@ -138,23 +160,28 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Loads scene `i` from the dataset, and generates observations
+Loads scene `i` from the dataset, and generates observations.
+
+`gorilla_threshold` determines when the gorilla observation will first and last
+appear, based on threshold of separation (e.g., 50% of the gorilla is unoccluded
+by the parent)
 """
 function load_tens_trial(wm::WorldModel,
                          dpath::String,
                          trial_idx::Int,
-                         time_steps::Int = 10,
-                         gorilla_color::Material = Dark,
+                         lone_parent::Bool,
+                         swap_color::Bool;
+                         frames::Int = 10,
                          gorilla_threshold::Float64 = 0.5)
     trial_length = 0
     open(dpath, "r") do io
         manifest = JSON3.read(io)["manifest"]
-        trial_length = manifest["duration"]
+        trial_length = manifest["frames"]
     end
 
-    trial_length = min(trial_length, time_steps)
+    trial_length = min(trial_length, frames)
     # Variables
-    local istate::InertiaState, gorilla, positions
+    local gorilla, positions
     observations = Vector{ChoiceMap}(undef, trial_length - 1)
     open(dpath, "r") do io
         # loading a vec of positions
@@ -163,8 +190,10 @@ function load_tens_trial(wm::WorldModel,
         positions = data["positions"]
     end
     gorilla_dur = min(trial_length - gorilla["frame"], 64)
+    gorilla_color = swap_color ? Dark : Light
+    parent = lone_parent ? 4 : 1
     # first frame gets GT
-    istate = initial_state(wm, data["positions"][1])
+    istate = initial_state(wm, positions[1])
     for t = 2:trial_length
         cm = choicemap()
         # Observations associated with each object
@@ -172,32 +201,50 @@ function load_tens_trial(wm::WorldModel,
         nobj = length(step)
         @inbounds for i = 1:nobj
             xy = step[i]
-            mat = i <= 4 ? Light : Dark
+            mat = xor(swap_color, i <= 4) ? Light : Dark
             write_obs_mask!(
                 cm, wm, t, i, xy, mat;
                 prefix = (t, i) -> i,
             )
         end
         # Gorilla observations: orbits around parent
-        dt = t - gorilla["frame"]
-        if between(dt, 0, gorilla_dur)
-            gx, gy = step[gorilla["parent"]]
-            angle = ( 2 * dt * pi ) / gorilla_dur
-            radius = sin(0.5 * angle) * 2 * wm.single_size
-            # only show for frames with at least 1/2 unoccluded
-            radius < wm.single_size && continue
-            xy = orbit_position(gx, gy, radius, angle)
-            write_obs_mask!(
-                cm, wm, t, i, xy, gorilla_color;
-                prefix = (t, i) -> i,
-            )
-        end
+        write_tens_gorilla!(cm, t, gorilla["frame"],
+                            gorilla_dur, gorilla_threshold,
+                            wm.single_size, step[parent],
+                            wm, gorilla_color, nobj + 1)
         observations[t-1] = cm
     end
 
     (istate, observations)
 end
 
+function write_tens_gorilla!(
+    cm::ChoiceMap,
+    t::Int64,
+    start::Int,
+    gorilla_dur,
+    occ_thresh,
+    size,
+    loc,
+    wm::InertiaWM,
+    color,
+    idx,
+    )
+    dt = t - start
+    (0 > dt || dt > gorilla_dur) && return nothing
+    gx, gy = loc
+    angle = ( 2 * dt * pi ) / gorilla_dur
+    radius_pct = sin(0.5 * angle)
+    # eg., only show for frames with at least 1/2 unoccluded
+    radius_pct < occ_thresh && return nothing
+    radius = radius_pct * 2 * size
+    xy = orbit_position(gx, gy, radius, angle)
+    write_obs_mask!(
+        cm, wm, t, idx, xy, color;
+        prefix = (t, i) -> i,
+    )
+    return nothing
+end
 
 function orbit_position(
     x::Float64,
@@ -209,12 +256,6 @@ function orbit_position(
     x = x + r * cos(a)
     y = y + r * sin(a)
     return S2V(x, y)
-end
-
-function render_frame(exp::TEnsExp, t::Int, objp = ObjectPainter())
-    obs = to_array(get_obs(exp, t), Detection)
-    MOTCore.paint(objp, obs)
-    return nothing
 end
 
 function collision_expectation(exp::TEnsExp)
@@ -232,4 +273,30 @@ function collision_expectation(exp::TEnsExp)
         end
     end
     return e
+end
+
+function render_frame(exp::TEnsExp, t::Int, objp = ObjectPainter())
+    obs = to_array(get_obs(exp, t), Detection)
+    MOTCore.paint(objp, obs)
+    return nothing
+end
+
+function render_agent_state(exp::TEnsExp, agent::Agent, t::Int, path::String)
+    objp = ObjectPainter()
+    idp = IDPainter()
+
+
+    init = InitPainter(path = "$(path)/$(t).png",
+                       background = "white")
+
+    _, wm, _ = exp.init_query.args
+    # setup
+    MOTCore.paint(init, wm)
+    # observations
+    render_frame(exp, t, objp)
+    # inferred states
+    render_frame(agent.perception, agent.attention, objp)
+    render_frame(agent.planning, t)
+    finish()
+    return nothing
 end
