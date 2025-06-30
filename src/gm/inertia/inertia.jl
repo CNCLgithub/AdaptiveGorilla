@@ -28,9 +28,11 @@ $(TYPEDFIELDS)
 
     # Individual obj parameters
     single_size::Float64 = 10.0
+    single_rfs_logweight::Float64 = -2500.0
     # Ensemble parameters
-    ensemble_shape::Float64 = 2.0
-    ensemble_scale::Float64 = 0.5
+    # REVIEW: Are these used?
+    # ensemble_shape::Float64 = 2.0
+    # ensemble_scale::Float64 = 0.5
 
     "Probability that a baby is born for a given step"
     birth_weight::Float64 = 0.01
@@ -101,6 +103,7 @@ end
 get_pos(s::InertiaSingle) = s.pos
 get_vel(s::InertiaSingle) = s.vel
 get_size(s::InertiaSingle) = s.size
+material(s::InertiaSingle) = s.mat
 
 """
 $(TYPEDEF)
@@ -159,6 +162,11 @@ end
 function object_from_idx(st::InertiaState, x::Int64)
     n = length(st.singles)
     x <= n ? st.singles[x] : st.ensembles[x - n]
+end
+
+function object_count(st::InertiaState)
+    n = Float64(length(st.singles))
+    sum(rate, st.ensembles; init=n)
 end
 
 ################################################################################

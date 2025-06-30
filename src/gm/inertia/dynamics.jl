@@ -5,6 +5,22 @@ function object_bounds(wm::InertiaWM)
     (xs, ys)
 end
 
+function death_weight(wm::InertiaWM, st::InertiaState)
+    @unpack singles, ensembles = st
+    object_count(st) > wm.object_rate && !(isempty(singles)) ? wm.birth_weight : 0.0
+end
+
+function death_from_switch(prev, idx)
+    singles = PersistentVector(prev.singles)
+    idx == 0 && return singles
+    new_singles = PersistentVector{InertiaSingle}()
+    for (i, s) = enumerate(singles)
+        i == idx && continue
+        new_singles = FunctionalCollections.push(new_singles, s)
+    end
+    return new_singles
+end
+
 function birth_weight(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
     length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?

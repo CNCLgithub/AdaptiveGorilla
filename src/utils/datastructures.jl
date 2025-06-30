@@ -1,19 +1,19 @@
-export SpatialMap
+export HashMap
 
 """
 A container to organize 1D samples (e.g., task relevance) in R^3 coordinate space.
 """
-mutable struct SpatialMap
-    coords::CircularBuffer{S3V}
-    samples::CircularBuffer{Float64}
-    new_coords::CircularBuffer{S3V}
-    new_samples::CircularBuffer{Float64}
+mutable struct HashMap{K, V}
+    coords::CircularBuffer{K}
+    samples::CircularBuffer{V}
+    new_coords::CircularBuffer{K}
+    new_samples::CircularBuffer{V}
     map::Union{Nothing, KDTree}
 end
 
-Base.isempty(x::SpatialMap) = isnothing(x.map)
+Base.isempty(x::HashMap) = isnothing(x.map)
 
-function Base.empty!(x::SpatialMap)
+function Base.empty!(x::HashMap)
     empty!(x.coords)
     empty!(x.samples)
     empty!(x.new_coords)
@@ -22,19 +22,19 @@ function Base.empty!(x::SpatialMap)
     return x
 end
 
-SpatialMap(n::Int) = SpatialMap(CircularBuffer{S3V}(n),
-                                CircularBuffer{Float64}(n),
-                                CircularBuffer{S3V}(n),
-                                CircularBuffer{Float64}(n),
+HashMap(K, V, n::Int) = HashMap(CircularBuffer{K}(n),
+                                CircularBuffer{V}(n),
+                                CircularBuffer{K}(n),
+                                CircularBuffer{V}(n),
                                 nothing)
 
-function push_sample!(m::SpatialMap, coord::S3V, sample::Float64)
+function push_sample!(m::HashMap{K, V}, coord::K, sample::V) where {K, V}
     push!(m.new_coords, coord)
     push!(m.new_samples, sample)
     return nothing
 end
 
-function fit_map!(m::SpatialMap, metric)
+function fit_map!(m::HashMap, metric)
     if isempty(m.new_coords) || isempty(m.new_samples)
         m.map = nothing
     else
@@ -54,14 +54,14 @@ Determine the value of `coord`, storing intermediate values in `idxs` and `dists
 """
 function integrate!(idxs::Vector{Int32},
                     dists::Vector{Float32}, 
-                    coord::S3V,
-                    sm::SpatialMap)
+                    coord::K,
+                    sm::HashMap{K, V}) where {K, V}
     k = min(length(idxs), length(dists))
     knn!(idxs, dists, sm.map, coord, k)
     x = -Inf
     @inbounds for j = 1:k
         idx = idxs[j]
-        d = max(dists[j], 1) # in case d = 0
+        d = max(dists[j], one(V)) # in case d = 0
         x = logsumexp(x, sm.samples[idx] - log(d))
     end
     x - log(k)

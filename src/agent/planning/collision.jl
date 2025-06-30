@@ -132,30 +132,36 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall)
 end
 
 function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
-    r = rate(obj)
-    l = 1.0 - materials(obj)[1] # prop not light
-    penalty = iszero(l) ? 0.0 : log(r) + log(l)
-    x = get_pos(obj)
-    vel = get_vel(obj)
-    var = get_var(obj)
-    vel_orth = dot(vel, w.normal)
-    distance = abs(w.d - dot(x, w.normal))
-    # Distribution over near future
-    # Variance integrates ensemble spread
-    # This dilutes probability density
-    sigma = 0.5 * (abs(vel_orth) + 0.1*var)
-    mu = 0.5 * vel_orth
-    pred = Normal(mu, sigma)
-    # display(pred)
-    # @show distance
-    # CCDF up to wall
-    p = Distributions.logccdf(pred, distance)
-    p -= penalty
-    # pdf is the derivative of the cdf
-    dpdx = Distributions.logpdf(pred, distance)
-    dpdx -= penalty
-    (p, dpdx)
+    # Ensemble representations do not maintain persistent
+    # object trajectories, so they cannot inform
+    # collision counting
+    (-Inf, -Inf)
 end
+# function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
+#     r = rate(obj)
+#     l = 1.0 - materials(obj)[1] # prop not light
+#     penalty = iszero(l) ? 0.0 : log(r) + log(l)
+#     x = get_pos(obj)
+#     vel = get_vel(obj)
+#     var = get_var(obj)
+#     vel_orth = dot(vel, w.normal)
+#     distance = abs(w.d - dot(x, w.normal))
+#     # Distribution over near future
+#     # Variance integrates ensemble spread
+#     # This dilutes probability density
+#     sigma = 0.5 * (abs(vel_orth) + 0.1*var)
+#     mu = 0.5 * vel_orth
+#     pred = Normal(mu, sigma)
+#     # display(pred)
+#     # @show distance
+#     # CCDF up to wall
+#     p = Distributions.logccdf(pred, distance)
+#     p -= penalty
+#     # pdf is the derivative of the cdf
+#     dpdx = Distributions.logpdf(pred, distance)
+#     dpdx -= penalty
+#     (p, dpdx)
+# end
 
 # VISUALS
 

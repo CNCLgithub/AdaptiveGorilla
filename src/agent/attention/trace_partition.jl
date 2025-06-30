@@ -54,13 +54,17 @@ function latent_size(partition::InertiaPartition, tr::InertiaTrace)
     return n
 end
 
-get_coord(x::InertiaSingle) = S3V(get_pos(x)..., Float32(Int(x.mat)))
+function get_coord(o::InertiaSingle)
+    x, y = get_pos(o)
+    S3V(x, y, Float64(Int(o.mat)))
+end
 function get_coord(x::InertiaEnsemble)
     m = 0.0
     for (i, matw) = enumerate(x.matws)
-        m += matw * Float32(i)
+        m += matw * Float64(i)
     end
-    S3V(get_pos(x)..., m)
+    x,y = get_pos(x)
+    S3V(x, y, m)
 end
 
 function get_coord(partition::InertiaPartition,

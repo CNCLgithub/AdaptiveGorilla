@@ -125,9 +125,13 @@ end
 function run_analyses(exp::TEnsExp, agent::Agent)
     gorilla_p = estimate_marginal(agent.perception,
                                   detect_gorilla, ())
+    birth_p = estimate_marginal(agent.perception,
+                                  had_birth, ())
     col_p = planner_expectation(agent.planning)
+
     Dict(:gorilla_p => gorilla_p,
-         :collision_p => col_p)
+         :collision_p => col_p,
+         :birth_p => birth_p)
 end
 
 """
@@ -172,7 +176,7 @@ function load_tens_trial(wm::WorldModel,
                          lone_parent::Bool,
                          swap_color::Bool;
                          frames::Int = 10,
-                         gorilla_threshold::Float64 = 0.5)
+                         gorilla_threshold::Float64 = 0.25)
     trial_length = 0
     open(dpath, "r") do io
         manifest = JSON3.read(io)["manifest"]
@@ -237,7 +241,7 @@ function write_tens_gorilla!(
     radius_pct = sin(0.5 * angle)
     # eg., only show for frames with at least 1/2 unoccluded
     radius_pct < occ_thresh && return nothing
-    radius = radius_pct * 2 * size
+    radius = radius_pct * 8 * size
     xy = orbit_position(gx, gy, radius, angle)
     write_obs_mask!(
         cm, wm, t, idx, xy, color;
@@ -247,10 +251,10 @@ function write_tens_gorilla!(
 end
 
 function orbit_position(
-    x::Float64,
-    y::Float64,
-    r::Float64,
-    a::Float64,
+    x::Real,
+    y::Real,
+    r::Real,
+    a::Real,
     )
     # Calculate the child's position using parametric equations of a circle
     x = x + r * cos(a)

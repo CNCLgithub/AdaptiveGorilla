@@ -16,7 +16,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[4] # :xs
+    xs_node = kernel_ir.call_nodes[5] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -46,8 +46,8 @@ function detect_gorilla(trace::InertiaTrace,
     scores = rfs.pscores
     nx,ne,np = size(pt)
     state = get_last_state(trace)
+    # No gorilla visable
     if (nx != nobj + 1 )
-        # No gorilla yet
         return 0.0
     end
     ns = length(state.singles)
@@ -55,15 +55,26 @@ function detect_gorilla(trace::InertiaTrace,
         # No individuals to detect gorilla
         return 0.0
     end
+    # No birth individual
+    if (object_count(state) != nobj + 1 )
+        return 0.0
+    end
     result = -Inf
     @inbounds for p = 1:np
         for s = 1:ns
-            pt[nx, s, p] || continue
+            pt[nx, ns, p] || continue
             result = logsumexp(result, scores[p])
         end
     end
     result -= rfs.score
     return exp(result)
+end
+
+function had_birth(trace::InertiaTrace,
+                   nobj::Int = 8)
+    state = get_last_state(trace)
+    total = object_count(state)
+    total > nobj
 end
 
 function get_last_state(tr::InertiaTrace)

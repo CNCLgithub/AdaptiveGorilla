@@ -141,7 +141,7 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     delta_vel = (get_vel(a) - get_vel(b)) / new_count
     new_pos = get_pos(b) + delta_pos
     new_vel = get_vel(b) + delta_vel
-    var = get_var(b) + norm(delta_pos) + norm(delta_vel)
+    var = get_var(b) + norm(delta_pos)
     InertiaEnsemble(
         new_count,
         matws,

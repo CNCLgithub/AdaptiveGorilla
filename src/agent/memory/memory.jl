@@ -12,6 +12,7 @@ Defines the granularity mapping for a current trace format
     "Temperature for chain resampling"
     tau::Float64 = 1.0
     shift::Bool = true
+    size_cost::Float64 = 10.0
 end
 
 mutable struct GranularityEstimates <: MentalState{AdaptiveGranularity}
@@ -33,7 +34,9 @@ function print_granularity_schema(chain::APChain)
     state = get_last_state(tr)
     ns = length(state.singles)
     ne = length(state.ensembles)
-    println("Chain has: $(ns) singles; $(ne) ensembles")
+    println("MAP Granularity: $(ns) singles; $(ne) ensembles")
+    ndark = count(x -> material(x) == Dark, state.singles)
+    println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
     return nothing
 end
 
@@ -51,9 +54,11 @@ function assess_granularity!(
     # update_task_relevance!(att)
     for i = 1:hf.h
         v = granularity_objective(mem, att, vstate.chains[i])
+        # print_granularity_schema(vstate.chains[i])
         mstate.objectives[i] = logsumexp(mstate.objectives[i], v)
     end
     # @show mstate.objectives
+    # @show softmax(mstate.objectives, mp.tau)
     mstate.steps += 1
     return nothing
 end
@@ -62,6 +67,7 @@ function granularity_objective(ag::MentalModule{G},
                                ac::MentalModule{A},
                                chain::APChain,
     ) where {G<:AdaptiveGranularity, A<:AdaptiveComputation}
+    gop, _ = mparse(ag)
     attp, attx = mparse(ac)
     @unpack partition, nns = attp
     @unpack state = chain
@@ -71,7 +77,7 @@ function granularity_objective(ag::MentalModule{G},
                         trace,
                         attp.nns)
     len = length(tr)
-    mag = l2log(tr) - (log(len))
+    mag = l2log(tr) - (log(gop.size_cost * len))
     # lml = log_ml_estimate(state)
     # @show mag
     # @show lml
@@ -108,7 +114,6 @@ function regranularize!(mem::MentalModule{M},
         cm = memp.shift ?
             shift_granularity(template, tr) : noshift(template)
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
-        # visstate.new_chains[i] = reinit_chain(parent, template)
     end
 
     visstate.age = 1 # TODO: 0 or 1?
@@ -161,7 +166,7 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, ws::Vector{Float64},
         npairs = ncr(ntotal, 2)
         pairs = Vector{Float64}(undef, npairs)
         # Coarse importance filter
-        importance = softmax(ws, 3000.0) #TODO: hyper parameter
+        importance = softmax(ws, 2000.0) #TODO: hyper parameter
         for i = 1:npairs
             (a, b) = combination(ntotal, 2, i)
             # Pr(Merge) inv. prop. importance

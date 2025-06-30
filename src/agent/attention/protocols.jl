@@ -54,11 +54,13 @@ end
 
 mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
     "Impact of C_k on planning"
-    dPi::SpatialMap
+    dPi::HashMap
     "Impact of C_k on perception"
-    dS::SpatialMap
+    dS::HashMap
 end
-AdaptiveAux(n::Int) = AdaptiveAux(SpatialMap(n), SpatialMap(n))
+
+AdaptiveAux(n::Int) = AdaptiveAux(HashMap(S3V, Float64, n),
+                                  HashMap(S3V, Float64, n))
 
 function AttentionModule(m::AdaptiveComputation)
     MentalModule(m, AdaptiveAux(m.buffer_size))

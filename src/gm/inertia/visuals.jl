@@ -50,6 +50,13 @@ function MOTCore.paint(p::Painter, st::InertiaState,
         MOTCore.paint(p, o)
     end
 
+    # visualize birth
+    obj_counts = object_count(st)
+    if obj_counts > 8 && !isempty(st.singles)
+        pos = get_pos(st.singles[end])
+        _draw_circle(pos, 30.0, "purple", opacity = 1.0)
+    end
+
     # visualize attention
     ns = length(st.singles)
     ne = length(st.ensembles)

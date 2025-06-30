@@ -67,7 +67,6 @@ end
 end
 
 birth_switch = Gen.Switch(give_birth, no_birth)
-# birth_switch = Gen.Switch(birth_single, no_birth)
 
 @gen function birth_process(wm::InertiaWM, prev::InertiaState)
     w = birth_weight(wm, prev)
@@ -78,6 +77,20 @@ birth_switch = Gen.Switch(give_birth, no_birth)
 
     result::PersistentVector{InertiaSingle} =
         add_baby_from_switch(prev, birth, switch_idx)
+    return result
+end
+
+@gen function death_process(wm::InertiaWM, prev::InertiaState)
+    w = death_weight(wm, prev)
+    dieing ~ bernoulli(w)
+    if dieing
+        nsingles = length(prev.singles)
+        dead ~ categorical(Fill(1.0 / nsingles, nsingles))
+    else
+        dead = 0
+    end
+    result::PersistentVector{InertiaSingle} =
+        death_from_switch(prev, dead)
     return result
 end
 
@@ -150,17 +163,19 @@ end
                                     prev::InertiaState,
                                     wm::InertiaWM)
 
-    # Gorilla
-    # REVIEW: add Death?
-    singles = @trace(birth_process(wm, prev), :birth)
-    s1::InertiaState = InertiaState(singles, prev.ensembles)
+    # birth-death
+    births = @trace(birth_process(wm, prev), :birth)
+    bs::InertiaState = InertiaState(births, prev.ensembles)
+    deaths = @trace(death_process(wm, bs), :death)
+    ds::InertiaState = InertiaState(deaths, prev.ensembles)
+
 
     # Random nudges
-    ns = length(s1.singles)
-    ne = length(s1.ensembles)
-    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), s1.singles)
-    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), s1.ensembles)
-    s2::InertiaState = step(wm, s1, forces, eshifts)
+    ns = length(ds.singles)
+    ne = length(ds.ensembles)
+    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), ds.singles)
+    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), ds.ensembles)
+    s2::InertiaState = step(wm, ds, forces, eshifts)
 
     # RFS observations
     es = predict(wm, s2)
