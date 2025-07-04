@@ -23,6 +23,12 @@ function MOTCore.paint(p::InitPainter, wm::InertiaWM)
         action = :stroke)
 end
 
+function MOTCore.paint(p::InitPainter, area_width, area_height)
+    Drawing(area_width, area_height, p.path)
+    origin()
+    background(p.background)
+end
+
 function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
 
     # TODO: figure out how to visualize this (dash around emsemble, see its center( a dot?),
@@ -30,10 +36,14 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
 
     # println("\nobj_var $(obj.var)")
     std = sqrt(obj.var)
-    _draw_circle(get_pos(obj), 1.5 * std, "black";
-                 style = :stroke)
-    mat = round(obj.matws[2]; digits = 2)
-    _draw_text("Dark: $(mat); rate: $(obj.rate); std: $(round(std))", get_pos(obj))
+    w = round(obj.matws[1]; digits = 2)
+    color = (w, w, w)
+    _draw_circle(get_pos(obj), 1.0 * std, color;
+                 style = :fill)
+    _draw_circle(get_pos(obj), 3.0 * std, color;
+                 style = :stroke, opacity = 0.1)
+    rte = round(obj.rate; digits = 2)
+    _draw_text("$(rte)", get_pos(obj))
     return nothing
 end
 
@@ -54,7 +64,7 @@ function MOTCore.paint(p::Painter, st::InertiaState,
     obj_counts = object_count(st)
     if obj_counts > 8 && !isempty(st.singles)
         pos = get_pos(st.singles[end])
-        _draw_circle(pos, 30.0, "purple", opacity = 1.0)
+        _draw_circle(pos, 30.0, "purple", opacity = 0.4)
     end
 
     # visualize attention

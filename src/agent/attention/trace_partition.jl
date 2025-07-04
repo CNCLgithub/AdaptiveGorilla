@@ -110,3 +110,12 @@ function select_prop(partition::InertiaPartition,
         baby_ancestral_proposal
     end
 end
+
+function dissimilarity(tr::InertiaTrace, metric::PreMetric,
+                       a::Int64, b::Int64)
+    obj_a = object_from_idx(tr, a)
+    coord_a = get_coord(obj_a)
+    obj_b = object_from_idx(tr, b)
+    coord_b = get_coord(obj_b)
+    metric(coord_a, coord_b)
+end

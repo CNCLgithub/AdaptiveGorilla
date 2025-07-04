@@ -90,6 +90,7 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     delta_vel = (get_vel(e) - get_vel(x)) / new_count
     new_pos = get_pos(e) + delta_pos
     new_vel = get_vel(e) + delta_vel
+    # var = get_var(e) - (norm(delta_pos) - get_var(e)) / new_count
     var = get_var(e) - norm(delta_pos) - norm(delta_vel)
     var = max(10.0, var)
     InertiaEnsemble(
@@ -118,8 +119,8 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     # [2025-06-13 Fri] switched factor from 0.5 -> 0.25
     # new_vel = 0.25 .* (get_vel(a) + get_vel(b))
     # [2025-06-16 Mon] switched to sqrt
-    new_vel = 0.1 .* (get_vel(a) + get_vel(b))
-    var = 3 * norm(get_pos(a) - get_pos(b))
+    new_vel = 0.4 .* (get_vel(a) + get_vel(b))
+    var = 4.0 * norm(get_pos(a) - get_pos(b))
     InertiaEnsemble(
         2,
         matws,
@@ -137,11 +138,11 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     matws[Int64(a.mat)] += 1
     lmul!(1.0 / new_count, matws)
     # movement and variance
-    delta_pos = (get_pos(a) - get_pos(b)) / new_count
-    delta_vel = (get_vel(a) - get_vel(b)) / new_count
-    new_pos = get_pos(b) + delta_pos
-    new_vel = get_vel(b) + delta_vel
-    var = get_var(b) + norm(delta_pos)
+    delta_pos = get_pos(a) - get_pos(b)
+    delta_vel = get_vel(a) - get_vel(b)
+    new_pos = get_pos(b) + delta_pos / new_count
+    new_vel = get_vel(b) + delta_vel / new_count
+    var = get_var(b) + norm(delta_pos) / new_count
     InertiaEnsemble(
         new_count,
         matws,
@@ -163,7 +164,7 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     delta_vel = (get_vel(a) - get_vel(b)) / new_count
     new_pos = get_pos(b) + delta_pos
     new_vel = get_vel(b) + delta_vel
-    var = 0.5 * (a.var + b.var) + norm(delta_pos) + norm(delta_vel)
+    var = get_var(a) + get_var(b)
     InertiaEnsemble(
         new_count,
         matws,

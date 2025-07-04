@@ -3,34 +3,34 @@ using MOTCore
 using DataFrames
 using Gen_Compose
 using AdaptiveGorilla
-using AdaptiveGorilla: S3V
+using AdaptiveGorilla: S3V, retrieve_map, birth_death_transform
 using Distances: WeightedEuclidean
 
 function test_agent()
     render = true
     wm = InertiaWM(area_width = 720.0,
                    area_height = 480.0,
-                   birth_weight = 0.50,
+                   birth_weight = 0.1,
                    single_size = 5.0,
-                   single_noise = 0.5,
-                   single_rfs_logweight = -3000.0,
+                   single_noise = 0.35,
+                   single_rfs_logweight = -2500.0,
                    stability = 0.5,
-                   vel = 4.0,
+                   vel = 4.5,
                    force_low = 1.0,
                    force_high = 5.0,
-                   material_noise = 0.001,
-                   ensemble_var_shift = 5.0)
+                   material_noise = 0.01,
+                   ensemble_var_shift = 0.1)
     dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 1
     gorilla_color = Dark
-    frames = 175
+    frames = 135
     # exp = MostExp(dpath, wm, trial_idx,
     #               gorilla_color, frames)
     exp = TEnsExp(dpath, wm, trial_idx,
                   false, true, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 5)
-    hpf = HyperFilter(;dt=12, pf=pf, h=5)
+    hpf = HyperFilter(;dt=18, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
         AdaptiveComputation(;
@@ -42,9 +42,9 @@ function test_agent()
                             )
     )
     planning = PlanningModule(CollisionCounter(; mat=Light))
-    adaptive_g = AdaptiveGranularity(; tau=0.1,
+    adaptive_g = AdaptiveGranularity(; tau=1.0,
                                      shift=true,
-                                     size_cost = 10.0)
+                                     size_cost = 40.0)
     memory = MemoryModule(adaptive_g, hpf.h)
 
     # Cool, =)
@@ -65,6 +65,21 @@ function test_agent()
         _results[:frame] = t
         push!(results, _results)
         render && render_agent_state(exp, agent, t, out)
+    end
+
+
+    # Dissect internal of perception after last frame
+    visp, visstate = mparse(agent.perception)
+    for i = 1:visp.h
+        chain = visstate.chains[i]
+        particles = chain.state
+        ws = AdaptiveGorilla.marginal_ll(particles.traces[1])
+        ws = zeros(length(ws))
+        for x = particles.traces
+            ws .+= AdaptiveGorilla.marginal_ll(x)
+        end
+        ws .*= 1.0 / length(particles.traces)
+        @show ws
     end
 
     @show gt_exp

@@ -31,10 +31,14 @@ end
 
 function print_granularity_schema(chain::APChain)
     tr = retrieve_map(chain)
+    print_granularity_schema(tr)
+end
+function print_granularity_schema(tr::InertiaTrace)
     state = get_last_state(tr)
     ns = length(state.singles)
     ne = length(state.ensembles)
-    println("MAP Granularity: $(ns) singles; $(ne) ensembles")
+    c = object_count(tr)
+    println("MAP Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
     ndark = count(x -> material(x) == Dark, state.singles)
     println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
     return nothing
@@ -54,11 +58,10 @@ function assess_granularity!(
     # update_task_relevance!(att)
     for i = 1:hf.h
         v = granularity_objective(mem, att, vstate.chains[i])
-        # print_granularity_schema(vstate.chains[i])
         mstate.objectives[i] = logsumexp(mstate.objectives[i], v)
+        # print_granularity_schema(vstate.chains[i])
+        # println("℧: $(mstate.objectives[i])")
     end
-    # @show mstate.objectives
-    # @show softmax(mstate.objectives, mp.tau)
     mstate.steps += 1
     return nothing
 end
@@ -78,10 +81,6 @@ function granularity_objective(ag::MentalModule{G},
                         attp.nns)
     len = length(tr)
     mag = l2log(tr) - (log(gop.size_cost * len))
-    # lml = log_ml_estimate(state)
-    # @show mag
-    # @show lml
-    # lml + mag
 end
 
 function regranularize!(mem::MentalModule{M},
@@ -99,12 +98,12 @@ function regranularize!(mem::MentalModule{M},
     # not time yet
     (t > 0 && t % visp.dt != 0) && return nothing
 
-    ws = softmax(memstate.objectives, memp.tau)
     # Repopulate and shift granularity
+    ws = softmax(memstate.objectives, memp.tau)
+    metric = attp.map_metric
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
     for i = 1:visp.h
-        # parent = visstate.chains[i] # PFChain
         parent = visstate.chains[next_gen[i]] # PFChain
         template = retrieve_map(parent) # InertiaTrace
         tr = task_relevance(attx,
@@ -112,15 +111,16 @@ function regranularize!(mem::MentalModule{M},
                             template,
                             attp.nns)
         cm = memp.shift ?
-            shift_granularity(template, tr) : noshift(template)
+            shift_granularity(template, tr, metric) : noshift(template)
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
     end
 
-    visstate.age = 1 # TODO: 0 or 1?
+    # Set perception fields
+    visstate.age = 1
     temp_chains = visstate.chains
     visstate.chains = visstate.new_chains
     visstate.new_chains = temp_chains
-
+    # Reset optimizer state
     fill!(memstate.objectives, -Inf)
     memstate.steps = 0
 
@@ -134,23 +134,22 @@ function noshift(t::InertiaTrace)
     return cm
 end
 
-function shift_granularity(t::InertiaTrace, tre::Vector{Float64})
-    _, wm, _ = get_args(t)
-    state = get_last_state(t)
-    @unpack singles, ensembles = state
+function shift_granularity(t::InertiaTrace, tre::Vector{Float64}, metric::PreMetric)
     cm = choicemap()
     if rand() > 0.5
-        ns = length(singles)
-        ne = length(ensembles)
-        sample_granularity_move!(cm, tre, ns, ne)
+        sample_granularity_move!(cm, t, tre, metric)
     else
         cm[:s0 => :nsm] = 1 # no change
     end
     return cm
 end
 
-function sample_granularity_move!(cm::Gen.ChoiceMap, ws::Vector{Float64},
-                                  nsingle::Int, nensemble::Int)
+function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
+                                  ws::Vector{Float64},
+                                  metric::PreMetric)
+
+    nsingle = single_count(t)
+    nensemble = ensemble_count(t)
     ntotal = nsingle + nensemble
     nsplit = nensemble
     nmerges = ncr(ntotal, 2)
@@ -166,18 +165,32 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, ws::Vector{Float64},
         npairs = ncr(ntotal, 2)
         pairs = Vector{Float64}(undef, npairs)
         # Coarse importance filter
-        importance = softmax(ws, 2000.0) #TODO: hyper parameter
+        importance = log.(softmax(ws, 100.0)) #TODO: hyper parameter
+        # @show importance
         for i = 1:npairs
             (a, b) = combination(ntotal, 2, i)
             # Pr(Merge) inv. prop. importance
-            pairs[i] = 1.0 - (importance[a] + importance[b])
+            # Scale by similarity
+            pairs[i] = log1mexp(logsumexp(importance[a], importance[b]))
+            # pairs[i] = logsumexp(importance[a], importance[b]) +
+            #     log(dissimilarity(t, metric, a, b))
+            # pairs[i] = log(1.01 - (importance[a] + importance[b])) -
+            #     log(dissimilarity(t, metric, a, b))
         end
         # Greedy optimization
-        # pairs = softmax(pairs, 0.1) #TODO: hyper parameter
+        # pairs = softmax(pairs, 0.001) #TODO: hyper parameter
+        # @show pairs
         # pair_idx = categorical(pairs)
         pair_idx = argmax(pairs)
+        selected = combination(ntotal, 2, pair_idx)
+        # @show selected
+        # @show dissimilarity(t, metric, selected...)
+        # @show pairs[pair_idx]
+        # @show dissimilarity(t, metric, 5,8)
+        # @show pairs[comb_index(ntotal, [5, 8])]
         cm[:s0 => :nsm] = 3 # merge branch
         cm[:s0 => :state => :pair] = pair_idx
+        # error()
     end
     return nothing
 end

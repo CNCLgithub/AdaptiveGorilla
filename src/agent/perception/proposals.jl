@@ -82,7 +82,7 @@ end
 function baby_ancestral_proposal(trace::InertiaTrace)
     t = first(get_args(trace))
     new_trace, w, _ = regenerate(trace, select(
-        :kernel => t => :birth => :pregnant
+        :kernel => t => :bd
     ))
     (new_trace, w)
 end
@@ -102,96 +102,114 @@ end
     return result
 end
 
-# TODO: make involution
-@gen function baby_local_proposal(trace::InertiaTrace, parent::Int)
+"""
+Proposes new objects near poorly explained detections
+"""
+@gen function birth_death_ddp(trace::InertiaTrace)
     t, wm = get_args(trace)
-    state = trace[:kernel => t]
-    birthed = trace[:kernel => t => :birth => :pregnant]
-    s_or_l ~ bernoulli(0.5)
-    if xor(birthed, s_or_l)
-        px, py = get_pos(state.singles[parent])
-        baby ~ nearby_single(wm, px, py)
-    end
-    # if birthed
-    #     if s_or_l
-    #         # no baby =(
-    #     else
-    #         x, y = get_pos(state.singles[parent])
-    #         bx ~ normal(x, 100.0)
-    #         by ~ normal(y, 100.0)
-    #     end
-    # else
-    #     if s_or_l
-    #         x, y = get_pos(state.singles[parent])
-    #         bx ~ normal(x, 100.0)
-    #         by ~ normal(y, 100.0)
-    #     else
-    #         # no changes
-    #     end
+    # negative marginal log likelihood
+    # NOTE: required outside of if statement
+    # to statisfy involution; otherwise
+    # cannot recover u''
+    nmls = marginal_ll(trace)
+    lmul!(-1.0, nmls)
+    # @show nmls
+    # if length(nmls) == 9
+    #     error()
     # end
-    return s_or_l
+    # sample from worst explained detections
+    didx ~ categorical(softmax(nmls))
+    # birth ~ bernoulli(birth_weight(wm, state))
+    # 50% unless death occurred (then 0)
+    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
+    birth ~ bernoulli(w)
+    if birth
+        # make proposal around detection
+        detection = trace[:kernel => t => :xs => didx]
+        px, py = position(detection)
+        baby ~ nearby_single(wm, px, py)
+        force ~ inertia_force(wm, baby)
+    end
+
+    return single_count(trace)
 end
 
-@transform baby_local_involution (tr, u) to (tprime, uprime) begin
+@transform birth_death_involution (tr, u) to (tprime, uprime) begin
 
     t = first(get_args(tr))
 
-    s_or_l = @read(u[:s_or_l], :discrete)
-    birthed = @read(tr[:kernel => t => :birth => :pregnant], :discrete)
+    ubirth = @read(u[:birth], :discrete)
+    # 1 => no change | 2 => birth | 3 => death
+    tbd = @read(tr[:kernel => t => :bd => :i],
+                :discrete)
+    nsingles = @read(u[], :discrete)
+    # Adding or removing birth
+    if tbd == 1 && ubirth # U + T -> T', U'
+        obj_idx = nsingles + 1
+        # T' (3)
+        @write(tprime[:kernel => t => :bd => :i], 2, :discrete)
+        @copy(u[:baby], tprime[:kernel => t => :bd => :switch => :birth])
+        @copy(u[:force], tprime[:kernel => t => :forces => obj_idx])
+        # U' (2)
+        @write(uprime[:birth], false, :discrete)
+        @copy(u[:didx], uprime[:didx])
 
-    if birthed
-        if s_or_l # Structure change (baby -> no baby)
-            # no baby =(
-            println("Birthed + Struct : baby -> no baby")
-            @write(tprime[:kernel => t => :birth => :pregnant], false, :discrete)
-            @write(uprime[:s_or_l], true, :discrete) # !birthed, !s_or_l => no change
-            @copy(tr[:kernel => t => :birth => :birth],
-                  uprime[:baby])
-            # @copy(tr[:kernel => t => :forces => idx + 1],
-            #       uprime[:force])
-        else # local change (pos -> pos)
-            # going forward
-            println("Birthed + Local : pos -> pos'")
-            @copy(u[:baby], tprime[:kernel => t => :birth => :birth])
-            # @copy(u[:force], tprime[:kernel => t => :forces => idx])
-            # going back
-            @write(uprime[:s_or_l], false, :discrete)
-            @copy(tr[:kernel => t => :birth => :birth],
-                uprime[:baby])
-            # @copy(tr[:kernel => t => :forces => idx],
-            #       uprime[:force])
-        end
-    else
-        if s_or_l # Structure change (no baby -> baby)
-            # st = @read(tr[:kernel => t], :discrete)
-            # idx = length(st.singles)
-            println("NoBirth + Struct : no baby -> baby")
-            @write(tprime[:kernel => t => :birth => :pregnant], true, :discrete)
-            @copy(u[:baby], tprime[:kernel => t => :birth => :birth])
-            # @copy(u[:force], tprime[:kernel => t => :forces => idx])
+    elseif tbd == 2 && !ubirth  # T' + U' -> T, U
+        obj_idx = nsingles
+        # T' (1)
+        @write(tprime[:kernel => t => :bd => :i], 1, :discrete)
+        # U' (4)
+        @write(uprime[:birth], true, :discrete)
+        @copy(tr[:kernel => t => :bd => :switch => :birth],
+              uprime[:baby])
+        @copy(tr[:kernel => t => :forces => obj_idx], uprime[:force])
+        @copy(u[:didx], uprime[:didx])
+        # @copy(u[:baby], uprime[:baby])
+        # @copy(u[:force], uprime[:force])
+    end
 
-            @write(uprime[:s_or_l], true, :discrete) # baby -> no baby =(
-            # @copy(tr[:kernel => t => :forces => idx], uprime[:force])
-        else # local change
-            println("NoBirth + Local : nothing -> nothing")
-            # nothing happens here =|
-            @write(uprime[:s_or_l], false, :discrete)
-        end
+    # Swapping births
+    if tbd == 2  && ubirth
+        obj_idx = nsingles
+        @copy(u[:baby], tprime[:kernel => t => :bd => :switch => :birth])
+        @copy(u[:force], tprime[:kernel => t => :forces => obj_idx])
+        @copy(tr[:kernel => t => :bd => :switch => :birth], uprime[:baby])
+        @copy(tr[:kernel => t => :forces => obj_idx], uprime[:force])
+        @copy(u[:didx], uprime[:didx])
+        @copy(u[:birth], uprime[:birth])
+    end
+
+    # No births
+    if tbd == 1 && !ubirth
+        # Do nothing =)
+        @copy(tr[:kernel => t => :bd => :i],
+              tprime[:kernel => t => :bd => :i])
+        @copy(u[:didx], uprime[:didx])
+        @copy(u[:birth], uprime[:birth])
+    end
+
+
+    # Deaths
+    # In case of death, proposal does not sample
+    if tbd == 3
+        # Do nothing =)
+        @copy(tr[:kernel => t => :bd],
+              tprime[:kernel => t => :bd])
+        @copy(u[:didx], uprime[:didx])
+        @copy(u[:birth], uprime[:birth])
     end
 end
 
-function baby_local_transform(trace::Gen.Trace, idx::Int)
-    t = first(get_args(trace))
-    display(get_submap(get_choices(trace), :kernel => t => :birth))
-    trans = SymmetricTraceTranslator(baby_local_proposal,
-                                     (idx,),
-                                     baby_local_involution)
+function birth_death_transform(trace::Gen.Trace)
+    trans = SymmetricTraceTranslator(birth_death_ddp,
+                                     (),
+                                     birth_death_involution)
     new_trace, w = apply_translator(trans, trace)
     # new_trace, w = trans(trace, check = true)
 end
 
 function apply_translator(translator, prev_model_trace)
-    check = true
+    check = false
     # simulate from auxiliary program
     forward_proposal_trace =
         simulate(translator.q, (prev_model_trace, translator.q_args...,))
@@ -213,31 +231,31 @@ function apply_translator(translator, prev_model_trace)
         Gen.check_observations(get_choices(new_model_trace), EmptyChoiceMap())
         (prev_model_trace_rt, forward_proposal_trace_rt, _) =
             Gen.run_transform(translator, new_model_trace, backward_proposal_trace)
-        println("fwd")
-        display(get_choices(forward_proposal_trace))
-        println("bwd")
-        display(get_choices(backward_proposal_trace))
-        println("fwd-rt")
-        display(get_choices(forward_proposal_trace_rt))
         println("tr")
         display(get_submap(get_choices(prev_model_trace),
-                           :kernel => t => :birth))
-        println("tprime")
+                           :kernel => t))
+        println("u")
+        display(get_choices(forward_proposal_trace))
+        println("t'")
         display(get_submap(get_choices(new_model_trace),
-                           :kernel => t => :birth))
-        println("tr-rt")
+                           :kernel => t))
+        println("u'")
+        display(get_choices(backward_proposal_trace))
+        println("t''")
         display(get_submap(get_choices(prev_model_trace_rt),
-                           :kernel => t => :birth))
+                           :kernel => t))
+        println("u''")
+        display(get_choices(forward_proposal_trace_rt))
         Gen.check_round_trip(prev_model_trace, prev_model_trace_rt,
                          forward_proposal_trace, forward_proposal_trace_rt)
+        @show new_model_score
+        @show prev_model_score
+        @show backward_proposal_score
+        @show forward_proposal_score
+        @show log_abs_determinant
+        @show log_weight
     end
 
-    @show new_model_score
-    @show prev_model_score
-    @show backward_proposal_score
-    @show forward_proposal_score
-    @show log_abs_determinant
-    @show log_weight
     return (new_model_trace, log_weight)
 end
 

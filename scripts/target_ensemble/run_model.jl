@@ -16,35 +16,35 @@ MODEL = :full
 # MODEL = :no_ac_no_mg
 FRAMES  = 175
 RENDER  = false
-CHAINS  = 8
+CHAINS  = 4
 # 24 Conditions total:
 # 6 scenes x 2 colors x 2 gorilla parents
 NTRIALS = 1
-LONE_PARENT = [true] # [false, true]
-SWAP_COLORS = [false] # [false, true]
+LONE_PARENT = [true, false] # [false, true]
+SWAP_COLORS = [false, true] # [false, true]
 
 # World model parameters
 WM = InertiaWM(area_width = 720.0,
                area_height = 480.0,
-               birth_weight = 0.15,
+               birth_weight = 0.1,
                single_size = 5.0,
-               single_noise = 0.5,
-               single_rfs_logweight = -3000.0,
+               single_noise = 0.35,
+               single_rfs_logweight = -2500.0,
                stability = 0.5,
-               vel = 4.0,
+               vel = 4.5,
                force_low = 1.0,
                force_high = 5.0,
-               material_noise = 0.001,
-               ensemble_var_shift = 5.0)
+               material_noise = 0.01,
+               ensemble_var_shift = 0.1)
 
 # Analysis parameters
-NOTICE_THRESH = 0.01
+NOTICE_THRESH = 0.1
 
 # Initializes the agent
 # (Done from scratch each time to avoid bugs)
 function init_agent(query)
     pf = AdaptiveParticleFilter(particles = 5)
-    hpf = HyperFilter(;dt=12, pf=pf, h=5)
+    hpf = HyperFilter(;dt=18, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     if MODEL == :no_ac_no_mg
         base_steps = 9
@@ -68,7 +68,7 @@ function init_agent(query)
     planning = PlanningModule(task_objective)
     shift = MODEL == :full
     granularity_opt =
-        AdaptiveGranularity(; tau=1.0, shift=shift)
+        AdaptiveGranularity(; tau=1.0, shift=shift, size_cost=40.0)
     memory = MemoryModule(granularity_opt, hpf.h)
 
     Agent(perception, planning, memory, attention)
@@ -78,17 +78,17 @@ function run_trial!(pbar, exp)
     agent = init_agent(exp.init_query)
     colp = 0.0
     noticed = 0
-    results = DataFrame(
-        :frame => Int64[],
-        :gorilla_p => Float64[],
-        :collision_p => Float64[],
-        :birth_p => Float64[],
-    )
+    # results = DataFrame(
+    #     :frame => Int64[],
+    #     :gorilla_p => Float64[],
+    #     :collision_p => Float64[],
+    #     :birth_p => Float64[],
+    # )
     for t = 1:(FRAMES - 1)
         _results = step_agent!(agent, exp, t)
 
         _results[:frame] = t
-        push!(results, _results)
+        # push!(results, _results)
 
         colp = _results[:collision_p]
         # @show t
@@ -99,7 +99,7 @@ function run_trial!(pbar, exp)
         next!(pbar)
     end
 
-    show(results; allrows=true)
+    # show(results; allrows=true)
     (noticed, colp)
 end
 

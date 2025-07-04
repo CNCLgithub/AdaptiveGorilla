@@ -16,7 +16,7 @@ function extract_rfs_subtrace(trace::InertiaTrace, t::Int64)
     sub_trace = kernel_traces.subtraces[t] # :kernel => t
     # StaticIR for `inertia_kernel`
     kernel_ir = Gen.get_ir(inertia_kernel)
-    xs_node = kernel_ir.call_nodes[5] # :xs
+    xs_node = kernel_ir.call_nodes[4] # :xs
     xs_field = Gen.get_subtrace_fieldname(xs_node)
     # `RFSTrace` for :masks
     getproperty(sub_trace, xs_field)
@@ -80,4 +80,63 @@ end
 function get_last_state(tr::InertiaTrace)
     t, wm, istate = get_args(tr)
     t == 0 ? istate : last(get_retval(tr))
+end
+
+function single_count(tr::InertiaTrace)
+    state = get_last_state(tr)
+    length(state.singles)
+end
+
+function ensemble_sum(tr::InertiaTrace)
+    state = get_last_state(tr)
+    sum(rate, state.ensembles; init=0.0)
+end
+
+
+function ensemble_count(tr::InertiaTrace)
+    state = get_last_state(tr)
+    length(state.ensembles)
+end
+
+function object_count(tr::InertiaTrace)
+    state = get_last_state(tr)
+    object_count(state)
+end
+
+function marginal_ll(trace::InertiaTrace)
+    # REVIEW: what about t=0?
+    t = first(get_args(trace))
+    rfs = extract_rfs_subtrace(trace, t)
+    xs = Gen.to_array(rfs.choices, Detection)
+    es = rfs.args[1]
+    ml = GenRFS.support_table(es, xs)
+    nx,ne,np = size(rfs.ptensor)
+    result = fill(-Inf, nx)
+    @inbounds for p = 1:np
+        pmass = rfs.pscores[p] - rfs.score
+        for e = 1:ne, x = 1:nx
+            rfs.ptensor[x, e, p] || continue
+            w = ml[e, x] + pmass
+            result[x] = logsumexp(result[x], w)
+        end
+    end
+    if nx == 9
+        print_granularity_schema(trace)
+        print("MLL: ")
+        println(result)
+        println("Support: ")
+        display(ml)
+        idx = argmax(rfs.pscores)
+        println("MAP Partition: $(rfs.pscores[idx] - rfs.score)")
+        display(map(typeof, es))
+        display(rfs.ptensor[:, :, idx])
+        # error()
+    end
+    return result
+end
+
+
+function object_from_idx(tr::InertiaTrace, idx::Int64)
+    state = get_last_state(tr)
+    object_from_idx(state, idx)
 end

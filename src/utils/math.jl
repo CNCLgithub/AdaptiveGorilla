@@ -147,5 +147,22 @@ Numerically accurate evaluation of log(1 - exp(x)) for x < 0.
 See [Maechler2012accurate] https://cran.r-project.org/web/packages/Rmpfr/vignettes/log1mexp-note.pdf
 """
 function log1mexp(x::Float64)
+    x = min(x, 0.0)
     x  > NEGLN2 ? log(-expm1(x)) : log1p(-exp(x))
+end
+
+#from https://discuss.pytorch.org/t/how-to-calculate-log-1-softmax-x-numerically-stably/169007/11
+function log1msumexp(x::Vector{Float64})
+    xi = argmax(x)
+    xm = x[xi]
+    xbar = x .- xm
+    lse = logsumexp(xbar)
+    xbarexp = exp.(xbar)
+    sumexp = sum(xbarexp) .- xbarexp
+    sumexp[xi] = 1.0
+    log1msm = log.(sumexp)
+    xbar[xi] = -Inf
+    log1msm[xi] = logsumexp(xbar)
+    log1msm .-= lse
+    return log1msm
 end

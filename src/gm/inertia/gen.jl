@@ -69,29 +69,36 @@ end
 birth_switch = Gen.Switch(give_birth, no_birth)
 
 @gen function birth_process(wm::InertiaWM, prev::InertiaState)
-    w = birth_weight(wm, prev)
-    pregnant ~ bernoulli(w)
-    switch_idx = pregnant ? 1 : 2
-    # potentially empty
-    birth ~ birth_switch(switch_idx, wm)
-
+    birth ~ give_birth(wm)
     result::PersistentVector{InertiaSingle} =
-        add_baby_from_switch(prev, birth, switch_idx)
+        add_baby_from_switch(prev, birth)
     return result
 end
 
 @gen function death_process(wm::InertiaWM, prev::InertiaState)
-    w = death_weight(wm, prev)
-    dieing ~ bernoulli(w)
-    if dieing
-        nsingles = length(prev.singles)
-        dead ~ categorical(Fill(1.0 / nsingles, nsingles))
-    else
-        dead = 0
-    end
+    nsingles = length(prev.singles)
+    dead ~ categorical(Fill(1.0 / nsingles, nsingles))
     result::PersistentVector{InertiaSingle} =
-        death_from_switch(prev, dead)
+        death_from_switch(prev.singles, dead)
     return result
+end
+
+@gen function no_birth_death(wm::InertiaWM, prev::InertiaState)
+    result::PersistentVector{InertiaSingle} = PersistentVector(prev.singles)
+    return result
+end
+
+birth_death_switch = Gen.Switch(no_birth_death, birth_process, death_process)
+
+@gen function birth_death_process(wm::InertiaWM, prev::InertiaState)
+    bw = birth_weight(wm, prev)
+    dw = death_weight(wm, prev)
+    ws = [1.0, bw, dw]
+    lmul!(1.0 / sum(ws), ws)
+    i ~ categorical(ws)
+    switch ~ birth_death_switch(i, wm, prev)
+    bd::InertiaState = InertiaState(switch, prev.ensembles)
+    return bd
 end
 
 ################################################################################
@@ -162,25 +169,20 @@ end
 @gen static function inertia_kernel(t::Int64,
                                     prev::InertiaState,
                                     wm::InertiaWM)
-
     # birth-death
-    births = @trace(birth_process(wm, prev), :birth)
-    bs::InertiaState = InertiaState(births, prev.ensembles)
-    deaths = @trace(death_process(wm, bs), :death)
-    ds::InertiaState = InertiaState(deaths, prev.ensembles)
-
+    bd ~ birth_death_process(wm, prev)
 
     # Random nudges
-    ns = length(ds.singles)
-    ne = length(ds.ensembles)
-    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), ds.singles)
-    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), ds.ensembles)
-    s2::InertiaState = step(wm, ds, forces, eshifts)
+    ns = length(bd.singles)
+    ne = length(bd.ensembles)
+    forces ~ Gen.Map(inertia_force)(Fill(wm, ns), bd.singles)
+    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), bd.ensembles)
+    shifted::InertiaState = step(wm, bd, forces, eshifts)
 
     # RFS observations
-    es = predict(wm, s2)
+    es = predict(wm, shifted)
     xs ~ DetectionRFS(es)
-    return s2
+    return shifted
 end
 
 const inertia_unfold = Gen.Unfold(inertia_kernel)

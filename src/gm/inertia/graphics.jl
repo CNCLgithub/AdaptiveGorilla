@@ -22,9 +22,9 @@ function predict(wm::InertiaWM, st::InertiaState)
     # the ensemble
     @inbounds for i = 1:ne
         @unpack matws, rate, pos, var = ensembles[i]
-        # Clamped to possibly explain light gorilla
+        # Clamped to possibly explain both materials
         matws = clamp.(matws, 0.01, 0.99)
-        varw = var * single_noise
+        varw = var #* single_noise
         mix_args = (matws,
                     Fill(pos, 2),
                     Fill(varw, 2),
@@ -37,6 +37,6 @@ function predict(wm::InertiaWM, st::InertiaState)
     # NOTE: This is needed in case of all individuals
     es[end] =
         PoissonElement{Detection}(0.1, detect,
-                                  (S2V([0., 0.]), 1000.0, 0.5, 10.0))
+                                  (S2V([0., 0.]), 1000.0, 1.5, 10.0))
     return es
 end

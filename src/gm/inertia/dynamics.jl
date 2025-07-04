@@ -6,12 +6,14 @@ function object_bounds(wm::InertiaWM)
 end
 
 function death_weight(wm::InertiaWM, st::InertiaState)
-    @unpack singles, ensembles = st
-    object_count(st) > wm.object_rate && !(isempty(singles)) ? wm.birth_weight : 0.0
+    # object_count(st) > wm.object_rate && !(isempty(singles)) ? wm.birth_weight : 0.0
+    # isempty(singles) ? 0.0 : wm.birth_weight
+    object_count(st) <= wm.object_rate || isempty(st.singles) ?
+        0.0 : wm.birth_weight
 end
 
 function death_from_switch(prev, idx)
-    singles = PersistentVector(prev.singles)
+    singles = PersistentVector(prev)
     idx == 0 && return singles
     new_singles = PersistentVector{InertiaSingle}()
     for (i, s) = enumerate(singles)
@@ -23,15 +25,15 @@ end
 
 function birth_weight(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
-    length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
-        wm.birth_weight : 0.0
+    # length(singles) + sum(rate, ensembles; init=0.0) <= wm.object_rate ?
+    #     wm.birth_weight : 0.0
+    object_count(st) > wm.object_rate ?
+        0.0 : wm.birth_weight
 end
 
-function add_baby_from_switch(prev, baby, idx)
+function add_baby_from_switch(prev, baby)
     singles = PersistentVector(prev.singles)
-    idx == 1 ?
-        FunctionalCollections.push(singles, baby) :
-        singles
+    FunctionalCollections.push(singles, baby)
 end
 
 function force_prior(o::InertiaSingle, wm::InertiaWM)
@@ -146,13 +148,13 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     f = S2V(update[1], update[2])
     bx, by = wm.dimensions
     dx, dy = vel + f
-    dx = clamp(dx, -wm.vel * 1.5, wm.vel * 1.5)
-    dy = clamp(dy, -wm.vel * 1.5, wm.vel * 1.5)
+    dx = clamp(dx, -wm.vel * 0.5, wm.vel * 0.5)
+    dy = clamp(dy, -wm.vel * 0.5, wm.vel * 0.5)
     new_vel = S2V(dx, dy)
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
-    new_var = max(10., var + update[3])
+    new_var = clamp(var * (1.0 + update[3]), 10.0, 1000.0)
     # @show (var, update[3])
     setproperties(e; pos = new_pos,
                   vel = new_vel,

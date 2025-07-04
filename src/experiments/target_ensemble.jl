@@ -177,13 +177,13 @@ function load_tens_trial(wm::WorldModel,
                          swap_color::Bool;
                          frames::Int = 10,
                          gorilla_threshold::Float64 = 0.25)
-    trial_length = 0
+    raw_length = 0
     open(dpath, "r") do io
         manifest = JSON3.read(io)["manifest"]
-        trial_length = manifest["frames"]
+        raw_length = manifest["frames"]
     end
 
-    trial_length = min(trial_length, frames)
+    trial_length = min(raw_length, frames)
     # Variables
     local gorilla, positions
     observations = Vector{ChoiceMap}(undef, trial_length - 1)
@@ -193,7 +193,7 @@ function load_tens_trial(wm::WorldModel,
         gorilla = data["gorilla"]
         positions = data["positions"]
     end
-    gorilla_dur = min(trial_length - gorilla["frame"], 64)
+    gorilla_dur = min(raw_length - gorilla["frame"], 64)
     gorilla_color = swap_color ? Dark : Light
     parent = lone_parent ? 4 : 1
     # first frame gets GT
@@ -291,7 +291,7 @@ function render_agent_state(exp::TEnsExp, agent::Agent, t::Int, path::String)
 
 
     init = InitPainter(path = "$(path)/$(t).png",
-                       background = "white")
+                       background = "#808080")
 
     _, wm, _ = exp.init_query.args
     # setup
