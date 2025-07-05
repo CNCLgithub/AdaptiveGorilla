@@ -23,7 +23,7 @@ function predict(wm::InertiaWM, st::InertiaState)
     @inbounds for i = 1:ne
         @unpack matws, rate, pos, var = ensembles[i]
         # Clamped to possibly explain both materials
-        matws = clamp.(matws, 0.01, 0.99)
+        # matws = clamp.(matws, 0.01, 0.99)
         varw = var #* single_noise
         mix_args = (matws,
                     Fill(pos, 2),

@@ -44,11 +44,12 @@ end
 function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
-    # (stability, force_low, force_high)
-    (stability, force_low, force_high)
-    # (stability,
-    #  force_low / sqrt(rate),
-    #  force_high / sqrt(rate))
+    unstable = 1.0 - stability
+    # More stable, the more objects
+    w = 1.0 - unstable^rate
+    (w,
+     force_low,
+     force_high)
 end
 
 function step(wm::InertiaWM,
@@ -127,8 +128,9 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     @unpack area_height, area_width = wm
     # vx, vy = f
     vx, vy = vel + f
-    vx = clamp(vx, -10., 10.)
-    vy = clamp(vy, -10., 10.)
+    mxv = 2.0 * wm.vel
+    vx = clamp(vx, -mxv, mxv)
+    vy = clamp(vy, -mxv, mxv)
     x = clamp(pos[1] + vx,
               -area_width * 0.5,
               area_width * 0.5)
@@ -144,12 +146,13 @@ end
 
 function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     iszero(e.rate) && return e
-    @unpack pos, vel, var = e
-    f = S2V(update[1], update[2])
     bx, by = wm.dimensions
-    dx, dy = vel + f
-    dx = clamp(dx, -wm.vel * 0.5, wm.vel * 0.5)
-    dy = clamp(dy, -wm.vel * 0.5, wm.vel * 0.5)
+    @unpack pos, vel, var, rate = e
+    f = S2V(update[1], update[2])
+    dx, dy = f
+    # mxv = 2. * wm.vel / sqrt(rate)
+    # dx = clamp(dx, -mxv, mxv)
+    # dy = clamp(dy, -mxv, mxv)
     new_vel = S2V(dx, dy)
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),

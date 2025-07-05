@@ -25,7 +25,7 @@ function Base.isapprox(x::Detection, y::Detection)
 end
 
 
-const DetectionRFS = RFGM(MRFS{Detection}(), (100, 10.0))
+const DetectionRFS = RFGM(MRFS{Detection}(), (150, 10.0))
 
 struct DetectionRV <: Gen.Distribution{Detection} end
 
@@ -67,8 +67,12 @@ function MOTCore.paint(p::ObjectPainter,  obs::AbstractVector{T}
         setopacity(1.0)
         box(Point(d.x, -d.y), 20.0, 20.0,
             action = :stroke)
-        c = d.i == 1.0 ? 0.99 : 0.01
-        sethue(c, c, c)
+        if i < 9
+            c = d.i == 1.0 ? 0.99 : 0.01
+            sethue(c, c, c)
+        else
+            sethue("purple")
+        end
         setopacity(0.7)
         box(Point(d.x, -d.y), 20.0, 20.0,
             action = :fill)

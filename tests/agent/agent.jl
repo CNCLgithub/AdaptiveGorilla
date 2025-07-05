@@ -12,18 +12,18 @@ function test_agent()
                    area_height = 480.0,
                    birth_weight = 0.1,
                    single_size = 5.0,
-                   single_noise = 0.35,
+                   single_noise = 0.25,
                    single_rfs_logweight = -2500.0,
-                   stability = 0.5,
+                   stability = 0.65,
                    vel = 4.5,
                    force_low = 1.0,
-                   force_high = 5.0,
+                   force_high = 3.5,
                    material_noise = 0.01,
                    ensemble_var_shift = 0.1)
     dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 1
     gorilla_color = Dark
-    frames = 135
+    frames = 160
     # exp = MostExp(dpath, wm, trial_idx,
     #               gorilla_color, frames)
     exp = TEnsExp(dpath, wm, trial_idx,
@@ -35,7 +35,7 @@ function test_agent()
     attention = AttentionModule(
         AdaptiveComputation(;
                             itemp=10.0,
-                            base_steps=8,
+                            base_steps=10,
                             load = 20,
                             buffer_size = 1000,
                             map_metric=WeightedEuclidean(S3V(0.05, 0.05, 0.9)),
@@ -44,7 +44,7 @@ function test_agent()
     planning = PlanningModule(CollisionCounter(; mat=Light))
     adaptive_g = AdaptiveGranularity(; tau=1.0,
                                      shift=true,
-                                     size_cost = 40.0)
+                                     size_cost = 100.0)
     memory = MemoryModule(adaptive_g, hpf.h)
 
     # Cool, =)

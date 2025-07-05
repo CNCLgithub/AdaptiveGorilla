@@ -82,14 +82,99 @@ end
 function baby_ancestral_proposal(trace::InertiaTrace)
     t = first(get_args(trace))
     new_trace, w, _ = regenerate(trace, select(
-        :kernel => t => :bd
+        :kernel => t => :bd => :i,
+        :kernel => t => :bd => :switch,
     ))
     (new_trace, w)
 end
 
+"""
+Proposes new objects near location
+"""
+@gen function bd_loc_proposal(trace::InertiaTrace, posx::Float64, posy::Float64)
+    t, wm = get_args(trace)
+    # 50% unless death occurred (then 0)
+    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
+    birth ~ bernoulli(w)
+    if birth
+        # make proposal around posx, posy
+        baby ~ nearby_single(wm, posx, posy)
+        force ~ inertia_force(wm, baby)
+    end
+    return single_count(trace)
+end
+
+@transform bd_loc_involution (tr, u) to (tprime, uprime) begin
+
+    t = first(get_args(tr))
+
+    ubirth = @read(u[:birth], :discrete)
+    # 1 => no change | 2 => birth | 3 => death
+    tbd = @read(tr[:kernel => t => :bd => :i],
+                :discrete)
+    nsingles = @read(u[], :discrete)
+    # Adding or removing birth
+    if tbd == 1 && ubirth # U + T -> T', U'
+        obj_idx = nsingles + 1
+        # T' (3)
+        @write(tprime[:kernel => t => :bd => :i], 2, :discrete)
+        @copy(u[:baby], tprime[:kernel => t => :bd => :switch => :birth])
+        @copy(u[:force], tprime[:kernel => t => :forces => obj_idx])
+        # U' (2)
+        @write(uprime[:birth], false, :discrete)
+
+    elseif tbd == 2 && !ubirth  # T' + U' -> T, U
+        obj_idx = nsingles
+        # T' (1)
+        @write(tprime[:kernel => t => :bd => :i], 1, :discrete)
+        # U' (4)
+        @write(uprime[:birth], true, :discrete)
+        @copy(tr[:kernel => t => :bd => :switch => :birth],
+              uprime[:baby])
+        @copy(tr[:kernel => t => :forces => obj_idx], uprime[:force])
+    end
+
+    # Swapping births
+    if tbd == 2  && ubirth
+        obj_idx = nsingles
+        @copy(u[:baby], tprime[:kernel => t => :bd => :switch => :birth])
+        @copy(u[:force], tprime[:kernel => t => :forces => obj_idx])
+        @copy(tr[:kernel => t => :bd => :switch => :birth], uprime[:baby])
+        @copy(tr[:kernel => t => :forces => obj_idx], uprime[:force])
+        @copy(u[:birth], uprime[:birth])
+    end
+
+    # No births
+    if tbd == 1 && !ubirth
+        # Do nothing =)
+        @copy(tr[:kernel => t => :bd => :i],
+              tprime[:kernel => t => :bd => :i])
+        @copy(u[:birth], uprime[:birth])
+    end
+
+
+    # Deaths
+    # In case of death, proposal does not sample
+    if tbd == 3
+        # Do nothing =)
+        @copy(tr[:kernel => t => :bd],
+              tprime[:kernel => t => :bd])
+        @copy(u[:birth], uprime[:birth])
+    end
+end
+
+function bd_loc_transform(trace::InertiaTrace, idx::Int64)
+    posx, posy = get_pos(object_from_idx(trace, idx))
+    trans = SymmetricTraceTranslator(bd_loc_proposal,
+                                     (posx, posy),
+                                     bd_loc_involution)
+    new_trace, w = apply_translator(trans, trace)
+end
+
+
 @gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64)
-    x ~ normal(px, 100.0)
-    y ~ normal(py, 100.0)
+    x ~ normal(px, 0.1 * wm.area_width)
+    y ~ normal(py, 0.1 * wm.area_height)
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)

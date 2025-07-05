@@ -171,7 +171,7 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
             (a, b) = combination(ntotal, 2, i)
             # Pr(Merge) inv. prop. importance
             # Scale by similarity
-            pairs[i] = log1mexp(logsumexp(importance[a], importance[b]))
+            pairs[i] = logsumexp(importance[a], importance[b])
             # pairs[i] = logsumexp(importance[a], importance[b]) +
             #     log(dissimilarity(t, metric, a, b))
             # pairs[i] = log(1.01 - (importance[a] + importance[b])) -
@@ -181,7 +181,7 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
         # pairs = softmax(pairs, 0.001) #TODO: hyper parameter
         # @show pairs
         # pair_idx = categorical(pairs)
-        pair_idx = argmax(pairs)
+        pair_idx = argmin(pairs)
         selected = combination(ntotal, 2, pair_idx)
         # @show selected
         # @show dissimilarity(t, metric, selected...)

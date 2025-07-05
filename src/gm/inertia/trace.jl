@@ -46,27 +46,20 @@ function detect_gorilla(trace::InertiaTrace,
     scores = rfs.pscores
     nx,ne,np = size(pt)
     state = get_last_state(trace)
-    # No gorilla visable
-    if (nx != nobj + 1 )
-        return 0.0
-    end
     ns = length(state.singles)
-    if ns == 0
-        # No individuals to detect gorilla
-        return 0.0
-    end
-    # No birth individual
-    if (object_count(state) != nobj + 1 )
+    # Cases for 0 prob
+    if (nx != nobj + 1 ) # No gorilla ||
+        ns == 0  || # No individuals to detect gorilla
+        (object_count(state) != nobj + 1 ) # No birth
         return 0.0
     end
     result = -Inf
     @inbounds for p = 1:np
         for s = 1:ns
             pt[nx, ns, p] || continue
-            result = logsumexp(result, scores[p])
+            result = logsumexp(result, scores[p] - rfs.score)
         end
     end
-    result -= rfs.score
     return exp(result)
 end
 
@@ -120,18 +113,18 @@ function marginal_ll(trace::InertiaTrace)
             result[x] = logsumexp(result[x], w)
         end
     end
-    if nx == 9
-        print_granularity_schema(trace)
-        print("MLL: ")
-        println(result)
-        println("Support: ")
-        display(ml)
-        idx = argmax(rfs.pscores)
-        println("MAP Partition: $(rfs.pscores[idx] - rfs.score)")
-        display(map(typeof, es))
-        display(rfs.ptensor[:, :, idx])
-        # error()
-    end
+    # if nx == 9
+    #     print_granularity_schema(trace)
+    #     print("MLL: ")
+    #     println(result)
+    #     println("Support: ")
+    #     display(ml)
+    #     idx = argmax(rfs.pscores)
+    #     println("MAP Partition: $(rfs.pscores[idx] - rfs.score)")
+    #     display(map(typeof, es))
+    #     display(rfs.ptensor[:, :, idx])
+    #     # error()
+    # end
     return result
 end
 

@@ -154,7 +154,6 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         trace = state.traces[i]
         # determine the importance of each latent
         deltas = task_relevance(aux, partition, trace, nns)
-        # @show deltas
         importance = softmax(deltas, itemp)
         nobj = length(deltas)
         steps_per_obj = round(Int, base_steps / nobj)
@@ -177,25 +176,32 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
             end
         end
 
+        # Localized birth-death
+        j = argmax(importance)
+        trace = baby_loop!(state, trace, i, j)
         # baby block
         # TODO: Hyperparameter
-        for _ = 1:3
-            new_trace, w = baby_ancestral_proposal(trace)
-            if log(rand()) < w
-                trace = new_trace
-                state.log_weights[i] += w
-            end
-        end
-        for _ = 1:3
-            new_trace, w = birth_death_transform(trace)
-            if log(rand()) < w
-                trace = new_trace
-                state.log_weights[i] += w
-            end
-        end
+        # for _ = 1:steps_per_obj
+        #     new_trace, w = baby_ancestral_proposal(trace)
+        #     if log(rand()) < w
+        #         trace = new_trace
+        #         state.log_weights[i] += w
+        #     end
+        # end
         state.traces[i] = trace
     end
 
     return nothing
 end
 
+function baby_loop!(state, trace, i, j)
+    for _ = 1:5
+        new_trace, w = bd_loc_transform(trace, j)
+        if log(rand()) < w
+            trace = new_trace
+            state.log_weights[i] += w
+            break
+        end
+    end
+    return trace
+end

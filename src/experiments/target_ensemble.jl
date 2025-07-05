@@ -299,7 +299,7 @@ function render_agent_state(exp::TEnsExp, agent::Agent, t::Int, path::String)
     # observations
     render_frame(exp, t, objp)
     # inferred states
-    render_frame(agent.perception, agent.attention, objp)
+    render_frame(agent.perception, agent.attention, agent.memory, objp)
     render_frame(agent.planning, t)
     finish()
     return nothing
