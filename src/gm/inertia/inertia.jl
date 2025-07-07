@@ -122,6 +122,10 @@ struct InertiaEnsemble <: InertiaObject
     "Position variance"
     var::Float64
     vel::S2V
+
+    # REVIEW: Had issues with precision and material weights
+    InertiaEnsemble(r, m, p, s, v) =
+        new(r, clamp.(m, 0.0, 1.0), p, s, v)
 end
 
 get_pos(e::InertiaEnsemble) = e.pos
