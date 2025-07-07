@@ -49,18 +49,34 @@ WM = InertiaWM(area_width = 720.0,
                ensemble_var_shift = 0.1)
 
 
+# Perception Hyper particle-filter; See "?HyperFilter"
 VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
 VIS_HYPER_WINDOW = 18
 
+# Granularity Optimizer; See "?AdaptiveGranularity"
 GO_TAU = 1.0
 GO_COST = 100.0
 GO_SHIFT = MODEL == :full
 GO_PROTOCOL =
     AdaptiveGranularity(;
                         tau=GO_TAU,
-                        GO_SHIFT,
+                        shift=GO_SHIFT,
                         size_cost=GO_COST)
+
+# Adaptive Computation; See "?AdaptiveComputation"
+
+# Distribution of resources.
+# In the case of the fixed resource and granularity model, `BASE_STEPS` equates
+# for the number of resources used in the adaptive computation variants, where
+# LOAD is split across representations
+if MODEL == :no_ac_no_mg
+    BASE_STEPS = 12
+    LOAD = 0
+else
+    BASE_STEPS = 10
+    LOAD = 20
+end
 
 AC_TAU = 10.0
 AC_MAP_SIZE = 1000
@@ -74,17 +90,6 @@ AC_PROTOCOL =
                         map_metric=AC_MAP_METRIC,
                         )
 
-# Distribution of resources.
-# In the case of the fixed resource and granularity model, `BASE_STEPS` equates
-# for the number of resources used in the adaptive computation variants, where
-# LOAD is split across representations
-if MODEL == :no_ac_no_mg
-    BASE_STEPS = 12
-    LOAD = 0
-else
-    BASE_STEPS = 10
-    LOAD = 20
-end
 
 ################################################################################
 # General Experiment Parameters
@@ -145,7 +150,7 @@ function run_model!(pbar, exp)
         _results = step_agent!(agent, exp, t)
         _results[:frame] = t
         colp = _results[:collision_p]
-        if  _results[:gorilla_p] > NOTICE_THRESH
+        if  _results[:gorilla_p] > NOTICE_P_THRESH
             noticed += 1
         end
         next!(pbar)
@@ -170,9 +175,7 @@ function main()
         NTRIALS * length(SWAP_COLORS) *
             length(LONE_PARENT) * CHAINS * (FRAMES-1);
         desc="Running $(MODEL) model...")
-    # for trial_idx = 1:NTRIALS, swap = SWAP_COLORS, lone = LONE_PARENT
-    trial_idx = 1
-    for swap = SWAP_COLORS, lone = LONE_PARENT
+    for trial_idx = 1:NTRIALS, swap = SWAP_COLORS, lone = LONE_PARENT
         exp = TEnsExp(DPATH, WM, trial_idx, swap, lone, FRAMES)
         gtcol = AdaptiveGorilla.collision_expectation(exp)
         Threads.@threads for c = 1:CHAINS
