@@ -16,17 +16,51 @@ using Gen_Compose
 using ProgressMeter
 using DataFrames, CSV
 using AdaptiveGorilla
-using UnicodePlots
 
 using AdaptiveGorilla: S3V
 using Distances: WeightedEuclidean
+
+################################################################################
+# Command Line Interface
+################################################################################
+
+
+s = ArgParseSettings()
+
+@add_arg_table! s begin
+
+    "--restart", "-r"
+    help = "Whether to resume inference"
+    action = :store_true
+
+
+    "--nchains", "-n"
+    help = "The number of chains to run"
+    arg_type = Int
+    default = 30
+
+    "model"
+    help = "Model Variant"
+    arg_type = Symbol
+    range_tester = in([:full, :fixed, :no_ac_no_mg])
+    default = :full
+
+    "scene"
+    help = "Which scene to run"
+    arg_type = Int64
+    default = 1
+
+end
+
+PARAMS = parse_args(c, s)
 
 ################################################################################
 # Model Variant
 ################################################################################
 
 # which model variant to run (uncomment 1 of the lines below)
-MODEL = :full #          Adaptive Computation + Granularity
+MODEL = PARAMS["model"]
+# MODEL = :full #          Adaptive Computation + Granularity
 # MODEL = :fixed #       Adaptive Computation but with fixed granularity
 # MODEL = :no_ac_no_mg # Fixed processing and fixed granularity
 
@@ -98,11 +132,10 @@ AC_PROTOCOL =
 # which dataset to run
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
+SCENE   = PARAMS["scene"]
+FRAMES  = 200
 
-FRAMES  = 175
-
-# 24 Conditions total: 6 scenes x 2 colors x 2 gorilla parents
-NTRIALS = 6
+# 4 Conditions total: 2 colors x 2 gorilla parents
 LONE_PARENT = [true, false]
 SWAP_COLORS = [false, true]
 
@@ -111,7 +144,7 @@ SWAP_COLORS = [false, true]
 ################################################################################
 
 # Number of model runs per condition
-CHAINS  = 8
+CHAINS = PARAMS["nchains"]
 
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
@@ -175,8 +208,8 @@ function main()
         NTRIALS * length(SWAP_COLORS) *
             length(LONE_PARENT) * CHAINS * (FRAMES-1);
         desc="Running $(MODEL) model...")
-    for trial_idx = 1:NTRIALS, swap = SWAP_COLORS, lone = LONE_PARENT
-        exp = TEnsExp(DPATH, WM, trial_idx, swap, lone, FRAMES)
+    for swap = SWAP_COLORS, lone = LONE_PARENT
+        exp = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
         gtcol = AdaptiveGorilla.collision_expectation(exp)
         Threads.@threads for c = 1:CHAINS
             ndetected, colp = run_model!(pbar, exp)

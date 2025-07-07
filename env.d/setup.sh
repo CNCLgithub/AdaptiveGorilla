@@ -30,10 +30,6 @@ examples:
 #################################################################################
 # cont_pull_url="https://yale.box.com/shared/static/ycvqzzp57v54dog2pompyitj8d7c9e93.sif"
 # min_pull_url="https://yale.box.com/shared/static/piau0ilrc23ki62ohgpo34oh4sq7mkrz.sif"
-SING="${SENV[sing]}"
-BUILD="${SENV[envd]}/${SENV[def]}"
-min_dest="${SENV[envd]}/min.sif"
-rstudio_dest="${SENV[envd]}/rstudio"
 
 #################################################################################
 # Container setup
@@ -50,10 +46,8 @@ rstudio_dest="${SENV[envd]}/rstudio"
     wget "$cont_pull_url" -O "${cont_dest}"
 
 [[ "${@}" =~ "cont_build" ]] && echo "building ${SENV[def]} -> ${SENV[cont]}" &&
-    docker build -t "${SENV[cont]}" \
-        --build-arg USER_ID=$(id -u) \
-        --build-arg GROUP_ID=$(id -g) \
-        "${SENV[envd]}"
+    APPTAINER_TMPDIR="${SPATHS[tmp]}" sudo -E \
+        ${SENV[service]} build "${SENV[cont]}" "${SENV[def]}"
 
 #################################################################################
 # Python setup
