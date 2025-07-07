@@ -133,7 +133,7 @@ AC_PROTOCOL =
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 200
+FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 LONE_PARENT = [true, false]
@@ -151,7 +151,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.1
+NOTICE_P_THRESH = 0.25
 # The minimum number of frames where Pr(detect gorilla) > NOTICE_P_THRESH in
 # order to consider the gorilla detected for that model run.
 NOTICE_MIN_FRAMES = 5
@@ -197,16 +197,10 @@ end
 ################################################################################
 
 function main()
-    result = DataFrame(:trial => Int64[],
-                       :color => Symbol[],
-                       :parent => Symbol[],
-                       :chain => Int64[],
-                       :ndetected => Int64[],
-                       :col_error => Float64[])
-
+    result = Tuple[]
     pbar = Progress(
         length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1);
-        desc="Running $(MODEL) model...")
+        desc="Running $(MODEL) model...", dt = 1.0)
     for swap = SWAP_COLORS, lone = LONE_PARENT
         exp = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
         gtcol = AdaptiveGorilla.collision_expectation(exp)
@@ -223,11 +217,10 @@ function main()
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    CSV.write("$(out_dir)/$(SCENE).csv", result)
-    return result
+    CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))
+    return nothing
 end;
 
-
-result = main();
+main();
