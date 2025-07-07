@@ -43,10 +43,10 @@ printf "(\xE2\x9C\x94) Assessing project paths \n"
 # # Export VARIABLES
 # #################################################################################
 
-# echo "( ) Exporting project variables ..."
-# for i in "${!SVARS[@]}"
-# do
-#     printf "\t%s \u2190 %s\n" "${i}" "${SVARS[$i]}"
-#     export "${i}=${SVARS[$i]}"
-# done
-# printf "(\xE2\x9C\x94) Exporting project variables \n"
+echo "( ) Exporting project variables ..."
+for i in "${!SVARS[@]}"
+do
+    printf "\t%s \u2190 %s\n" "${i}" "${SVARS[$i]}"
+    export "${i}=${SVARS[$i]}"
+done
+printf "(\xE2\x9C\x94) Exporting project variables \n"

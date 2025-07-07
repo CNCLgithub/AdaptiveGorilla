@@ -52,7 +52,7 @@ s = ArgParseSettings()
 
 end
 
-PARAMS = parse_args(c, s)
+PARAMS = parse_args(ARGS, s)
 
 ################################################################################
 # Model Variant
@@ -205,8 +205,7 @@ function main()
                        :col_error => Float64[])
 
     pbar = Progress(
-        NTRIALS * length(SWAP_COLORS) *
-            length(LONE_PARENT) * CHAINS * (FRAMES-1);
+        length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1);
         desc="Running $(MODEL) model...")
     for swap = SWAP_COLORS, lone = LONE_PARENT
         exp = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
@@ -215,7 +214,7 @@ function main()
             ndetected, colp = run_model!(pbar, exp)
             colerror = abs(gtcol - colp) / gtcol
             push!(result,
-                  (trial_idx,
+                  (SCENE,
                    swap ? :dark : :light,
                    lone ? :lone : :grouped,
                    c,
@@ -224,9 +223,9 @@ function main()
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)"
+    out_dir = "/spaths/experiments/$(DATASET)/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    CSV.write("$(out_dir)/$(MODEL).csv", result)
+    CSV.write("$(out_dir)/$(SCENE).csv", result)
     return result
 end;
 
