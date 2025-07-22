@@ -98,21 +98,21 @@ end
 
 # TODO: revisit after `importance`
 # Can implement by storing running average
-function load(p::AdaptiveComputation, x::AdaptiveAux)
-    # isempty(x) && return 0
-    # x = logsumexp(tr.trs) - log(length(tr.trs))
-    # if isnan(x)
-    #     display(tr.trs)
-    # end
-    # println("Load : $(x)")
-    return 20
-end
+# function load(p::AdaptiveComputation, x::AdaptiveAux)
+#     # isempty(x) && return 0
+#     # x = logsumexp(tr.trs) - log(length(tr.trs))
+#     # if isnan(x)
+#     #     display(tr.trs)
+#     # end
+#     # println("Load : $(x)")
+#     return 20
+# end
 
 function task_relevance(
         x::AdaptiveAux,
         partition::TracePartition{T},
         trace::T,
-        k::Int = 5) where {T<:Gen.Trace}
+        k::Int = 25) where {T<:Gen.Trace}
     @unpack dPi, dS = x
     n = latent_size(partition, trace)
     # NOTE: case with empty estimate?
@@ -124,8 +124,9 @@ function task_relevance(
     for i = 1:n
         coord = get_coord(partition, trace, i)
         _dpi = integrate!(idxs, dists, coord, dPi)
-        _ds  = integrate!(idxs, dists, coord, dS )
-        tr[i] = _dpi + _ds
+        tr[i] = _dpi
+        # _ds  = integrate!(idxs, dists, coord, dS )
+        # tr[i] = _dpi + _ds
     end
     return tr
 end
@@ -195,7 +196,7 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
 end
 
 function baby_loop!(state, trace, i, j)
-    for _ = 1:5
+    for _ = 1:3
         new_trace, w = bd_loc_transform(trace, j)
         if log(rand()) < w
             trace = new_trace

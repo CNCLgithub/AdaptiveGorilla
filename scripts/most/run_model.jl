@@ -1,5 +1,5 @@
 ################################################################################
-# Script to run models on the Target-Ensemble Experiment (Study 2)
+# Script to run models on the Most Experiment (Study 1)
 #
 # Output is stored under `spaths/experiments/`
 # See `README` for more information.
@@ -37,7 +37,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 30
+    default = 8
 
     "model"
     help = "Model Variant"
@@ -69,14 +69,16 @@ MODEL = PARAMS["model"]
 ################################################################################
 
 # World model parameters; See "?InertiaWM" for documentation.
-WM = InertiaWM(area_width = 720.0,
+WM = InertiaWM(;
+               object_rate = 8.0,
+               area_width = 720.0,
                area_height = 480.0,
                birth_weight = 0.1,
-               single_size = 5.0,
+               single_size = 10.0,
                single_noise = 0.25,
                single_rfs_logweight = -2500.0,
                stability = 0.65,
-               vel = 4.5,
+               vel = 4.0,
                force_low = 1.0,
                force_high = 3.5,
                material_noise = 0.01,
@@ -113,8 +115,8 @@ else
 end
 
 AC_TAU = 10.0
-AC_MAP_SIZE = 2000
-AC_MAP_METRIC = WeightedEuclidean(S3V(0.25, 0.25, 0.5))
+AC_MAP_SIZE = 1000
+AC_MAP_METRIC = WeightedEuclidean(S3V(0.05, 0.05, 0.9))
 AC_PROTOCOL =
     AdaptiveComputation(;
                         itemp=AC_TAU,
@@ -130,14 +132,13 @@ AC_PROTOCOL =
 ################################################################################
 
 # which dataset to run
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "most"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 120
 
-# 4 Conditions total: 2 colors x 2 gorilla parents
-LONE_PARENT = [true, false]
-SWAP_COLORS = [false, true]
+# 2 Conditions total: Gorilla Light | Dark
+COLORS = [Light, Dark]
 
 ################################################################################
 # Analysis Parameters
@@ -151,7 +152,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.15
+NOTICE_P_THRESH = 0.25
 # The minimum number of frames where Pr(detect gorilla) > NOTICE_P_THRESH in
 # order to consider the gorilla detected for that model run.
 NOTICE_MIN_FRAMES = 5
@@ -197,32 +198,28 @@ end
 ################################################################################
 
 function main()
-    result = Tuple[]
-    pbar = Progress(
-        length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1);
-        desc="Running $(MODEL) model...", dt = 1.0)
-    for swap = SWAP_COLORS, lone = LONE_PARENT
-        exp = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
+    result = NamedTuple[]
+    pbar = Progress(2 * CHAINS * (FRAMES-1);
+                    desc="Running $(MODEL) model...", dt = 1.0)
+    for color = COLORS
+        exp = MostExp(DPATH, WM, SCENE, color, FRAMES)
         gtcol = AdaptiveGorilla.collision_expectation(exp)
         Threads.@threads for c = 1:CHAINS
             ndetected, colp = run_model!(pbar, exp)
             colerror = abs(gtcol - colp) / gtcol
             push!(result,
-                  (SCENE,
-                   swap ? :dark : :light,
-                   lone ? :lone : :grouped,
-                   c,
-                   ndetected,
-                   colerror))
+                  (scene = SCENE,
+                   color = color == Light ? :light : :dark,
+                   chian = c,
+                   ndetected = ndetected,
+                   colerror = colerror))
         end
     end
     finish!(pbar)
     out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result, [:scene, :swap, :lone, :chain, :ndetected, :error])
-    mean = x -> sum(x) / length(x)
-    display(combine(groupby(df, [:scene, :swap, :lone]), :ndetected => mean))
-    CSV.write("$(out_dir)/$(SCENE).csv", df)
+    df = DataFrame(result)
+    CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))
     return nothing
 end;
 

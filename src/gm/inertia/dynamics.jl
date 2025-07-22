@@ -48,8 +48,8 @@ function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     # More stable, the more objects
     w = 1.0 - unstable^rate
     (w,
-     force_low,
-     force_high)
+     10 * force_low,
+     20 * force_high)
 end
 
 function step(wm::InertiaWM,

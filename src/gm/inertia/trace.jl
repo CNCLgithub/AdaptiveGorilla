@@ -40,7 +40,8 @@ function detect_gorilla(trace::InertiaTrace,
                         temp::Float64 = 1.0)
 
     t = first(get_args(trace))
-    t == 0 && return 0.0 # TODO: fix issue with `reinit_chain`
+    result = -Inf
+    t == 0 && return result
     rfs = extract_rfs_subtrace(trace, t)
     pt = rfs.ptensor
     scores = rfs.pscores
@@ -48,26 +49,27 @@ function detect_gorilla(trace::InertiaTrace,
     state = get_last_state(trace)
     ns = length(state.singles)
     # Cases for 0 prob
-    if (nx != nobj + 1 ) # No gorilla ||
-        ns == 0  || # No individuals to detect gorilla
-        (object_count(state) != nobj + 1 ) # No birth
-        return 0.0
+    # No gorilla
+    # No individuals to detect gorilla
+    # No birth
+    if (nx != nobj + 1 ) ||
+        ns == 0  ||
+        (object_count(state) != nobj + 1 )
+        return result
     end
-    result = -Inf
     @inbounds for p = 1:np
-        for s = 1:ns
-            pt[nx, ns, p] || continue
-            result = logsumexp(result, scores[p] - rfs.score)
-        end
+        pt[nx, ns, p] || continue
+        result = logsumexp(result, scores[p])
     end
-    return exp(result)
+    result -= rfs.score
+    return result
 end
 
 function had_birth(trace::InertiaTrace,
                    nobj::Int = 8)
     state = get_last_state(trace)
     total = object_count(state)
-    total > nobj
+    total > nobj ? 0.0 : -Inf
 end
 
 function get_last_state(tr::InertiaTrace)

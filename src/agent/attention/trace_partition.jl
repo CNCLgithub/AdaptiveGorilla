@@ -56,7 +56,7 @@ end
 
 function get_coord(o::InertiaSingle)
     x, y = get_pos(o)
-    S3V(x, y, Float64(Int(o.mat)))
+    S3V(x, y, 1000.0 * Float64(Int(o.mat)))
 end
 function get_coord(x::InertiaEnsemble)
     m = 0.0
@@ -64,7 +64,7 @@ function get_coord(x::InertiaEnsemble)
         m += matw * Float64(i)
     end
     x,y = get_pos(x)
-    S3V(x, y, m)
+    S3V(x, y, 1000.0 * m)
 end
 
 function get_coord(partition::InertiaPartition,

@@ -1,62 +1,34 @@
 using MOTCore
 using AdaptiveGorilla
-using AdaptiveGorilla: birth_single,
-    InertiaSingle,
-    Light,
-    S2V,
-    inertia_init,
-    init_walls
+using AdaptiveGorilla: S2V, colprob_and_agrad, InertiaSingle, InertiaEnsemble
 
-
-function test_energy()
-    wm = InertiaWM()
-    # walls = MOTCore.init_walls(wm.area_width)
-    # wall = first(walls)
+function test_single()
     wall = Wall(400.0, S2V(-1, 0.0))
 
     s = InertiaSingle(Light,
-                      [-347.8895958702888, -388.41042830191117],
-                      [10.0, 0.0], 20.0)
+                      [-250., 0.],
+                      [10.0, 0.0],
+                      5.0)
 
-    @show energy(wall, s)
-    # s = InertiaSingle(Light, [-180., 0.0], [10.0, 0.0], 10.0)
-    # @show x1 = energy(wall, s)
-    # s = InertiaSingle(Light, [-170., 0.0], [10.0, 0.0], 10.0)
-    # @show x2 = energy(wall, s)
-    # s = InertiaSingle(Light, [-160., 0.0], [10.0, 0.0], 10.0)
-    # @show x3 = energy(wall, s)
-    # @show x2 - x1
-    # @show x3 - x2
+    @show colprob_and_agrad(s, wall)
 
-    # s = InertiaSingle(Light, [-100., 0.0], [10.0, 0.0], 10.0)
-    # @show energy(wall, s)
     return nothing
 end
 
-test_energy();
+test_single();
 
-function test_planner()
-    wm = InertiaWM(; area_width = 1240.0,
-                   area_height = 840.0)
+function test_ensemble()
+    wall = Wall(400.0, S2V(-1, 0.0))
 
-    walls = init_walls(wm.area_width, wm.area_height)
-    s = InertiaSingle(Light,
-                      [-347.8895958702888, -388.41042830191117],
-                      [10.0, 0.0], 20.0)
+    e = InertiaEnsemble(4.0,
+                        [0.25, 0.75],
+                        [-250., 0.],
+                        40.0,
+                        [1.0, 0.0])
 
+    @show colprob_and_agrad(e, wall)
 
-    _e = 0.0
-    for k = 1:4
-        display(walls[k])
-        _e += energy(walls[k], s)
-        @show _e
-        # e = logsumexp(e, _e)
-    end
-
-    # state = inertia_init(wm)
-    # planner = CollisionPlanner(;mat = Light)
-    # @show plan(planner, state)
     return nothing
-end;
+end
 
-test_planner();
+test_ensemble();

@@ -79,8 +79,16 @@ function granularity_objective(ag::MentalModule{G},
                         attp.partition,
                         trace,
                         attp.nns)
+    # importance = softmax(tr, attp.itemp)
+    # rmul!(importance, 1.0 / maximum(importance))
     len = length(tr)
-    mag = l2log(tr) - (log(gop.size_cost * len))
+    # value = log(sum(importance)) + logsumexp(tr)
+    value = l2log(tr) # l2log(tr)
+    cost = log(gop.size_cost * len)
+    # print_granularity_schema(chain)
+    # println("\t|Δ|=$(value); c=$(cost)")
+    # println("\tΔ=$(tr)")
+    value - cost
 end
 
 function regranularize!(mem::MentalModule{M},
@@ -99,7 +107,10 @@ function regranularize!(mem::MentalModule{M},
     (t > 0 && t % visp.dt != 0) && return nothing
 
     # Repopulate and shift granularity
+    memstate.objectives .-= log(memstate.steps)
     ws = softmax(memstate.objectives, memp.tau)
+    # println("℧: $(memstate.objectives)")
+    # @show ws
     metric = attp.map_metric
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
@@ -154,12 +165,12 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
     nsplit = nensemble
     nmerges = ncr(ntotal, 2)
     # REVIEW: does this promote merging?
-    split_prob = nsplit / (nsplit + nmerges)
-    move = if rand() < split_prob
+    split_prob = nsplit > 0 && any(!isinf, ws[nsingle+1:end]) ? 1.0 : 0.0
+    if rand() < split_prob
         # sample which ensemble to split
         split_ws = softmax(ws[nsingle+1:end])
         cm[:s0 => :nsm] = 2 # split branch
-        cm[:s0 => :state => :idx] = categorical(split_ws)
+        cm[:s0 => :state => :idx] = argmax(split_ws)
     else
         # sample which pair to merge
         npairs = ncr(ntotal, 2)

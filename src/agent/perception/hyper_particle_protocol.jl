@@ -76,10 +76,10 @@ function estimate_marginal(perception::MentalModule{T},
                            args::Tuple
     ) where {T<:HyperFilter}
     pf, st = mparse(perception)
-    m = 0.0
+    m = -Inf
     for i = 1:pf.h
-        m += estimate_marginal(st.chains[i], func, args)
+        m = logsumexp(m, estimate_marginal(st.chains[i], func, args))
     end
-    m *= 1.0 / pf.h
-    return m
+    m -= log(pf.h)
+    return exp(m)
 end

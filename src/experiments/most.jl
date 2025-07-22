@@ -101,9 +101,13 @@ end
 function run_analyses(exp::MostExp, agent::Agent)
     gorilla_p = estimate_marginal(agent.perception,
                                   detect_gorilla, ())
+    birth_p = estimate_marginal(agent.perception,
+                                  had_birth, ())
     col_p = planner_expectation(agent.planning)
+
     Dict(:gorilla_p => gorilla_p,
-         :collision_p => col_p)
+         :collision_p => col_p,
+         :birth_p => birth_p)
 end
 
 """
@@ -137,7 +141,6 @@ function load_most_trial(wm::WorldModel,
                          trial_idx::Int,
                          time_steps::Int = 10,
                          gorilla_color::Material = Dark)
-    println("Loading $(time_steps) frames")
     trial_length = 0
     open(dpath, "r") do io
         manifest = JSON3.read(io)["manifest"]
@@ -182,8 +185,6 @@ function load_most_trial(wm::WorldModel,
         end
         observations[t-1] = cm
     end
-
-    println("Created $(length(observations)) observations")
     (istate, observations)
 end
 
@@ -216,7 +217,8 @@ function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
     idp = IDPainter()
 
 
-    init = InitPainter(path = "$(path)/$(t).png",
+    # Perception
+    init = InitPainter(path = "$(path)/perception-$(t).png",
                        background = "white")
 
     _, wm, _ = exp.init_query.args
@@ -225,8 +227,19 @@ function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
     # observations
     render_frame(exp, t, objp)
     # inferred states
-    render_frame(agent.perception, agent.attention, objp)
+    render_frame(agent.perception, agent.attention, agent.memory, objp)
     render_frame(agent.planning, t)
+    finish()
+
+
+    # Attention
+    init = InitPainter(path = "$(path)/attention-$(t).png",
+                       background = "white")
+
+    _, wm, _ = exp.init_query.args
+    # setup
+    MOTCore.paint(init, wm)
+    render_attention(agent.attention)
     finish()
     return nothing
 end

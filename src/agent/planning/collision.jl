@@ -58,7 +58,7 @@ function plan!(planner::MentalModule{T},
         w = estimate_marginal(perception,
                               plan_with_delta_pi!,
                               (protocol, attention))
-        if rand() < w
+        if log(rand()) < w
             state.expectation += 1
         end
         # state.expectation += w
@@ -115,53 +115,58 @@ function colprob_and_agrad(pos::S2V, w::Wall)
     (p, dpdx)
 end
 
+const standard_normal = Normal(0., 1.)
+
 function colprob_and_agrad(obj::InertiaSingle, w::Wall)
     x = get_pos(obj)
     v = get_vel(obj)
     v_orth = dot(v, w.normal)
     distance = abs(w.d - dot(x, w.normal))
     # Distribution over near future
-    var = 0.5 * abs(v_orth)
+    sigma = 5.0 * abs(v_orth)
     mu = 0.5 * v_orth + get_size(obj)
-    pred = Normal(mu, var)
+    z = (distance - mu) / sigma
     # CCDF up to wall
-    p = Distributions.logccdf(pred, distance)
+    lcdf = Distributions.logccdf(standard_normal, z)
+    p = log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
     # pdf is the derivative of the cdf
-    dpdx = Distributions.logpdf(pred, distance)
+    dpdx = Distributions.logpdf(standard_normal, z)
     (p, dpdx)
 end
 
-function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
-    # Ensemble representations do not maintain persistent
-    # object trajectories, so they cannot inform
-    # collision counting
-    (-Inf, -Inf)
-end
 # function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
-#     r = rate(obj)
-#     l = 1.0 - materials(obj)[1] # prop not light
-#     penalty = iszero(l) ? 0.0 : log(r) + log(l)
-#     x = get_pos(obj)
-#     vel = get_vel(obj)
-#     var = get_var(obj)
-#     vel_orth = dot(vel, w.normal)
-#     distance = abs(w.d - dot(x, w.normal))
-#     # Distribution over near future
-#     # Variance integrates ensemble spread
-#     # This dilutes probability density
-#     sigma = 0.5 * (abs(vel_orth) + 0.1*var)
-#     mu = 0.5 * vel_orth
-#     pred = Normal(mu, sigma)
-#     # display(pred)
-#     # @show distance
-#     # CCDF up to wall
-#     p = Distributions.logccdf(pred, distance)
-#     p -= penalty
-#     # pdf is the derivative of the cdf
-#     dpdx = Distributions.logpdf(pred, distance)
-#     dpdx -= penalty
-#     (p, dpdx)
+#     # Ensemble representations do not maintain persistent
+#     # object trajectories, so they cannot inform
+#     # collision counting
+#     (-Inf, -Inf)
 # end
+function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
+    r = rate(obj)
+    prop_light = materials(obj)[1]
+    isapprox(prop_light, 0; atol=1e-4) && return (-Inf, -Inf)
+    x = get_pos(obj)
+    vel = get_vel(obj)
+    sigma = get_var(obj)
+    vel_orth = dot(vel, w.normal)
+    distance = abs(w.d - dot(x, w.normal))
+    # Distribution over near future
+    # Variance integrates ensemble spread
+    # This dilutes probability density
+    mu = vel_orth
+    z = (distance - mu) / sigma
+    lcdf = Distributions.logccdf(standard_normal, z)
+    # probability of a single object not colliding
+    p_atomic_miss = lcdf
+    # probability of any collision * prop targets
+    p = log1mexp(r * p_atomic_miss) + log(prop_light)
+    # Absolute gradient of cdf is the pdf
+    # with some scaling factors
+    log_exp_factor = -r * exp(lcdf)
+    lpdf = Distributions.logpdf(standard_normal, z)
+    dpdx = log(prop_light) + log(r) + lpdf +
+        log_exp_factor - log(sigma)
+    (p, dpdx)
+end
 
 # VISUALS
 

@@ -173,8 +173,8 @@ end
 
 
 @gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64)
-    x ~ normal(px, 0.1 * wm.area_width)
-    y ~ normal(py, 0.1 * wm.area_height)
+    x ~ normal(px, 0.2 * wm.area_width)
+    y ~ normal(py, 0.2 * wm.area_height)
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)

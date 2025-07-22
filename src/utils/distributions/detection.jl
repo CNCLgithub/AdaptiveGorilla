@@ -54,7 +54,8 @@ end
 Gen.has_output_grad(::DetectionRV) = false
 Gen.logpdf_grad(::DetectionRV, value, args...) = (nothing,)
 
-detect_mixture = HomogeneousMixture(detect, [0, 0, 0, 0])
+# detect_mixture = HomogeneousMixture(detect, [0, 0, 0, 0])
+include("homo_mix.jl")
 
 using Luxor: sethue, box, Point, setopacity
 import MOTCore.paint

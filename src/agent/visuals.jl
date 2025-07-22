@@ -12,13 +12,19 @@ function render_assigments(trace::InertiaTrace)
     state = get_last_state(trace)
 
     nx,ne,np = size(rfs.ptensor)
-    map_part_idx = argmax(rfs.pscores)
-    @inbounds for e = 1:(ne-1) # last elem is catchall
-        epos = get_pos(object_from_idx(state, e))
-        for x = 1:nx
-            rfs.ptensor[x, e, map_part_idx] || continue
-            xpos = position(xs[x])
-            _draw_line(epos, xpos, "blue")
+    porder = sortperm(rfs.pscores; rev = true)
+    pmass = -Inf
+    pidx = 1
+    while pmass < log(0.95)
+        p = porder[pidx]
+        pmass = logsumexp(pmass, rfs.pscores[p] - rfs.score)
+        @inbounds for e = 1:(ne-1) # last elem is catchall
+            epos = get_pos(object_from_idx(state, e))
+            for x = 1:nx
+                rfs.ptensor[x, e, p] || continue
+                xpos = position(xs[x])
+                _draw_line(epos, xpos, "blue"; opacity=0.1)
+            end
         end
     end
     return nothing
@@ -40,23 +46,18 @@ function render_frame(perception::MentalModule{V},
     best_chain = vs.chains[1]
     for i = 1:vp.h
         chain = vs.chains[i]
-        mho = granularity_objective(memory, attention, chain)
-        if mho > max_mho
-            best_chain = chain
-            max_mho = mho
-        end
+        # mho = granularity_objective(memory, attention, chain)
+        trace = retrieve_map(chain)
+        state = get_last_state(trace)
+        tr = task_relevance(attx,
+                            attp.partition,
+                            trace,
+                            attp.nns)
+        importance = softmax(tr, attp.itemp)
+        MOTCore.paint(objp, state, importance)
+        render_assigments(trace)
     end
-    # Get MAP particle in hyperparticle
-    trace = retrieve_map(best_chain)
-    state = get_last_state(trace)
-    tr = task_relevance(attx,
-                        attp.partition,
-                        trace,
-                        attp.nns)
-    importance = softmax(tr, attp.itemp)
-    MOTCore.paint(objp, state, importance)
 
-    render_assigments(trace)
     return nothing
 end
 

@@ -23,20 +23,19 @@ function predict(wm::InertiaWM, st::InertiaState)
     @inbounds for i = 1:ne
         @unpack matws, rate, pos, var = ensembles[i]
         # Clamped to possibly explain both materials
-        matws = clamp.(matws, 0.0, 1.0)
+        light_w = clamp(matws[1], 0.0, 1.0)
         varw = var #* single_noise
-        mix_args = (matws,
-                    Fill(pos, 2),
-                    Fill(varw, 2),
-                    [1.0, 2.0],
-                    Fill(material_noise, 2))
+        mix_args = (pos,
+                    varw,
+                    light_w,
+                    material_noise)
         es[ns + i] =
             PoissonElement{Detection}(rate, detect_mixture, mix_args)
     end
     # catch all ensemble
     # NOTE: This is needed in case of all individuals
     es[end] =
-        PoissonElement{Detection}(0.1, detect,
+        PoissonElement{Detection}(0.01, detect,
                                   (S2V([0., 0.]), 1000.0, 1.5, 10.0))
     return es
 end

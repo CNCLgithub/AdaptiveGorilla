@@ -5,19 +5,16 @@ using StaticArrays
 
 const S2V = SVector{2, Float64}
 
-dataset = "sib"
-nscenes = 7 # unique scenes
-# Each scene will have 4 conditions:
-# Gorilla color x parent color
-# light gorilla splitting from target
-# light gorilla splitting from distractor
-# dark gorilla splitting from target
-# dark gorilla splitting from distractor
+dataset = "most"
+nscenes = 10 # unique scenes
+# Each scene will have 2 conditions:
+# Gorilla Light | Gorilla Dark
 fps = 24
 duration = 10 # seconds
 frames = fps * duration
-out_dir = "/spaths/datasets"
-out_path = "$(out_dir)/$(dataset).json"
+out_dir = "/spaths/datasets/$(dataset)"
+isdir(out_dir) || mkdir(out_dir)
+out_path = "$(out_dir)/dataset.json"
 
 function gen_scene(wm::SchollWM, nframes::Int64)
     _, states = wm_scholl(nframes, wm)
@@ -36,14 +33,14 @@ function gen_scene(wm::SchollWM, nframes::Int64)
     gorilla = Dict(
         # onset time
         :frame =>
-            uniform_discrete(round(Int64, 0.5 * nframes),
-                             round(Int64, 0.8 * nframes)),
-        # random target
-        :parent =>
-            uniform_discrete(1, round(Int64, 0.5 * wm.n_dots)),
+            uniform_discrete(round(Int64, 0.15 * nframes),
+                             round(Int64, 0.25 * nframes)),
         # speed to move across
         :speedx => normal(wm.vel, 1.0),
-        :speedy => normal(wm.vel, 1.0),
+        # not used
+        :parent => 0,
+        # not used
+        :speedy => 0.0,
     )
     Dict(
         :positions => steps,
@@ -52,28 +49,30 @@ function gen_scene(wm::SchollWM, nframes::Int64)
 end
 
 function main()
-    # TODO: pin wm parameters
     wm = SchollWM(
         ;
         n_dots = 8,
-        dot_radius = 10.0,
+        dot_radius = 5.0,
         area_width = 720.0,
         area_height = 480.0,
-        vel=4.0,
-        vel_min = 2.0,
+        vel=4.5,
+        vel_min = 3.5,
         vel_max = 5.5,
         vel_step = 0.20,
         vel_prob = 0.20
     )
     data = Dict()
     data[:trials] = [gen_scene(wm, frames) for _ = 1:nscenes]
-    data[:manifest] = Dict(:ntrials => ntrials,
+    data[:manifest] = Dict(:ntrials => nscenes,
                            :duration => duration,
                            :fps => fps,
                            :frames => frames)
     open(out_path, "w") do io
         JSON3.write(io, data)
     end
+
+
+    cp(@__FILE__, "$(out_dir)/script.jl"; force = true)
 end;
 
 
