@@ -30,11 +30,12 @@ function single_ancestral_proposal(trace::InertiaTrace,
     # 1. gorilla
     # 2. normal individual
     t, wm = get_args(trace)
-    addr = if single <= wm.object_rate
-        :kernel => t => :forces => single
-    else
-        :kernel => t => :birth => :birth
-    end
+    addr = :kernel => t => :forces => single
+    # addr = if single <= wm.object_rate
+    #     :kernel => t => :forces => single
+    # else
+    #     :kernel => t => :birth => :birth
+    # end
     new_trace, w, _ = regenerate(trace, select(addr))
 
     if isnan(w)
@@ -81,7 +82,7 @@ end
 
 function baby_ancestral_proposal(trace::InertiaTrace)
     t = first(get_args(trace))
-    new_trace, w, _ = regenerate(trace, select(
+    new_trace, w, discard = regenerate(trace, select(
         :kernel => t => :bd => :i,
         :kernel => t => :bd => :switch,
     ))
@@ -174,7 +175,7 @@ end
 
 @gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64)
     x ~ normal(px, 0.2 * wm.area_width)
-    y ~ normal(py, 0.2 * wm.area_height)
+    y ~ normal(py, 0.2 * wm.area_width)
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)

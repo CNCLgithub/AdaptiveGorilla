@@ -12,8 +12,10 @@ end
 GenRFS.distribution(rfe::NegBinomElement) = rfe.d
 GenRFS.args(rfe::NegBinomElement) = rfe.args
 
-GenRFS.cardinality(rfe::NegBinomElement, n::Int) =
-    n < 0 ? -Inf : Distributions.logpdf(NegativeBinomial(rfe.r, rfe.p), n)
+function GenRFS.cardinality(rfe::NegBinomElement, n::Int)
+    Gen.logpdf(binom, n, 9, 0.13)
+    # n < 0 ? -Inf : Distributions.logpdf(dnp, n)
+end
 
 GenRFS.sample_cardinality(rfe::NegBinomElement) =
-    Distributions.rand(NegativeBinomial(rfe.r, rfe.p))
+    binom(9, 0.13)

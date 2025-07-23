@@ -7,7 +7,8 @@ function predict(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
     ns = length(singles)
     ne = length(ensembles)
-    es = Vector{RandomFiniteElement{Detection}}(undef, ns + ne + 1)
+    # es = Vector{RandomFiniteElement{Detection}}(undef, ns + ne + 1)
+    es = Vector{RandomFiniteElement{Detection}}(undef, ns + ne)
     @unpack single_noise, material_noise, bbmin, bbmax = wm
     # add the single object representations
     # REVIEW: what about all singles, but miss gorilla?
@@ -17,7 +18,9 @@ function predict(wm::InertiaWM, st::InertiaState)
         args = (pos, single.size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
-        es[i] = LogBernElement{Detection}(wm.single_rfs_logweight, detect, args)
+        es[i] = PoissonElement{Detection}(wm.single_rfs_logweight, detect, args)
+        # es[i] = LogBernElement{Detection}(wm.single_rfs_logweight, detect, args)
+        # es[i] = NegBinomElement{Detection}(2, 0.4, detect, args)
     end
     # the ensemble
     @inbounds for i = 1:ne
@@ -34,8 +37,7 @@ function predict(wm::InertiaWM, st::InertiaState)
     end
     # catch all ensemble
     # NOTE: This is needed in case of all individuals
-    es[end] =
-        PoissonElement{Detection}(0.01, detect,
-                                  (S2V([0., 0.]), 1000.0, 1.5, 10.0))
+    # catch_all_args = (S2V([0., 0.]), 1000.0, 0.5, material_noise)
+    # es[end] = LogBernElement{Detection}(-.0001, detect_mixture, catch_all_args)
     return es
 end

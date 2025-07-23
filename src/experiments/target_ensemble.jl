@@ -197,7 +197,7 @@ function load_tens_trial(wm::WorldModel,
     gorilla_color = swap_color ? Dark : Light
     parent = lone_parent ? 4 : 1
     # first frame gets GT
-    istate = initial_state(wm, positions[1])
+    istate = initial_state(wm, positions[1], 4, swap_color)
     for t = 2:trial_length
         cm = choicemap()
         # Observations associated with each object

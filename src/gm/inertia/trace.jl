@@ -57,8 +57,8 @@ function detect_gorilla(trace::InertiaTrace,
         (object_count(state) != nobj + 1 )
         return result
     end
-    @inbounds for p = 1:np
-        pt[nx, ns, p] || continue
+    @inbounds for p = 1:np, e = 1:ns
+        pt[nx, e, p] || continue
         result = logsumexp(result, scores[p])
     end
     result -= rfs.score

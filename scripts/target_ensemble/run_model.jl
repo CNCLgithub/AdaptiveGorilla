@@ -42,8 +42,8 @@ s = ArgParseSettings()
     "model"
     help = "Model Variant"
     arg_type = Symbol
-    range_tester = in([:full, :fixed, :no_ac_no_mg])
-    default = :full
+    range_tester = in([:full, :just_ac, :no_ac_no_mg])
+    default = :just_ac
 
     "scene"
     help = "Which scene to run"
@@ -54,15 +54,7 @@ end
 
 PARAMS = parse_args(ARGS, s)
 
-################################################################################
-# Model Variant
-################################################################################
-
-# which model variant to run (uncomment 1 of the lines below)
 MODEL = PARAMS["model"]
-# MODEL = :full #          Adaptive Computation + Granularity
-# MODEL = :fixed #       Adaptive Computation but with fixed granularity
-# MODEL = :no_ac_no_mg # Fixed processing and fixed granularity
 
 ################################################################################
 # Model Parameters
@@ -74,23 +66,23 @@ WM = InertiaWM(area_width = 720.0,
                birth_weight = 0.1,
                single_size = 5.0,
                single_noise = 0.25,
-               single_rfs_logweight = -2500.0,
-               stability = 0.65,
+               single_rfs_logweight = 1.1,
+               stability = 0.55,
                vel = 4.5,
                force_low = 1.0,
                force_high = 3.5,
                material_noise = 0.01,
-               ensemble_var_shift = 0.1)
+               ensemble_var_shift = 0.05)
 
 
 # Perception Hyper particle-filter; See "?HyperFilter"
 VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
-VIS_HYPER_WINDOW = 18
+VIS_HYPER_WINDOW = 12
 
 # Granularity Optimizer; See "?AdaptiveGranularity"
-GO_TAU = 1.0
-GO_COST = 100.0
+GO_TAU = 0.5
+GO_COST = 1.0
 GO_SHIFT = MODEL == :full
 GO_PROTOCOL =
     AdaptiveGranularity(;
@@ -108,7 +100,7 @@ if MODEL == :no_ac_no_mg
     BASE_STEPS = 12
     LOAD = 0
 else
-    BASE_STEPS = 10
+    BASE_STEPS = 16
     LOAD = 20
 end
 
@@ -219,9 +211,9 @@ function main()
     finish!(pbar)
     out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result, [:scene, :swap, :lone, :chain, :ndetected, :error])
+    df = DataFrame(result, [:scene, :color, :parent, :chain, :ndetected, :error])
     mean = x -> sum(x) / length(x)
-    display(combine(groupby(df, [:scene, :swap, :lone]), :ndetected => mean))
+    display(combine(groupby(df, [:scene, :color, :parent]), :ndetected => mean))
     CSV.write("$(out_dir)/$(SCENE).csv", df)
     return nothing
 end;

@@ -76,8 +76,8 @@ birth_switch = Gen.Switch(give_birth, no_birth)
 end
 
 @gen function death_process(wm::InertiaWM, prev::InertiaState)
-    nsingles = length(prev.singles)
-    dead ~ categorical(Fill(1.0 / nsingles, nsingles))
+    ws = death_weights(wm, prev)
+    dead ~ categorical(ws)
     result::PersistentVector{InertiaSingle} =
         death_from_switch(prev.singles, dead)
     return result

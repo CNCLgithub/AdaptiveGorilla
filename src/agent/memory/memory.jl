@@ -113,7 +113,11 @@ function regranularize!(mem::MentalModule{M},
     # @show ws
     metric = attp.map_metric
     next_gen = Vector{Int}(undef, visp.h)
-    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    if memp.shift
+        Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    else
+        next_gen[:] .= 1:visp.h
+    end
     for i = 1:visp.h
         parent = visstate.chains[next_gen[i]] # PFChain
         template = retrieve_map(parent) # InertiaTrace

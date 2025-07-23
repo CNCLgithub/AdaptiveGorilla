@@ -13,33 +13,33 @@ function test_agent()
     render = true
     wm = InertiaWM(area_width = 720.0,
                    area_height = 480.0,
-                   birth_weight = 0.1,
+                   birth_weight = 0.25,
                    single_size = 5.0,
                    single_noise = 0.25,
-                   single_rfs_logweight = -2500.0,
-                   stability = 0.65,
+                   single_rfs_logweight = 1.1,
+                   stability = 0.55,
                    # vel = 4.0,
                    vel = 4.5,
                    force_low = 1.0,
                    force_high = 3.5,
                    material_noise = 0.01,
                    ensemble_var_shift = 0.05)
-    # dpath = "/spaths/datasets/most/dataset.json"
-    dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
+    dpath = "/spaths/datasets/most/dataset.json"
+    # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 1
-    frames = 200
-    # exp = MostExp(dpath, wm, trial_idx,
-    #               Dark, frames)
-    exp = TEnsExp(dpath, wm, trial_idx,
-                  false, true, frames)
+    frames = 100
+    exp = MostExp(dpath, wm, trial_idx,
+                  Dark, frames)
+    # exp = TEnsExp(dpath, wm, trial_idx,
+    #               true, true, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 5)
-    hpf = HyperFilter(;dt=18, pf=pf, h=5)
+    hpf = HyperFilter(;dt=12, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
         AdaptiveComputation(;
                             itemp=10.0,
-                            base_steps=10,
+                            base_steps=24,
                             load = 20,
                             buffer_size = 2000,
                             map_metric=WeightedEuclidean(S3V(0.25, 0.25, 0.5)),
@@ -47,7 +47,7 @@ function test_agent()
     )
     planning = PlanningModule(CollisionCounter(; mat=Light))
     adaptive_g = AdaptiveGranularity(; tau=0.5,
-                                     shift=true,
+                                     shift=false,
                                      size_cost = 1.0)
     memory = MemoryModule(adaptive_g, hpf.h)
 
@@ -92,6 +92,7 @@ function test_agent()
     end
 
     @show gt_exp
+    results = DataFrames.select(results, [:frame, :gorilla_p, :birth_p])
     show(results; allrows=true)
 
     return results
