@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 
 # Configuration
-MODEL="full"
-OUTPUT_FILE="scripts/target_ensemble/joblist.txt"
+MODEL="$1"
+OUTPUT_FILE="scripts/target_ensemble/${MODEL}-joblist.txt"
 NSCENES=6
 NTHREADS=8
 TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
