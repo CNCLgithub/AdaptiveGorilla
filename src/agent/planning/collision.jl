@@ -165,7 +165,7 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     lpdf = Distributions.logpdf(standard_normal, z)
     dpdx = log(prop_light) + log(r) + lpdf +
         log_exp_factor - log(sigma)
-    (p, dpdx)
+    (p, dpdx-100)
 end
 
 # VISUALS

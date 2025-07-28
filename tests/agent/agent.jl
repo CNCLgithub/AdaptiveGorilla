@@ -13,25 +13,25 @@ function test_agent()
     render = true
     wm = InertiaWM(area_width = 720.0,
                    area_height = 480.0,
-                   birth_weight = 0.25,
+                   birth_weight = 0.01,
                    single_size = 5.0,
-                   single_noise = 0.25,
+                   single_noise = 0.15,
                    single_rfs_logweight = 1.1,
-                   stability = 0.55,
+                   stability = 0.75,
                    # vel = 4.0,
                    vel = 4.5,
-                   force_low = 1.0,
-                   force_high = 3.5,
+                   force_low = 3.0,
+                   force_high = 10.0,
                    material_noise = 0.01,
-                   ensemble_var_shift = 0.05)
+                   ensemble_var_shift = 0.1)
     dpath = "/spaths/datasets/most/dataset.json"
     # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 1
     frames = 100
     exp = MostExp(dpath, wm, trial_idx,
-                  Dark, frames)
+                  Light, frames)
     # exp = TEnsExp(dpath, wm, trial_idx,
-    #               true, true, frames)
+    #               false, false, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 5)
     hpf = HyperFilter(;dt=12, pf=pf, h=5)
@@ -42,13 +42,13 @@ function test_agent()
                             base_steps=24,
                             load = 20,
                             buffer_size = 2000,
-                            map_metric=WeightedEuclidean(S3V(0.25, 0.25, 0.5)),
+                            map_metric=WeightedEuclidean(S3V(0.1, 0.1, 0.8)),
                             )
     )
     planning = PlanningModule(CollisionCounter(; mat=Light))
-    adaptive_g = AdaptiveGranularity(; tau=0.5,
-                                     shift=false,
-                                     size_cost = 1.0)
+    adaptive_g = AdaptiveGranularity(; tau=1.0,
+                                     shift=true,
+                                     size_cost = 100.0)
     memory = MemoryModule(adaptive_g, hpf.h)
 
     # Cool, =)
@@ -82,13 +82,13 @@ function test_agent()
     for i = 1:visp.h
         chain = visstate.chains[i]
         particles = chain.state
-        ws = AdaptiveGorilla.marginal_ll(particles.traces[1])
-        ws = zeros(length(ws))
+        mll = AdaptiveGorilla.marginal_ll(particles.traces[1])
+        mll = zeros(length(mll))
         for x = particles.traces
-            ws .+= AdaptiveGorilla.marginal_ll(x)
+            mll .+= AdaptiveGorilla.marginal_ll(x)
         end
-        ws .*= 1.0 / length(particles.traces)
-        @show ws
+        mll .*= 1.0 / length(particles.traces)
+        @show mll
     end
 
     @show gt_exp

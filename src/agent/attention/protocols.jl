@@ -196,19 +196,12 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
 end
 
 function baby_loop!(state, trace, i, j)
-    # for _ = 1:5
-    #     new_trace, w = bd_loc_transform(trace, j)
-    #     if log(rand()) < w
-    #         trace = new_trace
-    #         state.log_weights[i] += w
-    #         break
-    #     end
-    # end
     for _ = 1:5
-        new_trace, w = baby_ancestral_proposal(trace)
+        new_trace, w = bd_loc_transform(trace, j)
         if log(rand()) < w
             trace = new_trace
             state.log_weights[i] += w
+            break
         end
     end
     return trace

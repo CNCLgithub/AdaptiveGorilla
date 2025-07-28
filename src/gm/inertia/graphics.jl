@@ -18,7 +18,8 @@ function predict(wm::InertiaWM, st::InertiaState)
         args = (pos, single.size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
-        es[i] = PoissonElement{Detection}(wm.single_rfs_logweight, detect, args)
+        # es[i] = CPoissonElement{Detection}(detect, args)
+        es[i] = CPoissonElement{Detection}(detect, args)
         # es[i] = LogBernElement{Detection}(wm.single_rfs_logweight, detect, args)
         # es[i] = NegBinomElement{Detection}(2, 0.4, detect, args)
     end

@@ -62,8 +62,8 @@ function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     # More stable, the more objects
     w = 1.0 - unstable^rate
     (w,
-     10 * force_low,
-     20 * force_high)
+     force_low,
+     force_high)
 end
 
 function step(wm::InertiaWM,
@@ -162,8 +162,7 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     iszero(e.rate) && return e
     bx, by = wm.dimensions
     @unpack pos, vel, var, rate = e
-    f = S2V(update[1], update[2])
-    dx, dy = f
+    dx, dy, dvar = update
     # mxv = 2. * wm.vel / sqrt(rate)
     # dx = clamp(dx, -mxv, mxv)
     # dy = clamp(dy, -mxv, mxv)
@@ -171,7 +170,7 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
-    new_var = clamp(var * (1.0 + update[3]), 10.0, 1000.0)
+    new_var = clamp(var * (1.0 + dvar), 10.0, 1000.0)
     # @show (var, update[3])
     setproperties(e; pos = new_pos,
                   vel = new_vel,

@@ -41,6 +41,7 @@ function print_granularity_schema(tr::InertiaTrace)
     println("MAP Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
     ndark = count(x -> material(x) == Dark, state.singles)
     println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
+    println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
     return nothing
 end
 
@@ -66,6 +67,35 @@ function assess_granularity!(
     return nothing
 end
 
+function trace_mho(mag, imp, factor = 1.0, mass = 1.0)
+    n = length(imp)
+    waste = 0.0
+    for i = 1:n
+        waste += exp(-factor * imp[i])
+    end
+    complexity = exp(mass * waste)
+    return mag - log(complexity)
+end
+
+
+function trace_value(attx, attp, gop, trace)
+    tr = task_relevance(attx,
+                        attp.partition,
+                        trace,
+                        attp.nns)
+    mag = logsumexp(tr)
+    importance = softmax(tr, attp.itemp)
+    trace_mho(mag, importance, 10.0, 2.0)
+    # # rmul!(importance, 1.0 / maximum(importance))
+    # # value = l2log(tr) # l2log(tr)
+    # print_granularity_schema(trace)
+    # @show tr
+    # @show l2log(tr)
+    # cost = log(gop.size_cost * length(tr))
+    # # -sum(abs.(importance .- mean(importance))) - cost
+    # l2log(tr) - cost
+end
+
 function granularity_objective(ag::MentalModule{G},
                                ac::MentalModule{A},
                                chain::APChain,
@@ -74,21 +104,20 @@ function granularity_objective(ag::MentalModule{G},
     attp, attx = mparse(ac)
     @unpack partition, nns = attp
     @unpack state = chain
-    trace = retrieve_map(chain)
-    tr = task_relevance(attx,
-                        attp.partition,
-                        trace,
-                        attp.nns)
-    # importance = softmax(tr, attp.itemp)
-    # rmul!(importance, 1.0 / maximum(importance))
-    len = length(tr)
-    # value = log(sum(importance)) + logsumexp(tr)
-    value = l2log(tr) # l2log(tr)
-    cost = log(gop.size_cost * len)
+    # average across particles
+    nparticles = length(state.traces)
+    result = Vector{Float64}(undef, nparticles)
+    @inbounds for i = 1:nparticles
+        result[i] = trace_value(attx, attp, gop, state.traces[i])
+    end
+    lml = log_ml_estimate(state) / 5
+    eff = logsumexp(result) - log(nparticles)
+    mho = eff + lml
     # print_granularity_schema(chain)
-    # println("\t|Δ|=$(value); c=$(cost)")
-    # println("\tΔ=$(tr)")
-    value - cost
+    # println("\t℧=$(mho)")
+    # println("\teff=$(eff)")
+    # println("\tlml=$(lml)")
+    # mho
 end
 
 function regranularize!(mem::MentalModule{M},
@@ -168,8 +197,8 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
     ntotal = nsingle + nensemble
     nsplit = nensemble
     nmerges = ncr(ntotal, 2)
-    # REVIEW: does this promote merging?
-    split_prob = nsplit > 0 && any(!isinf, ws[nsingle+1:end]) ? 1.0 : 0.0
+    # split_prob = nsplit > 0 && any(!isinf, ws[nsingle+1:end]) ? 1.0 : 0.0
+    split_prob = nsplit / (nsplit + nmerges)
     if rand() < split_prob
         # sample which ensemble to split
         split_ws = softmax(ws[nsingle+1:end])
@@ -180,7 +209,7 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
         npairs = ncr(ntotal, 2)
         pairs = Vector{Float64}(undef, npairs)
         # Coarse importance filter
-        importance = log.(softmax(ws, 100.0)) #TODO: hyper parameter
+        importance = log.(softmax(ws, 10.0)) #TODO: hyper parameter
         # @show importance
         for i = 1:npairs
             (a, b) = combination(ntotal, 2, i)
@@ -196,7 +225,8 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
         # pairs = softmax(pairs, 0.001) #TODO: hyper parameter
         # @show pairs
         # pair_idx = categorical(pairs)
-        pair_idx = argmin(pairs)
+        min_w = minimum(pairs)
+        pair_idx = rand(findall(==(min_w), pairs))
         selected = combination(ntotal, 2, pair_idx)
         # @show selected
         # @show dissimilarity(t, metric, selected...)

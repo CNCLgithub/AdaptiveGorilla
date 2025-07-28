@@ -37,7 +37,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 30
+    default = 10
 
     "model"
     help = "Model Variant"
@@ -63,14 +63,14 @@ MODEL = PARAMS["model"]
 # World model parameters; See "?InertiaWM" for documentation.
 WM = InertiaWM(area_width = 720.0,
                area_height = 480.0,
-               birth_weight = 0.1,
+               birth_weight = 0.01,
                single_size = 5.0,
-               single_noise = 0.25,
+               single_noise = 0.15,
                single_rfs_logweight = 1.1,
-               stability = 0.55,
+               stability = 0.75,
                vel = 4.5,
-               force_low = 1.0,
-               force_high = 3.5,
+               force_low = 3.0,
+               force_high = 10.0,
                material_noise = 0.01,
                ensemble_var_shift = 0.05)
 
@@ -81,7 +81,7 @@ VIS_PARTICLE_COUNT = 5
 VIS_HYPER_WINDOW = 12
 
 # Granularity Optimizer; See "?AdaptiveGranularity"
-GO_TAU = 0.5
+GO_TAU = 1.0
 GO_COST = 1.0
 GO_SHIFT = MODEL == :full
 GO_PROTOCOL =
@@ -101,12 +101,12 @@ if MODEL == :no_ac_no_mg
     LOAD = 0
 else
     BASE_STEPS = 16
-    LOAD = 20
+    LOAD = 24
 end
 
 AC_TAU = 10.0
 AC_MAP_SIZE = 2000
-AC_MAP_METRIC = WeightedEuclidean(S3V(0.25, 0.25, 0.5))
+AC_MAP_METRIC = WeightedEuclidean(S3V(0.1, 0.1, 0.8))
 AC_PROTOCOL =
     AdaptiveComputation(;
                         itemp=AC_TAU,

@@ -23,7 +23,7 @@ function render_assigments(trace::InertiaTrace)
             for x = 1:nx
                 rfs.ptensor[x, e, p] || continue
                 xpos = position(xs[x])
-                _draw_line(epos, xpos, "blue"; opacity=0.1)
+                _draw_line(epos, xpos, "blue"; opacity=0.25)
             end
         end
     end
@@ -42,8 +42,6 @@ function render_frame(perception::MentalModule{V},
     memp, memx = mparse(memory)
 
     # Get best hyper particle
-    max_mho = -Inf
-    best_chain = vs.chains[1]
     for i = 1:vp.h
         chain = vs.chains[i]
         # mho = granularity_objective(memory, attention, chain)
