@@ -3,7 +3,7 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 12
+NOTICE_MIN_FRAMES =18
 
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 
@@ -13,10 +13,7 @@ RUN_PATH = "$(BASE_PATH)/scenes"
 OUT_PATH = "$(BASE_PATH)/aggregate.csv"
 
 function load_result(path::String)
-    CSV.read(path, DataFrame;
-             header = [:scene, :color, :parent, :chain,
-                       :ndetected, :pct_error],
-             skipto=2) # ignore first row
+    CSV.read(path, DataFrame)
 end
 
 function merge_results(path::String)
@@ -34,7 +31,7 @@ function main()
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed)
-    display(c)
+    show(c; allrows=true)
     CSV.write(OUT_PATH, c)
 end
 

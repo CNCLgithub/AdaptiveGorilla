@@ -143,7 +143,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.15
+NOTICE_P_THRESH = 0.20
 # The minimum number of frames where Pr(detect gorilla) > NOTICE_P_THRESH in
 # order to consider the gorilla detected for that model run.
 NOTICE_MIN_FRAMES = 5
