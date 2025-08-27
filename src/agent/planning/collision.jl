@@ -18,6 +18,8 @@ $(TYPEDFIELDS)
     tol::Float64 = 1E-4
     "Tick rate"
     tick_rate::Int = 1
+    "Counting cool down"
+    cooldown::Int = 4
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
@@ -54,14 +56,19 @@ function plan!(planner::MentalModule{T},
              V<:PerceptionProtocol}
 
     protocol, state = mparse(planner)
-    if t > 0 && t % protocol.tick_rate == 0
-        w = estimate_marginal(perception,
-                              plan_with_delta_pi!,
-                              (protocol, attention))
-        if log(rand()) < w
-            state.expectation += 1
+    if (t > 0 && t % protocol.tick_rate == 0)
+
+        if state.cooldown == 0
+            w = estimate_marginal(perception,
+                                  plan_with_delta_pi!,
+                                  (protocol, attention))
+            if log(rand()) < w
+                state.expectation += 1
+                state.cooldown = protocol.cooldown
+            end
+        else
+            state.cooldown -= 1
         end
-        # state.expectation += w
     end
     return nothing
 end
@@ -75,7 +82,7 @@ function plan_with_delta_pi!(
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
-    ep = -Inf
+    colprob = -Inf
     @inbounds for j = 1:ns
         dpi = -Inf
         single = singles[j]
@@ -83,11 +90,12 @@ function plan_with_delta_pi!(
         if single.mat == pl.mat
             # REVIEW: maybe just look at closest wall?
             for k = 1:4 # each wall
-                (_ep, _dpi) = colprob_and_agrad(single, walls[k])
-                ep = logsumexp(ep, _ep)
+                (_colprob, _dpi) = colprob_and_agrad(single, walls[k])
+                colprob = logsumexp(colprob, _colprob)
                 dpi = logsumexp(dpi, _dpi)
             end
         end
+        @show dpi
         update_dPi!(att, single, dpi)
     end
     @inbounds for j = 1:ne
@@ -97,14 +105,14 @@ function plan_with_delta_pi!(
         w = x.matws[Int64(pl.mat)]
         if w  > 0.1
             for k = 1:4 # each wall
-                (_ep, _dpi) = colprob_and_agrad(x, walls[k])
-                ep = logsumexp(ep, _ep)
+                (_colprob, _dpi) = colprob_and_agrad(x, walls[k])
+                colprob = logsumexp(colprob, _colprob)
                 dpi = logsumexp(dpi, _dpi)
             end
         end
         update_dPi!(att, x, dpi)
     end
-    return exp(ep)
+    return colprob
 end
 
 function colprob_and_agrad(pos::S2V, w::Wall)
@@ -115,23 +123,29 @@ function colprob_and_agrad(pos::S2V, w::Wall)
     (p, dpdx)
 end
 
-const standard_normal = Normal(0., 1.)
 
 function colprob_and_agrad(obj::InertiaSingle, w::Wall)
+    # Distance between object and wall
     x = get_pos(obj)
     v = get_vel(obj)
-    v_orth = dot(v, w.normal)
     distance = abs(w.d - dot(x, w.normal))
-    # Distribution over near future
-    sigma = 5.0 * abs(v_orth)
+
+    # Distance distribution over near future
+    v_orth = dot(v, w.normal)
     mu = 0.5 * v_orth + get_size(obj)
+    sigma = 5.0 * abs(v_orth)
     z = (distance - mu) / sigma
     # CCDF up to wall
-    lcdf = Distributions.logccdf(standard_normal, z)
-    p = log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
+    lcdf = Distributions.logcdf(standard_normal, z)
+
+    # Account for heading - low prob if object is facing away
+    log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
+    log_angle = clamp(log_angle, -10.0, 0.0)
+    logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
+
     # pdf is the derivative of the cdf
-    dpdx = Distributions.logpdf(standard_normal, z)
-    (p, dpdx)
+    dpdz = log_angle + log_grad_normal_cdf_erfcx(z)
+    (logcolprob, dpdz)
 end
 
 # function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
@@ -145,27 +159,17 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     prop_light = materials(obj)[1]
     isapprox(prop_light, 0; atol=1e-4) && return (-Inf, -Inf)
     x = get_pos(obj)
-    vel = get_vel(obj)
-    sigma = get_var(obj)
-    vel_orth = dot(vel, w.normal)
+    sigma = sqrt(get_var(obj))
     distance = abs(w.d - dot(x, w.normal))
-    # Distribution over near future
     # Variance integrates ensemble spread
     # This dilutes probability density
-    mu = vel_orth
-    z = (distance - mu) / sigma
-    lcdf = Distributions.logccdf(standard_normal, z)
+    z = distance / sigma
     # probability of a single object not colliding
-    p_atomic_miss = lcdf
+    lcdf = Distributions.logcdf(standard_normal, z)
     # probability of any collision * prop targets
-    p = log1mexp(r * p_atomic_miss) + log(prop_light)
-    # Absolute gradient of cdf is the pdf
-    # with some scaling factors
-    log_exp_factor = -r * exp(lcdf)
-    lpdf = Distributions.logpdf(standard_normal, z)
-    dpdx = log(prop_light) + log(r) + lpdf +
-        log_exp_factor - log(sigma)
-    (p, dpdx-100)
+    p = log1mexp(r * lcdf)
+    dpdx = -log(prop_light) * log_grad_normal_cdf_erfcx(z)
+    (p, dpdx)
 end
 
 # VISUALS

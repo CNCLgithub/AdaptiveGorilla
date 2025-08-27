@@ -27,9 +27,9 @@ function test_agent()
     dpath = "/spaths/datasets/most/dataset.json"
     # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 1
-    frames = 100
+    frames = 50
     exp = MostExp(dpath, wm, trial_idx,
-                  Light, frames)
+                  Dark, frames)
     # exp = TEnsExp(dpath, wm, trial_idx,
     #               false, false, frames)
     query = exp.init_query
@@ -92,7 +92,7 @@ function test_agent()
     end
 
     @show gt_exp
-    results = DataFrames.select(results, [:frame, :gorilla_p, :birth_p])
+    # results = DataFrames.select(results, [:frame, :gorilla_p, :birth_p])
     show(results; allrows=true)
 
     return results

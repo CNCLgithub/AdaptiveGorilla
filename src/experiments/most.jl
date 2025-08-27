@@ -98,11 +98,11 @@ end
 # API
 #################################################################################
 
-function run_analyses(exp::MostExp, agent::Agent)
-    gorilla_p = estimate_marginal(agent.perception,
-                                  detect_gorilla, ())
-    birth_p = estimate_marginal(agent.perception,
-                                  had_birth, ())
+function run_analyses(::MostExp, agent::Agent)
+    gorilla_p = exp(estimate_marginal(agent.perception,
+                                  detect_gorilla, ()))
+    birth_p = exp(estimate_marginal(agent.perception,
+                                  had_birth, ()))
     col_p = planner_expectation(agent.planning)
 
     Dict(:gorilla_p => gorilla_p,

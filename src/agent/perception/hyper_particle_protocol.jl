@@ -80,6 +80,5 @@ function estimate_marginal(perception::MentalModule{T},
     for i = 1:pf.h
         m = logsumexp(m, estimate_marginal(st.chains[i], func, args))
     end
-    m -= log(pf.h)
-    return exp(m)
+    return m - log(pf.h)
 end

@@ -124,9 +124,9 @@ function task_relevance(
     for i = 1:n
         coord = get_coord(partition, trace, i)
         _dpi = integrate!(idxs, dists, coord, dPi)
-        tr[i] = _dpi
-        # _ds  = integrate!(idxs, dists, coord, dS )
-        # tr[i] = _dpi + _ds
+        # tr[i] = _dpi
+        _ds  = integrate!(idxs, dists, coord, dS )
+        tr[i] = _dpi + _ds
     end
     return tr
 end

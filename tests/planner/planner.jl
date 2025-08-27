@@ -6,7 +6,7 @@ function test_single()
     wall = Wall(400.0, S2V(-1, 0.0))
 
     s = InertiaSingle(Light,
-                      [-250., 0.],
+                      [-350., 0.],
                       [10.0, 0.0],
                       5.0)
 
@@ -22,7 +22,7 @@ function test_ensemble()
 
     e = InertiaEnsemble(4.0,
                         [0.25, 0.75],
-                        [-250., 0.],
+                        [-350., 0.],
                         40.0,
                         [1.0, 0.0])
 

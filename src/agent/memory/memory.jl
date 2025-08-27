@@ -83,13 +83,14 @@ function trace_value(attx, attp, gop, trace)
                         attp.partition,
                         trace,
                         attp.nns)
+    @show tr
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
+    @show importance
     trace_mho(mag, importance, 10.0, 2.0)
     # # rmul!(importance, 1.0 / maximum(importance))
     # # value = l2log(tr) # l2log(tr)
     # print_granularity_schema(trace)
-    # @show tr
     # @show l2log(tr)
     # cost = log(gop.size_cost * length(tr))
     # # -sum(abs.(importance .- mean(importance))) - cost

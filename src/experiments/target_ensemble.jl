@@ -123,10 +123,10 @@ end
 #################################################################################
 
 function run_analyses(exp::TEnsExp, agent::Agent)
-    gorilla_p = estimate_marginal(agent.perception,
-                                  detect_gorilla, ())
-    birth_p = estimate_marginal(agent.perception,
-                                  had_birth, ())
+    gorilla_p = exp(estimate_marginal(agent.perception,
+                                  detect_gorilla, ()))
+    birth_p = exp(estimate_marginal(agent.perception,
+                                  had_birth, ()))
     col_p = planner_expectation(agent.planning)
 
     Dict(:gorilla_p => gorilla_p,

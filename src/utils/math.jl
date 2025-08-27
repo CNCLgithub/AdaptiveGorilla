@@ -166,3 +166,35 @@ function log1msumexp(x::Vector{Float64})
     log1msm .-= lse
     return log1msm
 end
+
+const standard_normal = Normal(0., 1.)
+
+using SpecialFunctions: erfcx
+
+function log_grad_normal_cdf_erfcx(z::Float64)
+    if z >= 0
+        # Use erfcx(z/√2) = exp(z²/2) * erfc(z/√2) for stability
+        # Φ(z) = (1/2) * erfc(-z/√2), so log(Φ(z)) = log(1/2) + log(erfc(-z/√2))
+        # For z ≥ 0: erfc(-z/√2) = 2 - erfc(z/√2)
+        return -z^2/2 - log(erfcx(z/√(2))) - 0.5*log(2π)
+    else
+        # For negative z, use standard approach
+        return Distributions.logpdf(standard_normal, z) -
+            Distributions.logcdf(standard_normal, z)
+    end
+end
+
+function log_grad_normal_cdf_asymptotic(z::Float64)
+    if abs(z) < 6.0
+        # For moderate values, use the erfcx method
+        return log_grad_normal_cdf_erfcx(z)
+    elseif z < -6.0
+        # For extreme negative values, use asymptotic expansion
+        # φ(z)/Φ(z) ≈ -z - 1/z - 1/z³ - 3/z⁵ + ...
+        return -z - 1/z - 1/(z^3)
+    else  # z > 6.0
+        # For extreme positive values, use asymptotic expansion
+        # φ(z)/Φ(z) ≈ z - 1/z + 1/z³ - 3/z⁵ + ...
+        return z - 1/z + 1/(z^3)
+    end
+end
