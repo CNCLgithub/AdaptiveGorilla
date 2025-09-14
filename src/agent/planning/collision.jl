@@ -19,7 +19,7 @@ $(TYPEDFIELDS)
     "Tick rate"
     tick_rate::Int = 1
     "Counting cool down"
-    cooldown::Int = 4
+    cooldown::Int = 5
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
@@ -95,7 +95,7 @@ function plan_with_delta_pi!(
                 dpi = logsumexp(dpi, _dpi)
             end
         end
-        @show dpi
+        # @show dpi
         update_dPi!(att, single, dpi)
     end
     @inbounds for j = 1:ne
@@ -115,12 +115,32 @@ function plan_with_delta_pi!(
     return colprob
 end
 
-function colprob_and_agrad(pos::S2V, w::Wall)
-    # HACK: assumes object radius of 10
-    d = max(0.1, (w.d - sum(w.normal .* pos)) - 10)
+# HACK: assumes object radius
+function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
     p = exp(min(0.0, -log(d) - 1))
     dpdx = min(1.0, 1 / d )
     (p, dpdx)
+
+    distance = max(0.1, (w.d - sum(w.normal .* pos)) - 10)
+
+    distance = abs(w.d - dot(x, w.normal))
+
+    # Distance distribution over near future
+    v_orth = dot(v, w.normal)
+    mu = 0.5 * v_orth + get_size(obj)
+    sigma = 5.0 * abs(v_orth)
+    z = (distance - mu) / sigma
+    # CCDF up to wall
+    lcdf = Distributions.logcdf(standard_normal, z)
+
+    # Account for heading - low prob if object is facing away
+    log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
+    log_angle = clamp(log_angle, -10.0, 0.0)
+    logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
+
+    # pdf is the derivative of the cdf
+    dpdz = log_angle + log_grad_normal_cdf_erfcx(z)
+    (logcolprob, dpdz)
 end
 
 

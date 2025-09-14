@@ -1,10 +1,10 @@
-export MostExp
+export LoadCurve
 
 #################################################################################
 # Constructors
 #################################################################################
 
-struct MostExp <: Experiment
+struct LoadCurve <: Experiment
     "Number of time steps"
     frames::Int64
     "Gorilla appearance"
@@ -77,7 +77,7 @@ message Dataset {
 }
 ```
 """
-function MostExp(dpath::String, wm::InertiaWM,
+function LoadCurve(dpath::String, wm::InertiaWM,
                  trial_idx::Int64, gorilla_color::Material,
                  frames::Int64, show_gorilla::Bool = true)
     ws, obs = load_most_trial(wm, dpath, trial_idx, frames,
@@ -91,14 +91,14 @@ function MostExp(dpath::String, wm::InertiaWM,
     init_cm = choicemap()
     init_cm[:s0 => :nsm] = 1
     q = IncrementalQuery(gm, init_cm, args, argdiffs, 1)
-    MostExp(frames, gorilla_color, obs, q)
+    LoadCurve(frames, gorilla_color, obs, q)
 end
 
 #################################################################################
 # API
 #################################################################################
 
-function run_analyses(experiment::MostExp, agent::Agent)
+function run_analyses(experiment::LoadCurve, agent::Agent)
     gorilla_p = exp(estimate_marginal(agent.perception,
                                   detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,
@@ -118,7 +118,7 @@ returns a `Dict` containing:
 - the probability that the agent noticed the gorilla
 - The agent's expectation over the number of event counts
 """
-function step_agent!(agent::Agent, exp::MostExp, stepid::Int)
+function step_agent!(agent::Agent, exp::LoadCurve, stepid::Int)
     obs = get_obs(exp, stepid)
     perceive!(agent, obs, stepid)
     attend!(agent, stepid)
@@ -131,7 +131,7 @@ end
 # Helpers
 #################################################################################
 
-function get_obs(exp::MostExp, idx::Int64)
+function get_obs(exp::LoadCurve, idx::Int64)
     exp.observations[idx]
 end
 
@@ -190,7 +190,7 @@ function load_most_trial(wm::WorldModel,
     (istate, observations)
 end
 
-function render_frame(exp::MostExp, t::Int, objp = ObjectPainter())
+function render_frame(exp::LoadCurve, t::Int, objp = ObjectPainter())
     obs = to_array(get_obs(exp, t), Detection)
     MOTCore.paint(objp, obs)
     return nothing
@@ -213,7 +213,7 @@ function count_collisions!(count::Int64, col_frame::Vector, t::Int64,
     return (count, col_frame)
 end
 
-function count_collisions(exp::MostExp)
+function count_collisions(exp::LoadCurve)
     (_, wm, _) = exp.init_query.args
     nframes = length(exp.observations)
     r = wm.single_size
@@ -229,7 +229,7 @@ function count_collisions(exp::MostExp)
 end
 
 # TODO: part of API instead of helper?
-function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
+function render_agent_state(exp::LoadCurve, agent::Agent, t::Int, path::String)
     objp = ObjectPainter()
     idp = IDPainter()
 

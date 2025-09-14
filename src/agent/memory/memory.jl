@@ -83,10 +83,10 @@ function trace_value(attx, attp, gop, trace)
                         attp.partition,
                         trace,
                         attp.nns)
-    @show tr
+    # @show tr
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
-    @show importance
+    # @show importance
     trace_mho(mag, importance, 10.0, 2.0)
     # # rmul!(importance, 1.0 / maximum(importance))
     # # value = l2log(tr) # l2log(tr)

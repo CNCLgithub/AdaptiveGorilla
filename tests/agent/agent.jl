@@ -27,9 +27,9 @@ function test_agent()
     dpath = "/spaths/datasets/most/dataset.json"
     # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     trial_idx = 1
-    frames = 50
+    frames = 120
     exp = MostExp(dpath, wm, trial_idx,
-                  Dark, frames)
+                  Dark, frames, false)
     # exp = TEnsExp(dpath, wm, trial_idx,
     #               false, false, frames)
     query = exp.init_query
@@ -63,7 +63,7 @@ function test_agent()
         :collision_p => Float64[],
         :birth_p => Float64[],
     )
-    gt_exp = AdaptiveGorilla.collision_expectation(exp)
+    gt_count = AdaptiveGorilla.count_collisions(exp)
 
     # Profile.init(;delay = 0.01)
     # Profile.clear()
@@ -91,7 +91,7 @@ function test_agent()
         @show mll
     end
 
-    @show gt_exp
+    @show gt_count
     # results = DataFrames.select(results, [:frame, :gorilla_p, :birth_p])
     show(results; allrows=true)
 

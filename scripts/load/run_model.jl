@@ -38,18 +38,18 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 5
+    default = 10
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(MODEL_VARIANTS)
-    default = :FR
+    default = :MO
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 14
 
 end
 
@@ -108,10 +108,10 @@ GO_PROTOCOL =
 # for the number of resources used in the adaptive computation variants, where
 # LOAD is split across representations
 if MODEL == :FR
-    BASE_STEPS = 28
+    BASE_STEPS = 30
     LOAD = 0
 else
-    BASE_STEPS = 8
+    BASE_STEPS = 10
     LOAD = 20
 end
 
@@ -133,7 +133,7 @@ AC_PROTOCOL =
 ################################################################################
 
 # which dataset to run
-DATASET = "most"
+DATASET = "load_curve"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 120
@@ -208,6 +208,7 @@ function main()
         Threads.@threads for c = 1:CHAINS
             ndetected, expected_count = run_model!(pbar, experiment)
             count_error = abs(gt_count - expected_count) / gt_count
+            # count_error = abs(gt_count - expected_count)
             push!(result,
                   (scene = SCENE,
                    color = color == Light ? :light : :dark,

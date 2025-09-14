@@ -198,3 +198,13 @@ function log_grad_normal_cdf_asymptotic(z::Float64)
         return z - 1/z + 1/(z^3)
     end
 end
+
+
+
+"""Is a disc out of bounds"""
+function oob(radius::Float64, x::Float64, y::Float64,
+             w::Float64, h::Float64)
+    dx = abs(x + sign(x)*radius)
+    dy = abs(y + sign(y)*radius)
+    (dx >= 0.5 * w) || (dy >= 0.5 * h)
+end
