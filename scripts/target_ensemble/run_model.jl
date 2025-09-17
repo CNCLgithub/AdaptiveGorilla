@@ -88,7 +88,7 @@ WM = InertiaWM(;
 # Perception Hyper particle-filter; See "?HyperFilter"
 VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
-VIS_HYPER_WINDOW = 12
+VIS_HYPER_WINDOW = 18
 
 # Decision-making parameters
 COUNT_COOLDOWN=8 # The minimum time steps (1=~40ms) between collisions
@@ -169,7 +169,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.15
+NOTICE_P_THRESH = 0.2
 
 ################################################################################
 # Methods
@@ -179,7 +179,7 @@ NOTICE_P_THRESH = 0.15
 # (Done from scratch each time to avoid bugs / memory leaks)
 function init_agent(query)
     pf = AdaptiveParticleFilter(particles = VIS_PARTICLE_COUNT)
-    hpf = HyperFilter(;dt=VIS_HYPER_COUNT, pf=pf, h=VIS_HYPER_COUNT)
+    hpf = HyperFilter(;dt=VIS_HYPER_WINDOW, pf=pf, h=VIS_HYPER_COUNT)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(AC_PROTOCOL)
     # Count the number of times light objects bounce

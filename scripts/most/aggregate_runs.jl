@@ -3,7 +3,7 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 15
+NOTICE_MIN_FRAMES = 18
 
 DATASET = "most"
 

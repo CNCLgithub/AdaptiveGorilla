@@ -19,7 +19,6 @@ function test_agent()
                    single_noise = 0.15,
                    single_rfs_logweight = 1.1,
                    stability = 0.75,
-                   # vel = 4.0,
                    vel = 4.5,
                    force_low = 3.0,
                    force_high = 10.0,
@@ -27,7 +26,7 @@ function test_agent()
                    ensemble_var_shift = 0.1)
     dpath = "/spaths/datasets/most/dataset.json"
     # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
-    trial_idx = 1
+    trial_idx = 2
     frames = 120
     exp = MostExp(dpath, wm, trial_idx,
                   Light, frames, true)

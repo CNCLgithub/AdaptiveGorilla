@@ -45,7 +45,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 10
+    default = 60
 
     "model"
     help = "Model Variant"
@@ -56,7 +56,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 1
+    default = 2
 
 end
 
@@ -96,7 +96,7 @@ WM = InertiaWM(;
 # Perception Hyper particle-filter; See "?HyperFilter"
 VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
-VIS_HYPER_WINDOW = 12
+VIS_HYPER_WINDOW = 18
 
 
 # Decision-making parameters
@@ -122,8 +122,8 @@ if MODEL == :FR
     BASE_STEPS = 24
     LOAD = 0
 else
-    BASE_STEPS = 16
-    LOAD = 24
+    BASE_STEPS = 8
+    LOAD = 16
 end
 
 AC_TAU = 10.0
@@ -153,7 +153,7 @@ SHOW_GORILLA = true # ANALYSIS == :NOTICE
 DATASET = "most"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 120
+FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 COLORS = [Light, Dark]
@@ -180,7 +180,7 @@ NOTICE_P_THRESH = 0.20
 # (Done from scratch each time to avoid bugs / memory leaks)
 function init_agent(query)
     pf = AdaptiveParticleFilter(particles = VIS_PARTICLE_COUNT)
-    hpf = HyperFilter(;dt=VIS_HYPER_COUNT, pf=pf, h=VIS_HYPER_COUNT)
+    hpf = HyperFilter(;dt=VIS_HYPER_WINDOW, pf=pf, h=VIS_HYPER_COUNT)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(AC_PROTOCOL)
     # Count the number of times light objects bounce
