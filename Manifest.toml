@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "34eb3c1b7840bfed65eff80385111272d8fc5188"
+project_hash = "b68a4b40d560f6a269a4c678db5345bed75438de"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -418,9 +418,9 @@ version = "1.11.0"
 
 [[deps.Gen]]
 deps = ["Compat", "DataStructures", "Distributions", "ForwardDiff", "FunctionalCollections", "JSON", "LinearAlgebra", "MacroTools", "Parameters", "Random", "ReverseDiff", "SpecialFunctions"]
-path = "/project/env.d/jenv/dev/Gen"
+git-tree-sha1 = "2c87c7885d3ea7637847e3b7682abefde6eae45e"
 uuid = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
-version = "0.4.7"
+version = "0.4.8"
 
 [[deps.GenParticleFilters]]
 deps = ["Distributions", "Gen", "Parameters", "Statistics", "StatsBase"]
@@ -430,9 +430,11 @@ version = "0.2.3"
 
 [[deps.GenRFS]]
 deps = ["BenchmarkTools", "Cassette", "Combinatorics", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "Lazy", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions", "StatProfilerHTML", "Test", "UnicodePlots"]
-path = "/project/env.d/jenv/dev/GenRFS"
+git-tree-sha1 = "0a5c2ac9d8079bde036acd23bd65c2f465da3002"
+repo-rev = "regenerate"
+repo-url = "https://github.com/CNCLgithub/GenRFS.git"
 uuid = "56ab6c88-a2ab-44ec-99ca-7b9069b439c2"
-version = "0.1.0"
+version = "0.1.1"
 
 [[deps.Gen_Compose]]
 deps = ["DataStructures", "FileIO", "Gen", "JLD2", "Revise", "UnPack"]
@@ -769,9 +771,11 @@ version = "4.2.0"
 
 [[deps.MOTCore]]
 deps = ["Accessors", "CSV", "DataFrames", "Distributions", "FillArrays", "Gen", "JSON", "LinearAlgebra", "Luxor", "Parameters", "Revise", "StaticArrays"]
-path = "/project/env.d/jenv/dev/MOTCore"
+git-tree-sha1 = "2ea042af8c2bd5ed603327f56e6860fbb24597d9"
+repo-rev = "master"
+repo-url = "https://github.com/CNCLgithub/MOTCore.jl.git"
 uuid = "5c8d5ed6-9297-4b4e-8c36-1078fadcc608"
-version = "0.1.0"
+version = "0.1.1"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "72aebe0b5051e5143a079a4685a46da330a40472"
