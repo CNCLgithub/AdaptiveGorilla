@@ -11,7 +11,8 @@ using Distances: WeightedEuclidean
 
 function test_agent()
     render = true
-    wm = InertiaWM(area_width = 720.0,
+    wm = InertiaWM(object_rate = 8.0,
+                   area_width = 720.0,
                    area_height = 480.0,
                    birth_weight = 0.01,
                    single_size = 5.0,
@@ -29,12 +30,12 @@ function test_agent()
     trial_idx = 1
     frames = 120
     exp = MostExp(dpath, wm, trial_idx,
-                  Dark, frames, false)
+                  Light, frames, true)
     # exp = TEnsExp(dpath, wm, trial_idx,
     #               false, false, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 5)
-    hpf = HyperFilter(;dt=12, pf=pf, h=5)
+    hpf = HyperFilter(;dt=18, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
         AdaptiveComputation(;

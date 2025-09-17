@@ -122,7 +122,7 @@ end
 # API
 #################################################################################
 
-function run_analyses(experiment::TEnsExp, agent::Agent)
+function run_analyses(::TEnsExp, agent::Agent)
     gorilla_p = exp(estimate_marginal(agent.perception,
                                   detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,

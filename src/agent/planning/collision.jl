@@ -57,17 +57,17 @@ function plan!(planner::MentalModule{T},
 
     protocol, state = mparse(planner)
     if (t > 0 && t % protocol.tick_rate == 0)
-
+        # updates dPi
+        w = estimate_marginal(perception,
+                              plan_with_delta_pi!,
+                              (protocol, attention))
         if state.cooldown == 0
-            w = estimate_marginal(perception,
-                                  plan_with_delta_pi!,
-                                  (protocol, attention))
             if log(rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
             end
         else
-            state.cooldown -= 1
+            state.cooldown -= protocol.tick_rate
         end
     end
     return nothing

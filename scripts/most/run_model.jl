@@ -51,12 +51,12 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(MODEL_VARIANTS)
-    default = :FR
+    default = :MO
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 1
 
 end
 
@@ -122,8 +122,8 @@ if MODEL == :FR
     BASE_STEPS = 24
     LOAD = 0
 else
-    BASE_STEPS = 8
-    LOAD = 16
+    BASE_STEPS = 16
+    LOAD = 24
 end
 
 AC_TAU = 10.0
@@ -143,14 +143,7 @@ AC_PROTOCOL =
 ################################################################################
 
 ANALYSIS = PARAMS["analyses"]
-
-if ANALYSIS == :NOTICE
-    SHOW_GORILLA=true
-
-elseif ANALYSIS == :PERF
-    SHOW_GORILLA=false
-end
-
+SHOW_GORILLA = true # ANALYSIS == :NOTICE
 
 ################################################################################
 # General Experiment Parameters
@@ -160,7 +153,7 @@ end
 DATASET = "most"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 120
 
 # 2 Conditions total: Gorilla Light | Dark
 COLORS = [Light, Dark]
@@ -204,9 +197,8 @@ function run_model!(pbar, exp)
     noticed = 0
     for t = 1:(FRAMES - 1)
         _results = step_agent!(agent, exp, t)
-        _results[:frame] = t
         colp = _results[:collision_p]
-        if  _results[:gorilla_p] > NOTICE_P_THRESH
+        if  _results[:gorilla_p] >= NOTICE_P_THRESH
             noticed += 1
         end
         next!(pbar)
@@ -226,6 +218,7 @@ function main()
     for color = COLORS
         experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA)
         gt_count = count_collisions(experiment)
+        @show gt_count
         Threads.@threads for c = 1:CHAINS
             ndetected, expected_count = run_model!(pbar, experiment)
             count_error = abs(gt_count - expected_count) / gt_count

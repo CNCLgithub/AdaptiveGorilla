@@ -3,7 +3,7 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 24
+NOTICE_MIN_FRAMES = 15
 
 DATASET = "most"
 
@@ -26,6 +26,7 @@ end
 
 function main()
     all = merge_results(RUN_PATH)
+    show(all; allrows=true)
     g = groupby(all, [:scene, :color])
     c = combine(g,
                 :ndetected =>
