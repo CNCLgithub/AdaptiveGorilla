@@ -122,7 +122,7 @@ end
 # API
 #################################################################################
 
-function run_analyses(exp::TEnsExp, agent::Agent)
+function run_analyses(experiment::TEnsExp, agent::Agent)
     gorilla_p = exp(estimate_marginal(agent.perception,
                                   detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,
@@ -262,21 +262,21 @@ function orbit_position(
     return S2V(x, y)
 end
 
-function collision_expectation(exp::TEnsExp)
+
+
+function count_collisions(exp::TEnsExp)
     (_, wm, _) = exp.init_query.args
-    n = length(exp.observations)
-    e = 0.0
-    for t = 1:n
+    nframes = length(exp.observations)
+    r = wm.single_size
+    h = wm.area_height
+    w = wm.area_width
+    col_frame = fill(-Inf, Int64(wm.object_rate))
+    count = 0
+    for t = 1:nframes
         detections = to_array(get_obs(exp, t), Detection)
-        for d = detections
-            intensity(d) != 1.0 && continue
-            for k = 1:4 # each wall
-                _ep, _ = colprob_and_agrad(position(d), wm.walls[k])
-                e += _ep
-            end
-        end
+        count, col_frame = count_collisions!(count, col_frame, t, detections, r, h, w)
     end
-    return e
+    return count
 end
 
 function render_frame(exp::TEnsExp, t::Int, objp = ObjectPainter())

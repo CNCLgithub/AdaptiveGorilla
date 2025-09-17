@@ -25,10 +25,13 @@ using Distances: WeightedEuclidean
 ################################################################################
 
 MODEL_VARIANTS = [:MO, :AC, :FR]
+ANALYSES_VARIANTS = [:NOTICE, :PERF]
+
 
 s = ArgParseSettings()
 
 @add_arg_table! s begin
+
 
     "--restart", "-r"
     help = "Whether to resume inference"
@@ -38,13 +41,18 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 5
+    default = 10
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(MODEL_VARIANTS)
     default = :FR
+
+    "analyses"
+    help = "Model analyses. Either NOTICE or PERF"
+    range_tester = in(ANALYSES_VARIANTS)
+    default = :NOTICE
 
     "scene"
     help = "Which scene to run"
@@ -91,6 +99,10 @@ VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
 VIS_HYPER_WINDOW = 12
 
+
+# Decision-making parameters
+COUNT_COOLDOWN=8 # The minimum time steps (1=~40ms) between collisions
+
 # Granularity Optimizer; See "?AdaptiveGranularity"
 GO_TAU = 1.0
 GO_COST = 100.0
@@ -108,11 +120,11 @@ GO_PROTOCOL =
 # for the number of resources used in the adaptive computation variants, where
 # LOAD is split across representations
 if MODEL == :FR
-    BASE_STEPS = 28
+    BASE_STEPS = 24
     LOAD = 0
 else
     BASE_STEPS = 8
-    LOAD = 20
+    LOAD = 16
 end
 
 AC_TAU = 10.0
@@ -127,6 +139,19 @@ AC_PROTOCOL =
                         map_metric=AC_MAP_METRIC,
                         )
 
+################################################################################
+# ANALYSES
+################################################################################
+
+ANALYSIS = PARAMS["analyses"]
+
+if ANALYSIS == :NOTICE
+    SHOW_GORILLA=true
+
+elseif ANALYSIS == :PERF
+    SHOW_GORILLA=false
+end
+
 
 ################################################################################
 # General Experiment Parameters
@@ -136,7 +161,7 @@ AC_PROTOCOL =
 DATASET = "most"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 120
+FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 COLORS = [Light, Dark]
@@ -153,7 +178,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.20
 # The minimum number of frames where Pr(detect gorilla) > NOTICE_P_THRESH in
 # order to consider the gorilla detected for that model run.
 NOTICE_MIN_FRAMES = 5
@@ -170,7 +195,7 @@ function init_agent(query)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(AC_PROTOCOL)
     # Count the number of times light objects bounce
-    task_objective = CollisionCounter(; mat=Light)
+    task_objective = CollisionCounter(; mat=Light, cooldown=COUNT_COOLDOWN)
     planning = PlanningModule(task_objective)
     memory = MemoryModule(GO_PROTOCOL, VIS_HYPER_COUNT)
 
@@ -203,7 +228,7 @@ function main()
     pbar = Progress(2 * CHAINS * (FRAMES-1);
                     desc="Running $(MODEL) model...", dt = 1.0)
     for color = COLORS
-        experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, false)
+        experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA)
         gt_count = count_collisions(experiment)
         Threads.@threads for c = 1:CHAINS
             ndetected, expected_count = run_model!(pbar, experiment)
@@ -218,7 +243,7 @@ function main()
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(result)
     CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))

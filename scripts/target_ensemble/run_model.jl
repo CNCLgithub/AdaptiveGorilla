@@ -17,8 +17,12 @@ using ProgressMeter
 using DataFrames, CSV
 using AdaptiveGorilla
 
-using AdaptiveGorilla: S3V
+using AdaptiveGorilla: S3V, count_collisions
 using Distances: WeightedEuclidean
+
+
+MODEL_VARIANTS = [:MO, :AC, :FR]
+ANALYSES_VARIANTS = [:NOTICE, :PERF]
 
 ################################################################################
 # Command Line Interface
@@ -42,14 +46,18 @@ s = ArgParseSettings()
     "model"
     help = "Model Variant"
     arg_type = Symbol
-    range_tester = in([:full, :just_ac, :no_ac_no_mg])
-    default = :just_ac
+    range_tester = in(MODEL_VARIANTS)
+    default = :MO
+
+    "analyses"
+    help = "Model analyses. Either NOTICE or PERF"
+    range_tester = in(ANALYSES_VARIANTS)
+    default = :NOTICE
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
     default = 1
-
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -61,7 +69,9 @@ MODEL = PARAMS["model"]
 ################################################################################
 
 # World model parameters; See "?InertiaWM" for documentation.
-WM = InertiaWM(area_width = 720.0,
+WM = InertiaWM(;
+               object_rate = 8.0,
+               area_width = 720.0,
                area_height = 480.0,
                birth_weight = 0.01,
                single_size = 5.0,
@@ -72,7 +82,7 @@ WM = InertiaWM(area_width = 720.0,
                force_low = 3.0,
                force_high = 10.0,
                material_noise = 0.01,
-               ensemble_var_shift = 0.05)
+               ensemble_var_shift = 0.1)
 
 
 # Perception Hyper particle-filter; See "?HyperFilter"
@@ -80,10 +90,13 @@ VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
 VIS_HYPER_WINDOW = 12
 
+# Decision-making parameters
+COUNT_COOLDOWN=8 # The minimum time steps (1=~40ms) between collisions
+
 # Granularity Optimizer; See "?AdaptiveGranularity"
 GO_TAU = 1.0
-GO_COST = 1.0
-GO_SHIFT = MODEL == :full
+GO_COST = 100.0
+GO_SHIFT = MODEL == :MO
 GO_PROTOCOL =
     AdaptiveGranularity(;
                         tau=GO_TAU,
@@ -96,12 +109,12 @@ GO_PROTOCOL =
 # In the case of the fixed resource and granularity model, `BASE_STEPS` equates
 # for the number of resources used in the adaptive computation variants, where
 # LOAD is split across representations
-if MODEL == :no_ac_no_mg
-    BASE_STEPS = 12
+if MODEL == :FR
+    BASE_STEPS = 24
     LOAD = 0
 else
-    BASE_STEPS = 16
-    LOAD = 24
+    BASE_STEPS = 8
+    LOAD = 16
 end
 
 AC_TAU = 10.0
@@ -132,6 +145,19 @@ LONE_PARENT = [true, false]
 SWAP_COLORS = [false, true]
 
 ################################################################################
+# ANALYSES
+################################################################################
+
+ANALYSIS = PARAMS["analyses"]
+
+if ANALYSIS == :NOTICE
+    SHOW_GORILLA=true
+
+elseif ANALYSIS == :PERF
+    SHOW_GORILLA=false
+end
+
+################################################################################
 # Analysis Parameters
 ################################################################################
 
@@ -160,7 +186,7 @@ function init_agent(query)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(AC_PROTOCOL)
     # Count the number of times light objects bounce
-    task_objective = CollisionCounter(; mat=Light)
+    task_objective = CollisionCounter(; mat=Light, cooldown=COUNT_COOLDOWN)
     planning = PlanningModule(task_objective)
     memory = MemoryModule(GO_PROTOCOL, VIS_HYPER_COUNT)
 
@@ -194,11 +220,11 @@ function main()
         length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1);
         desc="Running $(MODEL) model...", dt = 1.0)
     for swap = SWAP_COLORS, lone = LONE_PARENT
-        exp = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
-        gtcol = AdaptiveGorilla.collision_expectation(exp)
+        experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
+        gt_count = count_collisions(experiment)
         Threads.@threads for c = 1:CHAINS
-            ndetected, colp = run_model!(pbar, exp)
-            colerror = abs(gtcol - colp) / gtcol
+            ndetected, expected_count = run_model!(pbar, experiment)
+            colerror = abs(gt_count - expected_count) / gt_count
             push!(result,
                   (SCENE,
                    swap ? :dark : :light,
@@ -209,7 +235,7 @@ function main()
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(result, [:scene, :color, :parent, :chain, :ndetected, :error])
     mean = x -> sum(x) / length(x)

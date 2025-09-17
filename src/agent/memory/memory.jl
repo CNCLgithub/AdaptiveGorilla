@@ -111,9 +111,9 @@ function granularity_objective(ag::MentalModule{G},
     @inbounds for i = 1:nparticles
         result[i] = trace_value(attx, attp, gop, state.traces[i])
     end
-    lml = log_ml_estimate(state) / 5
     eff = logsumexp(result) - log(nparticles)
-    mho = eff + lml
+    lml = log_ml_estimate(state) / 5
+    mho = gop.shift ? eff + lml : lml
     # print_granularity_schema(chain)
     # println("\t℧=$(mho)")
     # println("\teff=$(eff)")
@@ -143,11 +143,12 @@ function regranularize!(mem::MentalModule{M},
     # @show ws
     metric = attp.map_metric
     next_gen = Vector{Int}(undef, visp.h)
-    if memp.shift
-        Distributions.rand!(Distributions.Categorical(ws), next_gen)
-    else
-        next_gen[:] .= 1:visp.h
-    end
+    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    # if memp.shift
+    #     Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    # else
+    #     next_gen[:] .= 1:visp.h
+    # end
     for i = 1:visp.h
         parent = visstate.chains[next_gen[i]] # PFChain
         template = retrieve_map(parent) # InertiaTrace
