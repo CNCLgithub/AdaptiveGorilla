@@ -1,0 +1,6 @@
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl AC NOTICE 1
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl AC NOTICE 2
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl AC NOTICE 3
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl AC NOTICE 4
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl AC NOTICE 5
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl AC NOTICE 6

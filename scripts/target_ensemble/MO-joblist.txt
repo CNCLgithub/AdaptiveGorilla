@@ -1,0 +1,6 @@
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl MO 1
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl MO 2
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl MO 3
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl MO 4
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl MO 5
+./env.d/run.sh julia --threads=8 scripts/target_ensemble/run_model.jl MO 6

@@ -37,11 +37,15 @@ s = ArgParseSettings()
     help = "Whether to resume inference"
     action = :store_true
 
+    "--analyses"
+    help = "Model analyses. Either NOTICE or PERF"
+    range_tester = in(ANALYSES_VARIANTS)
+    default = :NOTICE
 
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 10
+    default = 60
 
     "model"
     help = "Model Variant"
@@ -49,10 +53,6 @@ s = ArgParseSettings()
     range_tester = in(MODEL_VARIANTS)
     default = :MO
 
-    "analyses"
-    help = "Model analyses. Either NOTICE or PERF"
-    range_tester = in(ANALYSES_VARIANTS)
-    default = :NOTICE
 
     "scene"
     help = "Which scene to run"
@@ -169,10 +169,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.20
-# The minimum number of frames where Pr(detect gorilla) > NOTICE_P_THRESH in
-# order to consider the gorilla detected for that model run.
-NOTICE_MIN_FRAMES = 5
+NOTICE_P_THRESH = 0.15
 
 ################################################################################
 # Methods

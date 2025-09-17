@@ -5,7 +5,7 @@ using Statistics: mean
 
 NOTICE_MIN_FRAMES = 24
 
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "most"
 
 MODEL = :MO
 BASE_PATH = "/spaths/experiments/$(DATASET)/$(MODEL)-NOTICE"
@@ -26,12 +26,12 @@ end
 
 function main()
     all = merge_results(RUN_PATH)
-    g = groupby(all, [:color, :parent])
+    g = groupby(all, [:scene, :color])
     c = combine(g,
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed,
-		:error => mean)
+		:count_error => mean)
     show(c; allrows=true)
     CSV.write(OUT_PATH, c)
 end
