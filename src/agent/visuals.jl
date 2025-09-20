@@ -52,7 +52,7 @@ function render_frame(perception::MentalModule{V},
                             trace,
                             attp.nns)
         importance = softmax(tr, attp.itemp)
-        MOTCore.paint(objp, state, importance)
+        MOTCore.paint(objp, trace, importance)
         render_assigments(trace)
     end
 

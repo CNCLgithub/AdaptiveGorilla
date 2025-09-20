@@ -6,9 +6,9 @@ using StaticArrays
 const S2V = SVector{2, Float64}
 
 dataset = "load_curve"
-maxload = 8
-nother = 4
-nscenes = 2 * maxload # unique scenes
+maxadded = 4 # upper limit of added objects
+mincount = 3 # Number of light and dark objects
+nscenes = 2 * maxadded - 1 # unique scenes
 # Each scene will have 2 conditions:
 # Gorilla Light | Gorilla Dark
 fps = 24
@@ -18,7 +18,8 @@ out_dir = "/spaths/datasets/$(dataset)"
 isdir(out_dir) || mkdir(out_dir)
 out_path = "$(out_dir)/dataset.json"
 
-function gen_trial(wm::SchollWM, nframes::Int64, nlight::Int64, ndark::Int64)
+function gen_trial(nframes::Int64, nlight::Int64, ndark::Int64)
+    wm = init_wm(nlight + ndark)
     _, states = wm_scholl(nframes, wm)
     steps = Vector{Vector{S2V}}(undef,nframes)
     @inbounds for j in 1:nframes
@@ -50,10 +51,10 @@ function gen_trial(wm::SchollWM, nframes::Int64, nlight::Int64, ndark::Int64)
     )
 end
 
-function main()
-    wm = SchollWM(
+function init_wm(n_dots::Int)
+    SchollWM(
         ;
-        n_dots = 8,
+        n_dots = n_dots,
         dot_radius = 5.0,
         area_width = 720.0,
         area_height = 480.0,
@@ -63,16 +64,21 @@ function main()
         vel_step = 0.20,
         vel_prob = 0.20
     )
+end
+
+function main()
     data = Dict()
     trials = []
     # Increase Light
-    for load = 1:maxload
-        trial = gen_trial(wm, frames, load, nother)
+    for toadd = 0:maxadded
+        trial = gen_trial(frames,
+                          mincount + toadd, mincount)
         push!(trials, trial)
     end
     # Increase Dark
-    for load = 1:maxload
-        trial = gen_trial(wm, frames, nother, load)
+    for toadd = 1:maxadded
+        trial = gen_trial(frames,
+                          mincount, mincount + toadd)
         push!(trials, trial)
     end
     data[:trials] = trials

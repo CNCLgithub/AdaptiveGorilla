@@ -1,6 +1,6 @@
 function initial_state(wm::InertiaWM, positions, target_count::Int = 4,
                        swap_colors::Bool = false)
-    n = length(positions)
+    n = Int64(wm.object_rate)
     singles = Vector{InertiaSingle}(undef, n)
     for i = 1:n
         x, y = positions[i]

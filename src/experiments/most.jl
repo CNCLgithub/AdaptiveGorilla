@@ -79,9 +79,11 @@ message Dataset {
 """
 function MostExp(dpath::String, wm::InertiaWM,
                  trial_idx::Int64, gorilla_color::Material,
-                 frames::Int64, show_gorilla::Bool = true)
+                 frames::Int64, show_gorilla::Bool = true;
+                 ntarget = 4)
     ws, obs = load_most_trial(wm, dpath, trial_idx, frames,
-                              gorilla_color, show_gorilla)
+                              gorilla_color, show_gorilla;
+                              ntarget=ntarget)
 
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
@@ -105,7 +107,7 @@ function run_analyses(experiment::MostExp, agent::Agent)
                                   had_birth, ()))
     col_p = planner_expectation(agent.planning)
     Dict(:gorilla_p => gorilla_p,
-         :collision_p => col_p, #abs(col_p - col_gt) / col_gt,
+         :collision_p => col_p,
          :birth_p => birth_p)
 end
 
@@ -140,7 +142,8 @@ function load_most_trial(wm::WorldModel,
                          trial_idx::Int,
                          time_steps::Int = 10,
                          gorilla_color::Material = Dark,
-                         show_gorilla::Bool = true)
+                         show_gorilla::Bool = true;
+                         ntarget::Int = 4)
     trial_length = 0
     open(dpath, "r") do io
         manifest = JSON3.read(io)["manifest"]
@@ -158,15 +161,15 @@ function load_most_trial(wm::WorldModel,
         positions = data["positions"]
     end
     # first frame gets GT
-    istate = initial_state(wm, positions[1])
+    istate = initial_state(wm, positions[1], ntarget)
+    nobj = Int64(wm.object_rate)
     for t = 2:trial_length
         cm = choicemap()
         # Observations associated with each object
         step = positions[t]
-        nobj = length(step)
         @inbounds for i = 1:nobj
             xy = step[i]
-            mat = i <= 4 ? Light : Dark
+            mat = i <= ntarget ? Light : Dark
             write_obs_mask!(
                 cm, wm, t, i, xy, mat;
                 prefix = (t, i) -> i,
@@ -250,13 +253,13 @@ function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
 
 
     # Attention
-    init = InitPainter(path = "$(path)/attention-$(t).png",
-                       background = "white")
+    # init = InitPainter(path = "$(path)/attention-$(t).png",
+    #                    background = "white")
 
-    _, wm, _ = exp.init_query.args
-    # setup
-    MOTCore.paint(init, wm)
-    render_attention(agent.attention)
-    finish()
+    # _, wm, _ = exp.init_query.args
+    # # setup
+    # MOTCore.paint(init, wm)
+    # render_attention(agent.attention)
+    # finish()
     return nothing
 end

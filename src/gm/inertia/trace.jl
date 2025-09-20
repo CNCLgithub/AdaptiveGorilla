@@ -39,7 +39,8 @@ function detect_gorilla(trace::InertiaTrace,
                         nobj::Int = 8,
                         temp::Float64 = 1.0)
 
-    t = first(get_args(trace))
+    t, wm, _ = get_args(trace)
+    nobj = Int64(wm.object_rate)
     result = -Inf
     t == 0 && return result
     rfs = extract_rfs_subtrace(trace, t)
@@ -67,6 +68,8 @@ end
 
 function had_birth(trace::InertiaTrace,
                    nobj::Int = 8)
+    _, wm, _ = get_args(trace)
+    nobj = Int64(wm.object_rate)
     state = get_last_state(trace)
     total = object_count(state)
     total > nobj ? 0.0 : -Inf
@@ -115,18 +118,6 @@ function marginal_ll(trace::InertiaTrace)
             result[x] = logsumexp(result[x], w)
         end
     end
-    # if nx == 9
-    #     print_granularity_schema(trace)
-    #     print("MLL: ")
-    #     println(result)
-    #     println("Support: ")
-    #     display(ml)
-    #     idx = argmax(rfs.pscores)
-    #     println("MAP Partition: $(rfs.pscores[idx] - rfs.score)")
-    #     display(map(typeof, es))
-    #     display(rfs.ptensor[:, :, idx])
-    #     # error()
-    # end
     return result
 end
 

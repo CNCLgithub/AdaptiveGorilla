@@ -11,7 +11,7 @@ using Distances: WeightedEuclidean
 
 function test_agent()
     render = true
-    wm = InertiaWM(object_rate = 8.0,
+    wm = InertiaWM(object_rate = 10.0,
                    area_width = 720.0,
                    area_height = 480.0,
                    birth_weight = 0.01,
@@ -24,12 +24,13 @@ function test_agent()
                    force_high = 10.0,
                    material_noise = 0.01,
                    ensemble_var_shift = 0.1)
-    dpath = "/spaths/datasets/most/dataset.json"
+    # dpath = "/spaths/datasets/most/dataset.json"
     # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
-    trial_idx = 2
+    dpath = "/spaths/datasets/load_curve/dataset.json"
+    trial_idx = 9
     frames = 120
     exp = MostExp(dpath, wm, trial_idx,
-                  Light, frames, true)
+                  Dark, frames, true; ntarget=3)
     # exp = TEnsExp(dpath, wm, trial_idx,
     #               false, false, frames)
     query = exp.init_query
@@ -40,14 +41,14 @@ function test_agent()
         AdaptiveComputation(;
                             itemp=10.0,
                             base_steps=24,
-                            load = 20,
+                            load = 0,
                             buffer_size = 2000,
                             map_metric=WeightedEuclidean(S3V(0.1, 0.1, 0.8)),
                             )
     )
-    planning = PlanningModule(CollisionCounter(; mat=Light))
+    planning = PlanningModule(CollisionCounter(; mat=Light, cooldown=12))
     adaptive_g = AdaptiveGranularity(; tau=1.0,
-                                     shift=true,
+                                     shift=false,
                                      size_cost = 100.0)
     memory = MemoryModule(adaptive_g, hpf.h)
 

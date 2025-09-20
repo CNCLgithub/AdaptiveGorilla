@@ -9,16 +9,18 @@ end
 Death of a specific object - balanced light and dark
 """
 function death_weights(wm::InertiaWM, st::InertiaState)
-    ndark = count(x -> material(x) == Dark, st.singles)
     n = length(st.singles)
-    kill_dark = ndark > 0.5 * n
-    ws = zeros(n)
-    @inbounds for i = 1:n
-        ws[i] = xor(material(st.singles[i]) == Dark, kill_dark) ?
-            0.0 : 1.0
-    end
-    rmul!(ws, 1.0 / sum(ws))
-    return ws
+    fill(1.0 / n, n)
+    # ndark = count(x -> material(x) == Dark, st.singles)
+    # n = length(st.singles)
+    # kill_dark = ndark > 0.5 * n
+    # ws = zeros(n)
+    # @inbounds for i = 1:n
+    #     ws[i] = xor(material(st.singles[i]) == Dark, kill_dark) ?
+    #         0.0 : 1.0
+    # end
+    # rmul!(ws, 1.0 / sum(ws))
+    # return ws
 end
 
 function death_weight(wm::InertiaWM, st::InertiaState)

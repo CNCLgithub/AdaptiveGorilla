@@ -47,10 +47,18 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     return nothing
 end
 
+function MOTCore.paint(p::Painter, tr::InertiaTrace,
+                       ws::Vector{Float64} = Float64[])
+    _, wm, _ = get_args(tr)
+    state = get_last_state(tr)
+    paint(p, wm, state, ws)
+    return nothing
+end
+
 """
 Applies the painter to each element in the world state
 """
-function MOTCore.paint(p::Painter, st::InertiaState,
+function MOTCore.paint(p::Painter, wm::InertiaWM, st::InertiaState,
                        ws::Vector{Float64} = Float64[])
     for e = st.ensembles
         MOTCore.paint(p, e)
@@ -62,7 +70,7 @@ function MOTCore.paint(p::Painter, st::InertiaState,
 
     # visualize birth
     obj_counts = object_count(st)
-    if obj_counts > 8 && !isempty(st.singles)
+    if obj_counts > wm.object_rate && !isempty(st.singles)
         pos = get_pos(st.singles[end])
         _draw_circle(pos, 30.0, "purple", opacity = 0.4)
     end
