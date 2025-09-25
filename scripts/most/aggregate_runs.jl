@@ -27,7 +27,7 @@ end
 function main()
     all = merge_results(RUN_PATH)
     show(all; allrows=true)
-    g = groupby(all, [:scene, :color])
+    g = groupby(all, [:color])
     c = combine(g,
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
