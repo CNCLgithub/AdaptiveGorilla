@@ -7,10 +7,7 @@ NOTICE_MIN_FRAMES = 18
 
 DATASET = "most"
 
-MODEL = :MO
-BASE_PATH = "/spaths/experiments/$(DATASET)/$(MODEL)-NOTICE"
-RUN_PATH = "$(BASE_PATH)/scenes"
-OUT_PATH = "$(BASE_PATH)/aggregate.csv"
+MODELS = [:MO, :AC, :FR]
 
 function load_result(path::String)
     CSV.read(path, DataFrame)
@@ -24,9 +21,11 @@ function merge_results(path::String)
 end
 
 
-function main()
+function aggregate_results(model)
+    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)-NOTICE"
+    RUN_PATH = "$(BASE_PATH)/scenes"
+    OUT_PATH = "$(BASE_PATH)/aggregate.csv"
     all = merge_results(RUN_PATH)
-    show(all; allrows=true)
     g = groupby(all, [:color])
     c = combine(g,
                 :ndetected =>
@@ -35,6 +34,14 @@ function main()
 		:count_error => mean)
     show(c; allrows=true)
     CSV.write(OUT_PATH, c)
+end
+
+function main()
+    for model = MODELS
+        println(model)
+        aggregate_results(model)
+	println("")
+    end
 end
 
 main()
