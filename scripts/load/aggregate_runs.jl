@@ -23,24 +23,26 @@ end
 function aggregate_results(model)
     BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)-NOTICE"
     RUN_PATH = "$(BASE_PATH)/scenes"
-    OUT_PATH = "$(BASE_PATH)/aggregate.csv"
-    all = merge_results(RUN_PATH)
-    g = groupby(all, [:scene, :color])
+    model_results = merge_results(RUN_PATH)
+    model_results[:, :model] .= model
+    return model_results
+end
+
+function main()
+    OUT_PATH = "/spaths/experiments/$(DATASET)/aggregate.csv"
+    results = []
+    for model = MODELS
+        push!(results, aggregate_results(model))
+    end
+    all = vcat(results...)
+    g = groupby(all, [:model, :scene, :color])
     c = combine(g,
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed,
-		:count_error => mean)
+		:count_error => mean => :error)
     show(c; allrows=true)
     CSV.write(OUT_PATH, c)
-end
-
-function main()
-    for model = MODELS
-        println(model)
-        aggregate_results(model)
-	println("")
-    end
 end
 
 main()

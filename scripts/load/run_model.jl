@@ -43,7 +43,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 10
+    default = 60
 
     "model"
     help = "Model Variant"
@@ -111,7 +111,7 @@ VIS_PARTICLE_COUNT = 5
 VIS_HYPER_WINDOW = 12
 
 # Decision-making parameters
-COUNT_COOLDOWN=8 # The minimum time steps (1=~40ms) between collisions
+COUNT_COOLDOWN=12 # The minimum time steps (1=~40ms) between collisions
 
 # Granularity Optimizer; See "?AdaptiveGranularity"
 GO_TAU = 1.0

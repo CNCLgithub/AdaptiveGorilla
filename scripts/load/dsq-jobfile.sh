@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --output /gpfs/radev/home/meb266/scratch/AdaptiveGorilla/env.d/spaths/slurm/%A_%a.out
-#SBATCH --array 0-17
+#SBATCH --array 0-26
 #SBATCH --job-name gorillas
 #SBATCH --partition=day --cpus-per-task=8 --mem=4GB --time=30 --chdir=/gpfs/radev/home/meb266/scratch/AdaptiveGorilla
 

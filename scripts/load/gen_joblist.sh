@@ -5,7 +5,7 @@ OUTPUT_FILE="scripts/load/joblist.txt"
 NSCENES=9
 NTHREADS=8
 TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
- scripts/most/run_model.jl"
+ scripts/load/run_model.jl"
 
 # Clear the file (or create it if it doesn't exist)
 : > "$OUTPUT_FILE"
