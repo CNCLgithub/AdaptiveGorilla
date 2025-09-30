@@ -54,7 +54,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 9
+    default = 1
 
 end
 
@@ -71,7 +71,8 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
-COLORS = [Light, Dark]
+# COLORS = [Light, Dark]
+COLORS = [Dark]
 
 ################################################################################
 # Model Variant
@@ -108,7 +109,7 @@ WM = InertiaWM(;
 # Perception Hyper particle-filter; See "?HyperFilter"
 VIS_HYPER_COUNT = 5
 VIS_PARTICLE_COUNT = 5
-VIS_HYPER_WINDOW = 12
+VIS_HYPER_WINDOW = 18
 
 # Decision-making parameters
 COUNT_COOLDOWN=12 # The minimum time steps (1=~40ms) between collisions
@@ -172,21 +173,21 @@ NOTICE_P_THRESH = 0.20
 
 # Initializes the agent
 # (Done from scratch each time to avoid bugs / memory leaks)
-function init_agent(query)
+function init_agent(query, count)
     pf = AdaptiveParticleFilter(particles = VIS_PARTICLE_COUNT)
     hpf = HyperFilter(;dt=VIS_HYPER_WINDOW, pf=pf, h=VIS_HYPER_COUNT)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(AC_PROTOCOL)
     # Count the number of times light objects bounce
-    task_objective = CollisionCounter(; mat=Light)
+    task_objective = CollisionCounter(; mat=Light, cooldown=COUNT_COOLDOWN)
     planning = PlanningModule(task_objective)
     memory = MemoryModule(GO_PROTOCOL, VIS_HYPER_COUNT)
 
     Agent(perception, planning, memory, attention)
 end
 
-function run_model!(pbar, exp)
-    agent = init_agent(exp.init_query)
+function run_model!(pbar, exp, count)
+    agent = init_agent(exp.init_query, count)
     colp = 0.0
     noticed = 0
     # out = "/spaths/tests/agent_state"
@@ -217,9 +218,10 @@ function main()
             MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA;
                     ntarget = NLIGHT[SCENE])
         gt_count = count_collisions(experiment)
+        @show gt_count
         Threads.@threads for c = 1:CHAINS
-            ndetected, expected_count = run_model!(pbar, experiment)
-            count_error = abs(gt_count - expected_count) / gt_count
+            ndetected, expected_count = run_model!(pbar, experiment, gt_count)
+            count_error = abs(gt_count - expected_count)
             push!(result,
                   (scene = SCENE,
                    color = color == Light ? :light : :dark,
