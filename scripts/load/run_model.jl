@@ -97,7 +97,7 @@ WM = InertiaWM(;
                area_height = 480.0,
                birth_weight = 0.01,
                single_size = 5.0,
-               single_noise = 0.15,
+               single_noise = 0.35,
                single_rfs_logweight = 1.1,
                stability = 0.75,
                vel = 4.5,
@@ -112,7 +112,7 @@ VIS_PARTICLE_COUNT = 5
 VIS_HYPER_WINDOW = 18
 
 # Decision-making parameters
-COUNT_COOLDOWN=12 # The minimum time steps (1=~40ms) between collisions
+COUNT_COOLDOWN=8 # The minimum time steps (1=~40ms) between collisions
 
 # Granularity Optimizer; See "?AdaptiveGranularity"
 GO_TAU = 1.0
@@ -131,14 +131,14 @@ GO_PROTOCOL =
 # for the number of resources used in the adaptive computation variants, where
 # LOAD is split across representations
 if MODEL == :FR
-    BASE_STEPS = 24
+    BASE_STEPS = 16
     LOAD = 0
 else
-    BASE_STEPS = 8
-    LOAD = 16
+    BASE_STEPS = 4
+    LOAD = 12
 end
 
-AC_TAU = 10.0
+AC_TAU = 20.0
 AC_MAP_SIZE = 2000
 AC_MAP_METRIC = WeightedEuclidean(S3V(0.1, 0.1, 0.8))
 AC_PROTOCOL =
@@ -211,7 +211,7 @@ end
 
 function main()
     result = NamedTuple[]
-    pbar = Progress(2 * CHAINS * (FRAMES-1);
+    pbar = Progress(length(COLORS) * CHAINS * (FRAMES-1);
                     desc="Running $(MODEL) model...", dt = 1.0)
     for color =  COLORS
         experiment =
@@ -225,7 +225,7 @@ function main()
             push!(result,
                   (scene = SCENE,
                    color = color == Light ? :light : :dark,
-                   chian = c,
+                   chain = c,
                    ndetected = ndetected,
                    expected_count = expected_count,
                    count_error = count_error))
