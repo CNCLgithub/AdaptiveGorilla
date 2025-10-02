@@ -11,4 +11,4 @@ function step_agent! end
 
 include("most.jl")
 include("target_ensemble.jl")
-# include("safari.jl")
+include("load_curve.jl")

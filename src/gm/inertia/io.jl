@@ -1,3 +1,8 @@
+function initial_state(wm::InertiaWM, state::SchollState, target_count::Int = 4,
+                       swap_colors::Bool = false)
+    initial_state(wm, map(x -> x.pos, state.objects),
+                  target_count, swap_colors)
+end
 function initial_state(wm::InertiaWM, positions, target_count::Int = 4,
                        swap_colors::Bool = false)
     n = Int64(wm.object_rate)

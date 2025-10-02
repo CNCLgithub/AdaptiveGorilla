@@ -20,6 +20,7 @@ using AdaptiveGorilla
 using AdaptiveGorilla: S3V, count_collisions
 using Distances: WeightedEuclidean
 
+
 ################################################################################
 # Command Line Interface
 ################################################################################
@@ -43,7 +44,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 60
+    default = 240
 
     "model"
     help = "Model Variant"
@@ -51,10 +52,10 @@ s = ArgParseSettings()
     range_tester = in(MODEL_VARIANTS)
     default = :MO
 
-    "scene"
-    help = "Which scene to run"
+    "ndark"
+    help = "how many additional dark objects"
     arg_type = Int64
-    default = 1
+    default = 0
 
 end
 
@@ -66,7 +67,6 @@ PARAMS = parse_args(ARGS, s)
 
 # which dataset to run
 DATASET = "load_curve"
-DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
@@ -89,10 +89,11 @@ MODEL = PARAMS["model"]
 ################################################################################
 
 # Light/Dark
-NLIGHT   = [3, 4, 5, 6,  7, 3, 3, 3,  3]
-NOBJECTS = [6, 7, 8, 9, 10, 7, 8, 9, 10]
+NLIGHT   = 3
+NDARK    = 3 + PARAMS["ndark"]
+NOBJECTS = NLIGHT + NDARK
 WM = InertiaWM(;
-               object_rate = NOBJECTS[SCENE],
+               object_rate = NOBJECTS,
                area_width = 720.0,
                area_height = 480.0,
                birth_weight = 0.01,
@@ -196,6 +197,8 @@ function run_model!(pbar, exp, count)
         # render_agent_state(exp, agent, t, out)
         _results[:frame] = t
         colp = _results[:collision_p]
+        # @show t
+        # @show colp
         if  _results[:gorilla_p] > NOTICE_P_THRESH
             noticed += 1
         end
@@ -215,15 +218,15 @@ function main()
                     desc="Running $(MODEL) model...", dt = 1.0)
     for color =  COLORS
         experiment =
-            MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA;
-                    ntarget = NLIGHT[SCENE])
+            LoadCurve(WM, NLIGHT, NDARK, FRAMES)
         gt_count = count_collisions(experiment)
         @show gt_count
         Threads.@threads for c = 1:CHAINS
             ndetected, expected_count = run_model!(pbar, experiment, gt_count)
             count_error = abs(gt_count - expected_count)
             push!(result,
-                  (scene = SCENE,
+                  (nlight = NLIGHT,
+                   ndark = NDARK,
                    color = color == Light ? :light : :dark,
                    chain = c,
                    ndetected = ndetected,

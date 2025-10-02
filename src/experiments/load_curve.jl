@@ -77,11 +77,9 @@ message Dataset {
 }
 ```
 """
-function LoadCurve(dpath::String, wm::InertiaWM,
-                 trial_idx::Int64, gorilla_color::Material,
-                 frames::Int64, show_gorilla::Bool = true)
-    ws, obs = load_most_trial(wm, dpath, trial_idx, frames,
-                              gorilla_color, show_gorilla)
+function LoadCurve(wm::InertiaWM, nlight::Int64, ndark::Int64,
+                   frames::Int64)
+    ws, obs = gen_trial(wm, nlight, ndark, frames)
 
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
@@ -91,7 +89,7 @@ function LoadCurve(dpath::String, wm::InertiaWM,
     init_cm = choicemap()
     init_cm[:s0 => :nsm] = 1
     q = IncrementalQuery(gm, init_cm, args, argdiffs, 1)
-    LoadCurve(frames, gorilla_color, obs, q)
+    LoadCurve(frames, Dark, obs, q)
 end
 
 #################################################################################
@@ -131,86 +129,74 @@ end
 # Helpers
 #################################################################################
 
-function get_obs(exp::LoadCurve, idx::Int64)
-    exp.observations[idx]
-end
-
-function load_most_trial(wm::WorldModel,
-                         dpath::String,
-                         trial_idx::Int,
-                         time_steps::Int = 10,
-                         gorilla_color::Material = Dark,
-                         show_gorilla::Bool = true)
-    trial_length = 0
-    open(dpath, "r") do io
-        manifest = JSON3.read(io)["manifest"]
-        trial_length = manifest["frames"]
-    end
-
-    trial_length = min(trial_length, time_steps)
-    # Variables
-    local istate::InertiaState, gorilla, positions
-    observations = Vector{ChoiceMap}(undef, trial_length - 1)
-    open(dpath, "r") do io
-        # loading a vec of positions
-        data = JSON3.read(io)["trials"][trial_idx]
-        gorilla = data["gorilla"]
-        positions = data["positions"]
-    end
+function gen_trial(wm::InertiaWM, nlight::Int64, ndark::Int64, nframes::Int64)
+    dgp = init_wm(nlight + ndark)
+    _, states = wm_scholl(nframes, dgp)
+    gorilla = Dict(
+        # onset time
+        :frame =>
+            uniform_discrete(round(Int64, 0.15 * nframes),
+                             round(Int64, 0.25 * nframes)),
+        # speed to move across
+        :speedx => normal(dgp.vel, 1.0),
+    )
     # first frame gets GT
-    istate = initial_state(wm, positions[1])
-    for t = 2:trial_length
+    istate = initial_state(wm, states[1], nlight)
+    observations = Vector{ChoiceMap}(undef, nframes - 1)
+    @inbounds for j in 2:nframes
         cm = choicemap()
-        # Observations associated with each object
-        step = positions[t]
-        nobj = length(step)
-        @inbounds for i = 1:nobj
-            xy = step[i]
-            mat = i <= 4 ? Light : Dark
+        state = states[j]
+        objects = state.objects
+        no = length(objects)
+        step = Vector{S2V}(undef, no)
+        for k in 1:no
+            obj = objects[k]
+            xy = obj.pos
+            mat = k <= nlight ? Light : Dark
             write_obs_mask!(
-                cm, wm, t, i, xy, mat;
+                cm, wm, j, k, xy, mat;
                 prefix = (t, i) -> i,
             )
         end
-        if show_gorilla
-            # Gorilla observations
-            # moves right to left
-            delta_t = t - gorilla["frame"]
-            if delta_t > 0
-                x0 = 0.5 * wm.area_width
-                x = x0 - delta_t * gorilla["speedx"]
-                write_obs_mask!(
-                    cm, wm, t, nobj+1, S2V(x, 0.0), gorilla_color;
-                    prefix = (t, i) -> i,
-                )
-            end
+        # Gorilla observations
+        # moves right to left
+        delta_t = j - gorilla[:frame]
+        if delta_t > 0
+            x0 = 0.5 * wm.area_width
+            x = x0 - delta_t * gorilla[:speedx]
+            write_obs_mask!(
+                cm, wm, j, no+1, S2V(x, 0.0), Dark;
+                prefix = (t, i) -> i,
+            )
         end
-        observations[t-1] = cm
+        observations[j-1] = cm
     end
     (istate, observations)
+end
+
+function init_wm(n_dots::Int)
+    SchollWM(
+        ;
+        n_dots = n_dots,
+        dot_radius = 5.0,
+        area_width = 720.0,
+        area_height = 480.0,
+        vel=4.5,
+        vel_min = 3.5,
+        vel_max = 5.5,
+        vel_step = 0.20,
+        vel_prob = 0.20
+    )
+end
+
+function get_obs(exp::LoadCurve, idx::Int64)
+    exp.observations[idx]
 end
 
 function render_frame(exp::LoadCurve, t::Int, objp = ObjectPainter())
     obs = to_array(get_obs(exp, t), Detection)
     MOTCore.paint(objp, obs)
     return nothing
-end
-
-function count_collisions!(count::Int64, col_frame::Vector, t::Int64,
-                           objects::Vector,
-                           radius::Float64, height::Float64, width::Float64)
-    nobj = min(length(col_frame), length(objects))
-    @inbounds for i = 1:nobj
-        obj = objects[i]
-        intensity(obj) != 1.0 && continue
-        x, y = position(obj)
-        last_col = col_frame[i]
-        if (t - last_col) > 2 && oob(radius, x, y, width, height)
-            count += 1
-            col_frame[i] = t
-        end
-    end
-    return (count, col_frame)
 end
 
 function count_collisions(exp::LoadCurve)
