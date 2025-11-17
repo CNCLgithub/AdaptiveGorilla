@@ -178,25 +178,27 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         end
 
         # Localized birth-death
-        j = argmax(importance)
-        trace = baby_loop!(state, trace, i, j)
+        # j = argmax(importance)
+        # sample object randomly
+        # trace = baby_loop!(state, trace, i, nobj)
         # baby block
         # # TODO: Hyperparameter
-        # for _ = 1:base_steps
-        #     new_trace, w = baby_ancestral_proposal(trace)
-        #     if log(rand()) < w
-        #         trace = new_trace
-        #         state.log_weights[i] += w
-        #     end
-        # end
+        for _ = 1:3
+            new_trace, w = baby_ancestral_proposal(trace)
+            if log(rand()) < w
+                trace = new_trace
+                state.log_weights[i] += w
+            end
+        end
         state.traces[i] = trace
     end
 
     return nothing
 end
 
-function baby_loop!(state, trace, i, j)
-    for _ = 1:5
+function baby_loop!(state, trace, i, n, steps = 3)
+    for _ = 1:steps
+        j = rand(1:n)
         new_trace, w = bd_loc_transform(trace, j)
         if log(rand()) < w
             trace = new_trace

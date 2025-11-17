@@ -11,12 +11,12 @@ using Distances: WeightedEuclidean
 
 function test_agent()
     render = true
-    wm = InertiaWM(object_rate = 6.0,
+    wm = InertiaWM(object_rate = 8.0,
                    area_width = 720.0,
                    area_height = 480.0,
                    birth_weight = 0.01,
                    single_size = 5.0,
-                   single_noise = 0.15,
+                   single_noise = 0.5,
                    single_rfs_logweight = 1.1,
                    stability = 0.75,
                    vel = 4.5,
@@ -25,21 +25,23 @@ function test_agent()
                    material_noise = 0.01,
                    ensemble_var_shift = 0.1)
     # dpath = "/spaths/datasets/most/dataset.json"
-    # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
-    dpath = "/spaths/datasets/load_curve/dataset.json"
+    dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
+    # dpath = "/spaths/datasets/load_curve/dataset.json"
     trial_idx = 1
     frames = 240
     exp = MostExp(dpath, wm, trial_idx,
-                  Dark, frames, true; ntarget=3)
+                  Dark, frames, true; ntarget=4)
     # exp = TEnsExp(dpath, wm, trial_idx,
     #               false, false, frames)
     query = exp.init_query
     pf = AdaptiveParticleFilter(particles = 5)
-    hpf = HyperFilter(;dt=18, pf=pf, h=5)
+    hpf = HyperFilter(;dt=10, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
     attention = AttentionModule(
         AdaptiveComputation(;
                             itemp=10.0,
+                            # base_steps=24,
+                            # load = 0,
                             base_steps=8,
                             load = 16,
                             buffer_size = 2000,

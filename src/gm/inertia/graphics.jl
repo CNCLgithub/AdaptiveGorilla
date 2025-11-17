@@ -15,7 +15,7 @@ function predict(wm::InertiaWM, st::InertiaState)
     @inbounds for i in 1:ns
         single = singles[i]
         pos = get_pos(single)
-        args = (pos, single.size * single_noise,
+        args = (pos, wm.single_size * single_noise,
                 Float64(Int(single.mat)),
                 material_noise)
         # es[i] = CPoissonElement{Detection}(detect, args)

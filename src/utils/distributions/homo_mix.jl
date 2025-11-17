@@ -28,7 +28,7 @@ function Gen.logpdf(::DetectionMixture, x::Detection, mu_pos::SVector{2, Float64
     int + loc
 end
 
-(::DetectionMixture)(mp, vp, mm, vm) = Gen.random(detect, mp, vp, mm, vm)
+(::DetectionMixture)(mp, vp, mm, vm) = Gen.random(detect_mixture, mp, vp, mm, vm)
 
 Gen.has_output_grad(::DetectionMixture) = false
 Gen.logpdf_grad(::DetectionMixture, value, args...) = (nothing,)

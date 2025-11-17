@@ -244,11 +244,11 @@ function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
     _, wm, _ = exp.init_query.args
     # setup
     MOTCore.paint(init, wm)
-    # observations
-    render_frame(exp, t, objp)
     # inferred states
     render_frame(agent.perception, agent.attention, agent.memory, objp)
-    render_frame(agent.planning, t)
+    # observations
+    render_frame(exp, t, objp)
+    # render_frame(agent.planning, t)
     finish()
 
 

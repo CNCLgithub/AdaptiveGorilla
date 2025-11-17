@@ -16,11 +16,11 @@ function MOTCore.paint(p::InitPainter, wm::InertiaWM)
     Drawing(area_width, area_height, p.path)
     origin()
     background(p.background)
-    sethue(0.2, 0.2, 0.2)
-    box(Point(0, 0),
-        area_width - 2 * display_border,
-        area_height - 2 * display_border,
-        action = :stroke)
+    # sethue(0.2, 0.2, 0.2)
+    # box(Point(0, 0),
+    #     area_width - 2 * display_border,
+    #     area_height - 2 * display_border,
+    #     action = :stroke)
 end
 
 function MOTCore.paint(p::InitPainter, area_width, area_height)
@@ -37,13 +37,14 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     # println("\nobj_var $(obj.var)")
     std = sqrt(obj.var)
     w = round(obj.matws[1]; digits = 2)
+    w = clamp(w, .2, .8)
     color = (w, w, w)
     _draw_circle(get_pos(obj), 1.0 * std, color;
-                 style = :fill)
-    _draw_circle(get_pos(obj), 3.0 * std, color;
-                 style = :stroke, opacity = 0.1)
+                 style = :stroke)
+    _draw_circle(get_pos(obj), 4.0 * std, color;
+                 style = :stroke)
     rte = round(obj.rate; digits = 2)
-    _draw_text("$(rte)", get_pos(obj))
+    _draw_text("λ $(rte)", get_pos(obj))
     return nothing
 end
 
@@ -70,10 +71,10 @@ function MOTCore.paint(p::Painter, wm::InertiaWM, st::InertiaState,
 
     # visualize birth
     obj_counts = object_count(st)
-    if obj_counts > wm.object_rate && !isempty(st.singles)
-        pos = get_pos(st.singles[end])
-        _draw_circle(pos, 30.0, "purple", opacity = 0.4)
-    end
+    # if obj_counts > wm.object_rate && !isempty(st.singles)
+    #     pos = get_pos(st.singles[end])
+    #     _draw_circle(pos, 30.0, "purple", opacity = 0.4)
+    # end
 
     # visualize attention
     ns = length(st.singles)
@@ -115,7 +116,7 @@ Applies the Object painter to an InertiaSingle
 function MOTCore.paint(p::ObjectPainter, obj::InertiaSingle)
     color = obj.mat == Dark ? (0.1, 0.1, 0.1) : (0.9, 0.9, 0.9)
     _draw_circle(get_pos(obj), obj.size, color,
-                 opacity = p.alpha)
+                 opacity = p.alpha; style = :stroke)
         return nothing
     end
 

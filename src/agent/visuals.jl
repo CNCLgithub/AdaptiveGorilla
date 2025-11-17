@@ -42,20 +42,25 @@ function render_frame(perception::MentalModule{V},
     memp, memx = mparse(memory)
 
     # Get best hyper particle
+    chain = vs.chains[1]
+    mho = -Inf
     for i = 1:vp.h
-        chain = vs.chains[i]
-        # mho = granularity_objective(memory, attention, chain)
-        trace = retrieve_map(chain)
-        state = get_last_state(trace)
-        tr = task_relevance(attx,
-                            attp.partition,
-                            trace,
-                            attp.nns)
-        importance = softmax(tr, attp.itemp)
-        MOTCore.paint(objp, trace, importance)
-        render_assigments(trace)
+        _chain = vs.chains[i]
+        _mho = granularity_objective(memory, attention, _chain)
+        if _mho > mho
+            chain = _chain
+        end
     end
 
+    trace = retrieve_map(chain)
+    state = get_last_state(trace)
+    tr = task_relevance(attx,
+                        attp.partition,
+                        trace,
+                        attp.nns)
+    importance = softmax(tr, attp.itemp)
+    MOTCore.paint(objp, trace, importance)
+    # render_assigments(trace)
     return nothing
 end
 
