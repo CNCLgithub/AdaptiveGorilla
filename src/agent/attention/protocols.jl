@@ -1,38 +1,83 @@
+################################################################################
+# Uniform Rationing
+################################################################################
+
 export UniformProtocol
 
 @with_kw struct UniformProtocol <: AttentionProtocol
-    """Moves over singles"""
-    single_block! = ReweightBlock(single_ancestral_proposal, 20)
-    """Moves over ensemble"""
-    ensemble_block! = ReweightBlock(ensemble_ancestral_proposal, 3)
-    """Moves over babies"""
-    baby_block! = ReweightBlock(baby_ancestral_proposal, 3)
+    "Number of rejuvenation moves"
+    moves::Int64 = 10
+    partition::TracePartition = InertiaPartition()
 end
+
+struct UniformAuxState <: MentalState{UniformProtocol} end
 
 function AuxState(::UniformProtocol)
-    EmptyAuxState()
+    UniformAuxState()
 end
 
-function attend!(chain::APChain, p::UniformProtocol)
-    @unpack single_block!, ensemble_block!, baby_block! = p
+function attend!(chain::APChain, att::MentalModule{A}) where {A<:UniformProtocol}
     @unpack proc, state, auxillary = chain
+    protocol, aux = mparse(att)
+
     np = length(state.traces)
-    for i = 1:np
-        s = state.traces[i]
-        # 1. Single
-        k = s[:init_state => :k]
-        winner = categorical(Fill(1.0 / k, k))
-        single_block!(state, i, winner)
 
-        # 2. Ensemble
-        bernoulli(0.5) && ensemble_block!(state, i)
+    for i = 1:np # iterate through each particle
+        trace = state.traces[i]
+        nobj = Int64(object_count(trace))
+        # number of moves per object
+        steps_per_obj = round(Int, protocol.moves / nobj)
+        # Stage 2
+        # select latent and C_k
+        for j = 1:nobj
+            for _ = 1:steps_per_obj
+                prop = select_prop(protocol.partition, trace, j)
+                # Apply computation, estimate dS
+                new_trace, alpha = prop(trace)
+                if log(rand()) < alpha # update particle
+                    trace = new_trace
+                    state.log_weights[i] += alpha
+                end
+            end
+        end
 
-        # 3. Baby
-        # bernoulli(0.5) && baby_block!(state, i)
+        # # TODO: Hyperparameter
+        for _ = 1:3
+            new_trace, w = baby_ancestral_proposal(trace)
+            if log(rand()) < w
+                trace = new_trace
+                state.log_weights[i] += w
+            end
+        end
+        state.traces[i] = trace
     end
-
     return nothing
 end
+
+function AttentionModule(m::UniformProtocol)
+    MentalModule(m, UniformAuxState())
+end
+
+function update_task_relevance!(att::MentalModule{A}
+                                ) where {A<:UniformProtocol}
+end
+
+function update_dPi!(att::MentalModule{A},
+                     obj::InertiaObject,
+                     delta::Float64) where {A<:UniformProtocol}
+    return nothing
+end
+
+function update_dS!(att::MentalModule{A},
+        partition::TracePartition{T},
+        trace::T,
+        j::Int, delta::Float64) where {A<:UniformProtocol, T}
+    return nothing
+end
+
+################################################################################
+# Adaptive Computation
+################################################################################
 
 export AdaptiveComputation,
     AdaptiveAux,

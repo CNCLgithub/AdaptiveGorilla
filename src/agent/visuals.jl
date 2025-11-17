@@ -53,7 +53,6 @@ function render_frame(perception::MentalModule{V},
     end
 
     trace = retrieve_map(chain)
-    state = get_last_state(trace)
     tr = task_relevance(attx,
                         attp.partition,
                         trace,
@@ -64,3 +63,32 @@ function render_frame(perception::MentalModule{V},
     return nothing
 end
 
+
+function render_frame(perception::MentalModule{V},
+                      attention::MentalModule{A},
+                      memory::MentalModule{G},
+                      objp = ObjectPainter()
+                      ) where {V<:HyperFilter,
+                               A<:UniformProtocol,
+                               G<:AdaptiveGranularity}
+    vp, vs = mparse(perception)
+    memp, memx = mparse(memory)
+
+    # Get best hyper particle
+    chain = vs.chains[1]
+    mho = -Inf
+    for i = 1:vp.h
+        _chain = vs.chains[i]
+        _mho = granularity_objective(memory, attention, _chain)
+        if _mho > mho
+            chain = _chain
+        end
+    end
+
+    trace = retrieve_map(chain)
+    n = Int64(object_count(trace))
+    importance = fill(1.0 / n, n)
+    MOTCore.paint(objp, trace, importance)
+    # render_assigments(trace)
+    return nothing
+end

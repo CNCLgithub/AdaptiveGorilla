@@ -24,8 +24,8 @@ function test_agent()
                    force_high = 10.0,
                    material_noise = 0.01,
                    ensemble_var_shift = 0.1)
-    # dpath = "/spaths/datasets/most/dataset.json"
-    dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
+    dpath = "/spaths/datasets/most/dataset.json"
+    # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
     # dpath = "/spaths/datasets/load_curve/dataset.json"
     trial_idx = 1
     frames = 240
@@ -37,20 +37,21 @@ function test_agent()
     pf = AdaptiveParticleFilter(particles = 5)
     hpf = HyperFilter(;dt=10, pf=pf, h=5)
     perception = PerceptionModule(hpf, query)
-    attention = AttentionModule(
-        AdaptiveComputation(;
-                            itemp=10.0,
-                            # base_steps=24,
-                            # load = 0,
-                            base_steps=8,
-                            load = 16,
-                            buffer_size = 2000,
-                            map_metric=WeightedEuclidean(S3V(0.1, 0.1, 0.8)),
-                            )
-    )
+    # attention = AttentionModule(
+    #     AdaptiveComputation(;
+    #                         itemp=10.0,
+    #                         # base_steps=24,
+    #                         # load = 0,
+    #                         base_steps=8,
+    #                         load = 16,
+    #                         buffer_size = 2000,
+    #                         map_metric=WeightedEuclidean(S3V(0.1, 0.1, 0.8)),
+    #                         )
+    # )
+    attention = AttentionModule(UniformProtocol(; moves=24))
     planning = PlanningModule(CollisionCounter(; mat=Light, cooldown=18))
     adaptive_g = AdaptiveGranularity(; tau=1.0,
-                                     shift=true,
+                                     shift=false,
                                      size_cost = 100.0)
     memory = MemoryModule(adaptive_g, hpf.h)
 
@@ -71,7 +72,7 @@ function test_agent()
     # Profile.init(;delay = 0.01)
     # Profile.clear()
     # @profile for t = 1:(frames - 1)
-    for t = 1:(frames - 1)
+    @time for t = 1:(frames - 1)
         @show t
         _results = step_agent!(agent, exp, t)
         _results[:frame] = t

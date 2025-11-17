@@ -50,7 +50,7 @@ function assess_granularity!(
     att::MentalModule{A},
     vis::MentalModule{V}
     ) where {M<:AdaptiveGranularity,
-             A<:AdaptiveComputation,
+             A<:AttentionProtocol,
              V<:HyperFilter}
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
@@ -78,33 +78,28 @@ function trace_mho(mag, imp, factor = 1.0, mass = 1.0)
 end
 
 
-function trace_value(attx, attp, gop, trace)
+function trace_value(attx::AdaptiveAux, attp::AdaptiveComputation,
+                     gop::AdaptiveGranularity, trace)
     tr = task_relevance(attx,
                         attp.partition,
                         trace,
                         attp.nns)
-    # @show tr
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
-    # @show importance
     trace_mho(mag, importance, 10.0, 2.0)
-    # # rmul!(importance, 1.0 / maximum(importance))
-    # # value = l2log(tr) # l2log(tr)
-    # print_granularity_schema(trace)
-    # @show l2log(tr)
-    # cost = log(gop.size_cost * length(tr))
-    # # -sum(abs.(importance .- mean(importance))) - cost
-    # l2log(tr) - cost
 end
 
 function granularity_objective(ag::MentalModule{G},
                                ac::MentalModule{A},
                                chain::APChain,
-    ) where {G<:AdaptiveGranularity, A<:AdaptiveComputation}
+    ) where {G<:AdaptiveGranularity, A<:AttentionProtocol}
     gop, _ = mparse(ag)
     attp, attx = mparse(ac)
-    @unpack partition, nns = attp
     @unpack state = chain
+    lml = log_ml_estimate(state) / 5
+    if !gop.shift
+        return lml
+    end
     # average across particles
     nparticles = length(state.traces)
     result = Vector{Float64}(undef, nparticles)
@@ -112,8 +107,7 @@ function granularity_objective(ag::MentalModule{G},
         result[i] = trace_value(attx, attp, gop, state.traces[i])
     end
     eff = logsumexp(result) - log(nparticles)
-    lml = log_ml_estimate(state) / 5
-    mho = gop.shift ? eff + lml : lml
+    mho = eff + lml
     # print_granularity_schema(chain)
     # println("\t℧=$(mho)")
     # println("\teff=$(eff)")
@@ -126,13 +120,11 @@ function regranularize!(mem::MentalModule{M},
                         vis::MentalModule{V},
                         t::Int
     ) where {M<:AdaptiveGranularity,
-             A<:AdaptiveComputation,
+             A<:AttentionProtocol,
              V<:HyperFilter}
 
-    # Resampling weights
     memp, memstate = mparse(mem)
     visp, visstate = mparse(vis)
-    attp, attx = mparse(att)
     # not time yet
     (t > 0 && t % visp.dt != 0) && return nothing
 
@@ -141,23 +133,14 @@ function regranularize!(mem::MentalModule{M},
     ws = softmax(memstate.objectives, memp.tau)
     # println("℧: $(memstate.objectives)")
     # @show ws
-    metric = attp.map_metric
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
-    # if memp.shift
-    #     Distributions.rand!(Distributions.Categorical(ws), next_gen)
-    # else
-    #     next_gen[:] .= 1:visp.h
-    # end
+
     for i = 1:visp.h
         parent = visstate.chains[next_gen[i]] # PFChain
         template = retrieve_map(parent) # InertiaTrace
-        tr = task_relevance(attx,
-                            attp.partition,
-                            template,
-                            attp.nns)
         cm = memp.shift ?
-            shift_granularity(template, tr, metric) : noshift(template)
+            shift_granularity(att, template) : noshift(template)
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
     end
 
@@ -180,10 +163,16 @@ function noshift(t::InertiaTrace)
     return cm
 end
 
-function shift_granularity(t::InertiaTrace, tre::Vector{Float64}, metric::PreMetric)
+function shift_granularity(att::MentalModule{<:AdaptiveComputation},
+                           t::InertiaTrace)
+    attp, attx = mparse(att)
+    tr = task_relevance(attx,
+                        attp.partition,
+                        t,
+                        attp.nns)
     cm = choicemap()
     if rand() > 0.5
-        sample_granularity_move!(cm, t, tre, metric)
+        sample_granularity_move!(cm, t, tr, attp.map_metric)
     else
         cm[:s0 => :nsm] = 1 # no change
     end
