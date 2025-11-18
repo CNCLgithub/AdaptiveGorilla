@@ -1,98 +1,176 @@
 export MemoryModule,
     assess_granularity!,
     regranularize!,
-    AdaptiveGranularity,
+    GranOptim,
     GranularityEstimates
 
+################################################################################
+# Memory Protocols
+################################################################################
 
-"""
-Defines the granularity mapping for a current trace format
-"""
-@with_kw struct AdaptiveGranularity <: MemoryProtocol
+@with_kw struct HyperMem <: MemoryProtocol
     "Temperature for chain resampling"
     tau::Float64 = 1.0
-    shift::Bool = true
-    size_cost::Float64 = 10.0
+    optim::MemoryOptimizer = MLLOptim()
 end
 
-mutable struct GranularityEstimates <: MentalState{AdaptiveGranularity}
+mutable struct MemoryAssessments <: MentalState{HyperMem}
     objectives::Vector{Float64}
     steps::Int
 end
 
-function GranularityEstimates(n::Int)
-    GranularityEstimates(zeros(n), 0)
+function MemoryAssessments(size::Int)
+    MemoryAssessments(zeros(size), 0)
 end
 
 # TODO: document
-function MemoryModule(p::AdaptiveGranularity, n::Int)
-    MentalModule(p, GranularityEstimates(n))
+function MemoryModule(p::HyperMem, size::Int)
+    MentalModule(p, MemoryAssessments(size))
 end
 
-function print_granularity_schema(chain::APChain)
-    tr = retrieve_map(chain)
-    print_granularity_schema(tr)
-end
-function print_granularity_schema(tr::InertiaTrace)
-    state = get_last_state(tr)
-    ns = length(state.singles)
-    ne = length(state.ensembles)
-    c = object_count(tr)
-    println("MAP Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
-    ndark = count(x -> material(x) == Dark, state.singles)
-    println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
-    println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
-    return nothing
-end
-
-function assess_granularity!(
+function assess_memory!(
     mem::MentalModule{M},
     att::MentalModule{A},
     vis::MentalModule{V}
-    ) where {M<:AdaptiveGranularity,
+    ) where {M<:GranOptim,
              A<:AttentionProtocol,
              V<:HyperFilter}
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
-    # REVIEW: why does adding the line below
-    # always lead to the last hparticle dominating?
-    # update_task_relevance!(att)
     for i = 1:hf.h
-        v = granularity_objective(mem, att, vstate.chains[i])
-        mstate.objectives[i] = logsumexp(mstate.objectives[i], v)
-        # print_granularity_schema(vstate.chains[i])
-        # println("℧: $(mstate.objectives[i])")
+        increment = memory_objective(mem, att, vstate.chains[i])
+        mstate.objectives[i] = logsumexp(mstate.objectives[i], increment)
     end
     mstate.steps += 1
     return nothing
 end
 
-function trace_mho(mag, imp, factor = 1.0, mass = 1.0)
-    n = length(imp)
-    waste = 0.0
-    for i = 1:n
-        waste += exp(-factor * imp[i])
+function optimize_memory!(mem::MentalModule{M},
+                          att::MentalModule{A},
+                          vis::MentalModule{V},
+                          t::Int
+    ) where {M<:HyperMem,
+             A<:AttentionProtocol,
+             V<:HyperFilter}
+
+    memp, memstate = mparse(mem)
+    visp, visstate = mparse(vis)
+    # not time yet
+    (t > 0 && t % visp.dt != 0) && return nothing
+
+    # Repopulate and potentially alter memory schemas
+    memstate.objectives .-= log(memstate.steps)
+    ws = softmax(memstate.objectives, memp.tau)
+    next_gen = Vector{Int}(undef, visp.h)
+    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+
+    # For each hyper particle:
+    # 1. extract the MAP as a seed trace for the next generation
+    # 2. sample a change in memory structure (optional)
+    # 3. Re-initialized hyper particle chain from seed.
+    for i = 1:visp.h
+        parent = visstate.chains[next_gen[i]] # PFChain
+        template = retrieve_map(parent) # InertiaTrace
+        cm = restructure_kernel(memp.optim, att, template)
+        visstate.new_chains[i] = reinit_chain(parent, template, cm)
     end
-    complexity = exp(mass * waste)
-    return mag - log(complexity)
+
+    # Set perception fields
+    visstate.age = 1
+    temp_chains = visstate.chains
+    visstate.chains = visstate.new_chains
+    visstate.new_chains = temp_chains
+
+    # Reset optimizer state
+    fill!(memstate.objectives, -Inf)
+    memstate.steps = 0
+
+    return nothing
 end
 
 
-function trace_value(attx::AdaptiveAux, attp::AdaptiveComputation,
-                     gop::AdaptiveGranularity, trace)
-    tr = task_relevance(attx,
-                        attp.partition,
-                        trace,
-                        attp.nns)
-    mag = logsumexp(tr)
-    importance = softmax(tr, attp.itemp)
-    trace_mho(mag, importance, 10.0, 2.0)
+################################################################################
+# Restructuring Kernels
+################################################################################
+
+"Defines how memory format alters"
+abstract type RestructuringKernel end
+
+"No restructuring"
+struct StaticRKernel end
+
+
+function restructure_heuristic(::StaticRKernel, t::)
+    # random moves?
+    # minimize complexity?
 end
 
-function granularity_objective(ag::MentalModule{G},
-                               ac::MentalModule{A},
-                               chain::APChain,
-    ) where {G<:AdaptiveGranularity, A<:AttentionProtocol}
+struct SplitMergeKernel end
+
+################################################################################
+# Memory Optimizers
+################################################################################
+
+"Defines the particular strategy for optimizing hyper chains"
+abstract type MemoryOptimizer end
+
+
+"""
+    memory_objective(optim, att, vision)
+
+Returns the fitness of a hyper particle.
+"""
+function memory_objective end
+
+"""
+    restructure_kernel(optim, att, template::Trace)
+
+Returns a choicemap that alters the memory schema of a trace.
+"""
+function restructure_kernel end
+
+
+################################################################################
+# Marginal Log-likelihood Optimization
+################################################################################
+
+"""
+Optimizes marginal log-likelihood across hyper particles
+"""
+@with_kw struct MLLOptim <: MemoryOptimizer
+    restructure::Bool = false
+end
+
+# TODO: what to do about arg 2?
+function memory_objective(optim::MLLOptim,
+                          ac::MentalModule{A},
+                          chain::APChain,
+    ) where {A<:AttentionProtocol}
+    log_ml_estimate(chain.state)
+end
+
+# TODO: complete!
+function restructure_heuristic(optim::MLLOptim)
+    # random moves?
+    # minimize complexity?
+end
+
+################################################################################
+# Granularity Optimization
+################################################################################
+
+"""
+Defines the granularity mapping for a current trace format
+"""
+@with_kw struct GranOptim <: MemoryOptimizer
+    beta::Float64 = 5.0
+end
+
+
+function memory_objective(ag::MentalModule{G},
+                          ac::MentalModule{A},
+                          chain::APChain,
+    ) where {G<:MemoryOptimizer, A<:AttentionProtocol}
     gop, _ = mparse(ag)
     attp, attx = mparse(ac)
     @unpack state = chain
@@ -108,70 +186,50 @@ function granularity_objective(ag::MentalModule{G},
     end
     eff = logsumexp(result) - log(nparticles)
     mho = eff + lml
-    # print_granularity_schema(chain)
-    # println("\t℧=$(mho)")
-    # println("\teff=$(eff)")
-    # println("\tlml=$(lml)")
-    # mho
 end
 
-function regranularize!(mem::MentalModule{M},
-                        att::MentalModule{A},
-                        vis::MentalModule{V},
-                        t::Int
-    ) where {M<:AdaptiveGranularity,
-             A<:AttentionProtocol,
-             V<:HyperFilter}
-
-    memp, memstate = mparse(mem)
-    visp, visstate = mparse(vis)
-    # not time yet
-    (t > 0 && t % visp.dt != 0) && return nothing
-
-    # Repopulate and shift granularity
-    memstate.objectives .-= log(memstate.steps)
-    ws = softmax(memstate.objectives, memp.tau)
-    # println("℧: $(memstate.objectives)")
-    # @show ws
-    next_gen = Vector{Int}(undef, visp.h)
-    Distributions.rand!(Distributions.Categorical(ws), next_gen)
-
-    for i = 1:visp.h
-        parent = visstate.chains[next_gen[i]] # PFChain
-        template = retrieve_map(parent) # InertiaTrace
-        cm = memp.shift ?
-            shift_granularity(att, template) : noshift(template)
-        visstate.new_chains[i] = reinit_chain(parent, template, cm)
+function trace_mho(mag, imp, factor = 1.0, mass = 1.0)
+    n = length(imp)
+    waste = 0.0
+    for i = 1:n
+        waste += exp(-factor * imp[i])
     end
-
-    # Set perception fields
-    visstate.age = 1
-    temp_chains = visstate.chains
-    visstate.chains = visstate.new_chains
-    visstate.new_chains = temp_chains
-    # Reset optimizer state
-    fill!(memstate.objectives, -Inf)
-    memstate.steps = 0
-
-    return nothing
+    complexity = exp(mass * waste)
+    return mag - log(complexity)
 end
 
 
-function noshift(t::InertiaTrace)
+function trace_value(attx::AdaptiveAux, attp::AdaptiveComputation,
+                     gop::GranOptim, trace)
+    tr = task_relevance(attx,
+                        attp.partition,
+                        trace,
+                        attp.nns)
+    mag = logsumexp(tr)
+    importance = softmax(tr, attp.itemp)
+    trace_mho(mag, importance, 10.0, 2.0)
+end
+
+
+
+function restructure_kernel(m::MLLOptimization,
+                            att::AttentionProtocol,
+                            template::Trace)
     cm = choicemap()
     cm[:s0 => :nsm] = 1 # no change
     return cm
 end
 
-function shift_granularity(att::MentalModule{<:AdaptiveComputation},
-                           t::InertiaTrace)
-    attp, attx = mparse(att)
-    tr = task_relevance(attx,
-                        attp.partition,
-                        t,
-                        attp.nns)
+function restructure_kernel(m::GranOptim,
+                            att::MentalModule{<:AdaptiveComputation},
+                            template::Trace)
     cm = choicemap()
     if rand() > 0.5
+        attp, attx = mparse(att)
+        tr = task_relevance(attx,
+                            attp.partition,
+                            t,
+                            attp.nns)
         sample_granularity_move!(cm, t, tr, attp.map_metric)
     else
         cm[:s0 => :nsm] = 1 # no change
@@ -231,3 +289,20 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
     return nothing
 end
 
+
+
+function print_granularity_schema(chain::APChain)
+    tr = retrieve_map(chain)
+    print_granularity_schema(tr)
+end
+function print_granularity_schema(tr::InertiaTrace)
+    state = get_last_state(tr)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
+    c = object_count(tr)
+    println("MAP Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
+    ndark = count(x -> material(x) == Dark, state.singles)
+    println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
+    println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
+    return nothing
+end
