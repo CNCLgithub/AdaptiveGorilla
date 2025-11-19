@@ -99,13 +99,36 @@ abstract type RestructuringKernel end
 "No restructuring"
 struct StaticRKernel end
 
-
-function restructure_heuristic(::StaticRKernel, t::)
-    # random moves?
-    # minimize complexity?
+function restructure_kernel(::StaticRKernel, t::InertiaTrace)
+    cm = choicemap()
+    cm[:s0 => :nsm] = 1 # no change
+    return cm
 end
 
-struct SplitMergeKernel end
+abstract type SplitMergeHeuristics end
+
+struct UniformSplitMerge end
+
+struct SplitMergeKernel
+    heurisitic
+end
+
+function restructure_kernel(::SplitMergeKernel,
+                            att::MentalModule{<:AdaptiveComputation},
+                            t::InertiaTrace)
+    cm = choicemap()
+    if rand() > 0.5
+        attp, attx = mparse(att)
+        tr = task_relevance(attx,
+                            attp.partition,
+                            t,
+                            attp.nns)
+        sample_granularity_move!(cm, t, tr, attp.map_metric)
+    else
+        cm[:s0 => :nsm] = 1 # no change
+    end
+    return cm
+end
 
 ################################################################################
 # Memory Optimizers
@@ -210,32 +233,6 @@ function trace_value(attx::AdaptiveAux, attp::AdaptiveComputation,
     trace_mho(mag, importance, 10.0, 2.0)
 end
 
-
-
-function restructure_kernel(m::MLLOptimization,
-                            att::AttentionProtocol,
-                            template::Trace)
-    cm = choicemap()
-    cm[:s0 => :nsm] = 1 # no change
-    return cm
-end
-
-function restructure_kernel(m::GranOptim,
-                            att::MentalModule{<:AdaptiveComputation},
-                            template::Trace)
-    cm = choicemap()
-    if rand() > 0.5
-        attp, attx = mparse(att)
-        tr = task_relevance(attx,
-                            attp.partition,
-                            t,
-                            attp.nns)
-        sample_granularity_move!(cm, t, tr, attp.map_metric)
-    else
-        cm[:s0 => :nsm] = 1 # no change
-    end
-    return cm
-end
 
 function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
                                   ws::Vector{Float64},
