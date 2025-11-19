@@ -105,29 +105,93 @@ function restructure_kernel(::StaticRKernel, t::InertiaTrace)
     return cm
 end
 
-abstract type SplitMergeHeuristics end
-
-struct UniformSplitMerge end
-
-struct SplitMergeKernel
-    heurisitic
+@with_kw struct SplitMergeKernel
+    heurisitic::SplitMergeHeuristic
+    restructure_prob::Float64 = 0.5
 end
 
-function restructure_kernel(::SplitMergeKernel,
-                            att::MentalModule{<:AdaptiveComputation},
+struct SplitMergeWeights
+    split_prob::Float64
+    split_weights::Vector{Float64}
+    merge_weights::Vector{Float64}
+end
+
+function restructure_kernel(kappa::SplitMergeKernel,
                             t::InertiaTrace)
+    weights = kappa.heurisitic(t)
     cm = choicemap()
-    if rand() > 0.5
-        attp, attx = mparse(att)
-        tr = task_relevance(attx,
-                            attp.partition,
-                            t,
-                            attp.nns)
+    if rand() > kappa.restructure_prob
         sample_granularity_move!(cm, t, tr, attp.map_metric)
     else
         cm[:s0 => :nsm] = 1 # no change
     end
     return cm
+end
+
+abstract type SplitMergeHeuristic end
+
+struct UniformSplitMerge end
+
+struct MhoSplitMerge
+    att::MentalModule{<:AdaptiveComputation}
+end
+
+function split_prob(h::SplitMergeHeuristic, tr::InertiaTrace)
+    nsingle = single_count(tr)
+    nensemble = ensemble_count(tr)
+    ntotal = nsingle + nensemble
+    nsplit = nensemble
+    nmerges = ncr(ntotal, 2)
+    split_prob = nsplit / (nsplit + nmerges)
+end
+
+function sample_split_move!(cm::ChoiceMap,
+                            h::SplitMergeHeuristic,
+                            tr::InertiaTrace)
+
+    split_ws = softmax(ws[nsingle+1:end])
+    cm[:s0 => :nsm] = 2 # split branch
+    cm[:s0 => :state => :idx] = argmax(split_ws)
+end
+
+function (h::MhoSplitMerge)(tr::Trace)
+    attp, attx = mparse(h.att)
+    tr = task_relevance(attx,
+                        attp.partition,
+                        t,
+                        attp.nns)
+
+    nsingle = single_count(t)
+    nensemble = ensemble_count(t)
+    ntotal = nsingle + nensemble
+    nsplit = nensemble
+    nmerges = ncr(ntotal, 2)
+    # split_prob = nsplit > 0 && any(!isinf, ws[nsingle+1:end]) ? 1.0 : 0.0
+    split_prob = nsplit / (nsplit + nmerges)
+    if rand() < split_prob
+        # sample which ensemble to split
+        split_ws = softmax(ws[nsingle+1:end])
+        cm[:s0 => :nsm] = 2 # split branch
+        cm[:s0 => :state => :idx] = argmax(split_ws)
+    else
+        # sample which pair to merge
+        npairs = ncr(ntotal, 2)
+        pairs = Vector{Float64}(undef, npairs)
+        # Coarse importance filter
+        importance = log.(softmax(ws, 10.0)) #TODO: hyper parameter
+        # @show importance
+        for i = 1:npairs
+            (a, b) = combination(ntotal, 2, i)
+            # Pr(Merge) inv. prop. importance
+            pairs[i] = logsumexp(importance[a], importance[b])
+        end
+        # Greedy optimization
+        min_w = minimum(pairs)
+        pair_idx = rand(findall(==(min_w), pairs))
+        selected = combination(ntotal, 2, pair_idx)
+        cm[:s0 => :nsm] = 3 # merge branch
+        cm[:s0 => :state => :pair] = pair_idx
+    end
 end
 
 ################################################################################
@@ -230,13 +294,14 @@ function trace_value(attx::AdaptiveAux, attp::AdaptiveComputation,
                         attp.nns)
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
+    # TODO: Parametrize!
     trace_mho(mag, importance, 10.0, 2.0)
 end
 
 
-function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
-                                  ws::Vector{Float64},
-                                  metric::PreMetric)
+function heurisitic_split_merge!(cm::Gen.ChoiceMap,
+                                 t::InertiaTrace,
+                                 ws::SplitMergeWeights)
 
     nsingle = single_count(t)
     nensemble = ensemble_count(t)
@@ -260,28 +325,14 @@ function sample_granularity_move!(cm::Gen.ChoiceMap, t::InertiaTrace,
         for i = 1:npairs
             (a, b) = combination(ntotal, 2, i)
             # Pr(Merge) inv. prop. importance
-            # Scale by similarity
             pairs[i] = logsumexp(importance[a], importance[b])
-            # pairs[i] = logsumexp(importance[a], importance[b]) +
-            #     log(dissimilarity(t, metric, a, b))
-            # pairs[i] = log(1.01 - (importance[a] + importance[b])) -
-            #     log(dissimilarity(t, metric, a, b))
         end
         # Greedy optimization
-        # pairs = softmax(pairs, 0.001) #TODO: hyper parameter
-        # @show pairs
-        # pair_idx = categorical(pairs)
         min_w = minimum(pairs)
         pair_idx = rand(findall(==(min_w), pairs))
         selected = combination(ntotal, 2, pair_idx)
-        # @show selected
-        # @show dissimilarity(t, metric, selected...)
-        # @show pairs[pair_idx]
-        # @show dissimilarity(t, metric, 5,8)
-        # @show pairs[comb_index(ntotal, [5, 8])]
         cm[:s0 => :nsm] = 3 # merge branch
         cm[:s0 => :state => :pair] = pair_idx
-        # error()
     end
     return nothing
 end
