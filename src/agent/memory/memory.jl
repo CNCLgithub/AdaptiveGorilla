@@ -1,18 +1,18 @@
-export MemoryModule,
-    assess_granularity!,
-    regranularize!,
-    GranOptim,
-    GranularityEstimates
+export (MemoryModule,
+        assess_memory!,
+        optimize_memory!,
+        HyperResampling,
+        MemoryAssessments)
 
 ################################################################################
 # Memory Protocols
 ################################################################################
 
-@with_kw struct GranularityOptim <: MemoryProtocol
+@with_kw struct HyperResampling <: MemoryProtocol
     "Temperature for chain resampling"
     tau::Float64 = 1.0
-    "Optimization Metric"
-    optim::GranularityObjective = MLLOptim()
+    "Optimization fitness criteria"
+    fitness::MemoryFitness = MLLFitness()
     "Restructuring Kernel"
     kernel::RestructuringKernel = StaticRKernel()
 end
@@ -39,7 +39,7 @@ function assess_memory!(
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
     for i = 1:hf.h
-        increment = memory_objective(mp.optim, vstate.chains[i])
+        increment = memory_fitness(mp.optim, vstate.chains[i])
         mstate.objectives[i] = logsumexp(mstate.objectives[i], increment)
     end
     mstate.steps += 1
@@ -109,16 +109,16 @@ include("restructuring_kernel.jl"
 # Memory Optimizers
 ################################################################################
 
-"Defines the particular strategy for optimizing hyper chains"
-abstract type MemoryOptimizer end
+"Defines the particular objective optimizing hyper chains"
+abstract type MemoryFitness end
 
 
 """
-    memory_objective(optim, att, vision)
+    memory_fitness(optim, att, vision)
 
 Returns the fitness of a hyper particle.
 """
-function memory_objective end
+function memory_fitness end
 
 """
     restructure_kernel(optim, att, template::Trace)
@@ -127,7 +127,7 @@ Returns a choicemap that alters the memory schema of a trace.
 """
 function restructure_kernel end
 
-include("mem_optim.jl")
+include("mem_fitness.jl")
 
 # function print_granularity_schema(chain::APChain)
 #     tr = retrieve_map(chain)

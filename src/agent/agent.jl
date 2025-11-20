@@ -24,10 +24,30 @@ Each protocol should implement this constructor
 """
 function MentalModule end
 
-#TODO: Doc me!
+"""
+    $(TYPEDSIGNATURES)
+
+Returns the protocol and state of a mental module.
+"""
 function mparse(m::MentalModule)
     (m.protocol, m.state)
 end
+
+
+"""
+    $(FUNCTIONNAME)(module, t, ...)
+
+Run the mental module forward for one tick.
+
+Here, `t::Int` denotes the global clock step.
+Not all modules will perform operations every tick.
+Should return `Nothing`.
+
+---
+
+$(METHODLIST)
+"""
+function module_step! end
 
 abstract type PerceptionProtocol <: MentalProtocol end
 abstract type PlanningProtocol <: MentalProtocol end
@@ -45,6 +65,21 @@ mutable struct Agent{
     planning::MentalModule{P}
     memory::MentalModule{M}
     attention::MentalModule{A}
+end
+
+
+"""
+    (TYPEDSIGNATURES)
+
+
+"""
+function agent_step!(agent::Agent, t::Int, obs::ChoiceMap)
+    @unpack attention, perception, planning, memory = agent
+    module_step!(perception, t, obs)
+    module_step!(attention,  t, perception)
+    module_step!(planning,   t, attention, perception)
+    module_step!(memory,     t, perception)
+    return nothing
 end
 
 function perceive!(agent::Agent, obs::ChoiceMap, t::Int)
@@ -69,9 +104,10 @@ end
 function memory!(agent::Agent, t::Int)
     @unpack memory, attention, perception = agent
     # granularity assessment occurs every tick
-    assess_granularity!(memory, attention, perception)
-    # regranularization occurs sparsely
-    regranularize!(memory, attention, perception, t)
+    assess_memory!(memory, perception)
+    # optimization occurs sparsely
+    # (e.g., every 1.5s)
+    optimize_memory!(memory, perception, t)
     return nothing
 end
 
