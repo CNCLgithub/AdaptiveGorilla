@@ -14,8 +14,6 @@ $(TYPEDFIELDS)
 @with_kw struct CollisionCounter <: PlanningProtocol
     "Target appearance"
     mat::Material
-    "Distance tolerance"
-    tol::Float64 = 1E-4
     "Tick rate"
     tick_rate::Int = 1
     "Counting cool down"

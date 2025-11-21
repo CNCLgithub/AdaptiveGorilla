@@ -25,15 +25,23 @@ Resamples [`HyperFilter`](@ref) chains.
 
 $(TYPEDFIELDS)
 """
-@with_kw struct HyperResampling <: MemoryProtocol
+struct HyperResampling <: MemoryProtocol
+    "Number of hyper chains in perception"
+    chains::Int64
     "Optimization fitness criteria"
     fitness::MemoryFitness
     "Restructuring Kernel"
     kernel::RestructuringKernel
     "Temperature for chain resampling"
-    tau::Float64 = 1.0
+    tau::Float64
+
 end
 
+function HyperResampling(; perception::MentalModule{<:HyperFilter},
+                         fitness, kernel, tau = 1.0)
+    prot, _ = mparse(perception)
+    HyperResampling(prot.h, fitness, kernel, tau)
+end
 mutable struct MemoryAssessments <: MentalState{HyperResampling}
     objectives::Vector{Float64}
     steps::Int
@@ -44,8 +52,8 @@ function MemoryAssessments(size::Int)
 end
 
 # TODO: document
-function MemoryModule(p::HyperResampling, size::Int)
-    MentalModule(p, MemoryAssessments(size))
+function MemoryModule(p::HyperResampling)
+    MentalModule(p, MemoryAssessments(p.chains))
 end
 
 function module_step!(

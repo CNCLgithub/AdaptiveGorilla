@@ -24,7 +24,7 @@ abstract type SplitMergeHeuristic end
 
 
 @with_kw struct SplitMergeKernel <: RestructuringKernel
-    heurisitic::SplitMergeHeuristic
+    heuristic::SplitMergeHeuristic
     restructure_prob::Float64 = 0.5
 end
 
@@ -32,12 +32,12 @@ function restructure_kernel(kappa::SplitMergeKernel,
                             t::InertiaTrace)
     cm = choicemap()
     if rand() < kappa.restructure_prob
-        if rand() < split_prob(kappa.heurisitic, t)
+        if rand() < split_prob(kappa.heuristic, t)
             # SPLIT
-            sample_split_move!(cm, kappa.heurisitic, t)
+            sample_split_move!(cm, kappa.heuristic, t)
         else
             # MERGE
-            sample_merge_move!(cm, kappa.heurisitic, t)
+            sample_merge_move!(cm, kappa.heuristic, t)
         end
     else
         cm[:s0 => :nsm] = 1 # no change
@@ -84,7 +84,7 @@ function sample_merge_move!(cm::ChoiceMap,
     return nothing
 end
 
-struct MhoSplitMerge <: SplitMergeHeuristic
+@with_kw struct MhoSplitMerge <: SplitMergeHeuristic
     att::MentalModule{<:AdaptiveComputation}
 end
 

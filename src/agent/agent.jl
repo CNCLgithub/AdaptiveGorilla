@@ -122,3 +122,4 @@ include("memory/memory.jl") # Granularity optimizer
 
 # agent-tailored visualizations
 include("visuals.jl")
+include("io.jl")
