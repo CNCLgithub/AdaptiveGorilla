@@ -93,12 +93,12 @@ VIS_HYPER_WINDOW = 12
 # Decision-making parameters
 COUNT_COOLDOWN=12 # The minimum time steps (1=~40ms) between collisions
 
-# Granularity Optimizer; See "?GranOptim"
+# Granularity Optimizer; See "?HyperResampling"
 GO_TAU = 1.0
 GO_COST = 100.0
 GO_SHIFT = MODEL == :MO
 GO_PROTOCOL =
-    GranOptim(;
+    HyperResampling(;
                         tau=GO_TAU,
                         shift=GO_SHIFT,
                         size_cost=GO_COST)

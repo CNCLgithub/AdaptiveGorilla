@@ -1,5 +1,10 @@
-export (StaticRKernel, SplitMergeKernel,
-        SplitMergeHeuristic, UniformSplitMerge, MhoSplitMerge)
+export StaticRKernel, SplitMergeKernel,
+    SplitMergeHeuristic, UniformSplitMerge, MhoSplitMerge
+
+
+################################################################################
+# Dummy Static Kernel
+################################################################################
 
 "No restructuring"
 struct StaticRKernel <: RestructuringKernel end
@@ -9,6 +14,14 @@ function restructure_kernel(::StaticRKernel, t::InertiaTrace)
     cm[:s0 => :nsm] = 1 # no change
     return cm
 end
+
+################################################################################
+# Split-merge Kernel
+################################################################################
+
+"A heuristic function over which objects to split or merge"
+abstract type SplitMergeHeuristic end
+
 
 @with_kw struct SplitMergeKernel <: RestructuringKernel
     heurisitic::SplitMergeHeuristic
@@ -32,8 +45,9 @@ function restructure_kernel(kappa::SplitMergeKernel,
     return cm
 end
 
-"A heuristic function over which objects to split or merge"
-abstract type SplitMergeHeuristic end
+################################################################################
+# Split-merge Heuristics
+################################################################################
 
 function split_prob(h::SplitMergeHeuristic, tr::InertiaTrace)
     nsingle = single_count(tr)
@@ -45,6 +59,8 @@ function split_prob(h::SplitMergeHeuristic, tr::InertiaTrace)
 end
 
 struct UniformSplitMerge <: SplitMergeHeuristic end
+
+
 
 function sample_split_move!(cm::ChoiceMap,
                             h::UniformSplitMerge,

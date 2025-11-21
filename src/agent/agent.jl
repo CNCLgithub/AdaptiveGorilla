@@ -11,18 +11,27 @@ export Agent, MentalProtocol,
     step_agent!
 
 
+"The algorithmic implementation of a mental process"
 abstract type MentalProtocol end
+
+"The state of a mental process"
 abstract type MentalState{T<:MentalProtocol} end
 
+"""
+$(TYPEDEF)
+
+An algorithmic "organ" - both its function (protocol) and form (state).
+
+---
+
+Each protocol should call this constructor. See [`PerceptionModule`](@ref)
+
+"""
 mutable struct MentalModule{T<:MentalProtocol}
     protocol::T
     state::MentalState{T}
 end
 
-"""
-Each protocol should implement this constructor
-"""
-function MentalModule end
 
 """
     $(TYPEDSIGNATURES)
@@ -49,21 +58,42 @@ $(METHODLIST)
 """
 function module_step! end
 
+"How to generate world models from observations"
 abstract type PerceptionProtocol <: MentalProtocol end
+
+"How to generate decisions from percepts"
 abstract type PlanningProtocol <: MentalProtocol end
+
+"A Frame is worth 1000 words"
 abstract type MemoryProtocol <: MentalProtocol end
+
+"Attending across time and space"
 abstract type AttentionProtocol <: MentalProtocol end
 
 
+"""
+    $(TYPEDEF)
+
+A simulated agent.
+
+---
+
+$(TYPEDFIELDS)
+
+"""
 mutable struct Agent{
                      V<:PerceptionProtocol,
                      P<:PlanningProtocol,
                      M<:MemoryProtocol,
                      A<:AttentionProtocol
                     }
+    "Observations -> Worlds"
     perception::MentalModule{V}
+    "Worlds -> Goals"
     planning::MentalModule{P}
+    "How to frame the world"
     memory::MentalModule{M}
+    "What to attend to in the world"
     attention::MentalModule{A}
 end
 
@@ -71,7 +101,9 @@ end
 """
     (TYPEDSIGNATURES)
 
+Simulate one tick in the agent's mind.
 
+Not all modules will necessarily operate at each tick.
 """
 function agent_step!(agent::Agent, t::Int, obs::ChoiceMap)
     @unpack attention, perception, planning, memory = agent
@@ -81,40 +113,6 @@ function agent_step!(agent::Agent, t::Int, obs::ChoiceMap)
     module_step!(memory,     t, perception)
     return nothing
 end
-
-function perceive!(agent::Agent, obs::ChoiceMap, t::Int)
-    # perception runs every tick
-    perceive!(agent.perception, obs)
-    return nothing
-end
-
-function attend!(agent::Agent, t::Int)
-    # attention runs every tick
-    @unpack attention, perception = agent
-    attend!(attention, perception)
-    return nothing
-end
-
-function plan!(agent::Agent, t::Int)
-    @unpack planning, attention, perception = agent
-    plan!(planning, attention, perception, t)
-    return nothing
-end
-
-function memory!(agent::Agent, t::Int)
-    @unpack memory, attention, perception = agent
-    # granularity assessment occurs every tick
-    assess_memory!(memory, perception)
-    # optimization occurs sparsely
-    # (e.g., every 1.5s)
-    optimize_memory!(memory, perception, t)
-    return nothing
-end
-
-function perceive! end
-function plan! end
-function attend! end
-function memory! end
 
 # Mental module implementations
 include("perception/perception.jl") # Hyper-particle filter

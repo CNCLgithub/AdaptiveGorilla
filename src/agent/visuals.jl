@@ -36,7 +36,7 @@ function render_frame(perception::MentalModule{V},
                       objp = ObjectPainter()
                       ) where {V<:HyperFilter,
                                A<:AdaptiveComputation,
-                               G<:GranOptim}
+                               G<:HyperResampling}
     vp, vs = mparse(perception)
     attp, attx = mparse(attention)
     memp, memx = mparse(memory)
@@ -70,7 +70,7 @@ function render_frame(perception::MentalModule{V},
                       objp = ObjectPainter()
                       ) where {V<:HyperFilter,
                                A<:UniformProtocol,
-                               G<:GranOptim}
+                               G<:HyperResampling}
     vp, vs = mparse(perception)
     memp, memx = mparse(memory)
 

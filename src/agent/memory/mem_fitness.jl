@@ -1,4 +1,4 @@
-export (MLLFitness, MhoFitness)
+export MLLFitness, MhoFitness
 
 ################################################################################
 # Marginal Log-likelihood Optimization

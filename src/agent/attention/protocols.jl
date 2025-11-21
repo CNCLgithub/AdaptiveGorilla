@@ -16,7 +16,20 @@ function AuxState(::UniformProtocol)
     UniformAuxState()
 end
 
-function attend!(chain::APChain, att::MentalModule{A}) where {A<:UniformProtocol}
+function module_step!(att::MentalModule{<:UniformProtocol},
+                      t::Int,
+                      vis::MentalModule{<:HyperFilter})
+    visp, visstate = mparse(vis)
+    for i = 1:visp.h
+        chain = visstate.chains[i]
+        attend!(chain, att)
+    end
+    return nothing
+end
+
+function attend!(chain::APChain,
+                 att::MentalModule{<:UniformProtocol})
+
     @unpack proc, state, auxillary = chain
     protocol, aux = mparse(att)
 
@@ -58,20 +71,10 @@ function AttentionModule(m::UniformProtocol)
     MentalModule(m, UniformAuxState())
 end
 
-function update_task_relevance!(att::MentalModule{A}
-                                ) where {A<:UniformProtocol}
-end
-
+# HACK: dummy function - called in collision counter
 function update_dPi!(att::MentalModule{A},
                      obj::InertiaObject,
                      delta::Float64) where {A<:UniformProtocol}
-    return nothing
-end
-
-function update_dS!(att::MentalModule{A},
-        partition::TracePartition{T},
-        trace::T,
-        j::Int, delta::Float64) where {A<:UniformProtocol, T}
     return nothing
 end
 
@@ -176,8 +179,9 @@ function task_relevance(
     return tr
 end
 
-function attend!(att::MentalModule{A}, vis::MentalModule{V}
-                 ) where {A<:AttentionProtocol, V<:HyperFilter}
+function module_step!(att::MentalModule{<:AdaptiveComputation},
+                      t::Int,
+                      vis::MentalModule{<:HyperFilter})
     visp, visstate = mparse(vis)
     update_task_relevance!(att)
     for i = 1:visp.h
@@ -222,11 +226,6 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
             end
         end
 
-        # Localized birth-death
-        # j = argmax(importance)
-        # sample object randomly
-        # trace = baby_loop!(state, trace, i, nobj)
-        # baby block
         # # TODO: Hyperparameter
         for _ = 1:3
             new_trace, w = baby_ancestral_proposal(trace)
@@ -239,17 +238,4 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
     end
 
     return nothing
-end
-
-function baby_loop!(state, trace, i, n, steps = 3)
-    for _ = 1:steps
-        j = rand(1:n)
-        new_trace, w = bd_loc_transform(trace, j)
-        if log(rand()) < w
-            trace = new_trace
-            state.log_weights[i] += w
-            break
-        end
-    end
-    return trace
 end

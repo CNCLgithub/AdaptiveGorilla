@@ -1,23 +1,40 @@
-export (MemoryModule,
-        assess_memory!,
-        optimize_memory!,
-        HyperResampling,
-        MemoryAssessments)
+export HyperResampling,
+        MemoryAssessments,
+        MemoryFitness,
+        memory_fitness,
+        RestructuringKernel,
+        restructure_kernel
 
 ################################################################################
 # Memory Protocols
 ################################################################################
 
+"Defines the particular objective optimizing hyper chains"
+abstract type MemoryFitness end
+
+"Defines how memory format alters"
+abstract type RestructuringKernel end
+
+
+"""
+    $(TYPEDEF)
+
+Resamples [`HyperFilter`](@ref) chains.
+
+### Fields
+
+$(TYPEDFIELDS)
+"""
 @with_kw struct HyperResampling <: MemoryProtocol
+    "Optimization fitness criteria"
+    fitness::MemoryFitness
+    "Restructuring Kernel"
+    kernel::RestructuringKernel
     "Temperature for chain resampling"
     tau::Float64 = 1.0
-    "Optimization fitness criteria"
-    fitness::MemoryFitness = MLLFitness()
-    "Restructuring Kernel"
-    kernel::RestructuringKernel = StaticRKernel()
 end
 
-mutable struct MemoryAssessments <: MentalState{GranularityOptim}
+mutable struct MemoryAssessments <: MentalState{HyperResampling}
     objectives::Vector{Float64}
     steps::Int
 end
@@ -27,14 +44,26 @@ function MemoryAssessments(size::Int)
 end
 
 # TODO: document
-function MemoryModule(p::GranularityOptim, size::Int)
+function MemoryModule(p::HyperResampling, size::Int)
     MentalModule(p, MemoryAssessments(size))
+end
+
+function module_step!(
+    mem::MentalModule{M},
+    t::Int,
+    vis::MentalModule{V}
+    ) where {M<:HyperResampling,
+             V<:HyperFilter}
+    assess_memory!(mem, vis)
+    optimize_memory!(mem, t, vis)
+    return nothing
 end
 
 function assess_memory!(
     mem::MentalModule{M},
+    t::Int,
     vis::MentalModule{V}
-    ) where {M<:GranularityOptim,
+    ) where {M<:HyperResampling,
              V<:HyperFilter}
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
@@ -47,15 +76,16 @@ function assess_memory!(
 end
 
 function optimize_memory!(mem::MentalModule{M},
-                          vis::MentalModule{V},
-                          t::Int
-    ) where {M<:GranularityOptim,
+                          t::Int,
+                          vis::MentalModule{V}
+    ) where {M<:HyperResampling,
              V<:HyperFilter}
 
-    memp, memstate = mparse(mem)
     visp, visstate = mparse(vis)
     # not time yet
     (t > 0 && t % visp.dt != 0) && return nothing
+
+    memp, memstate = mparse(mem)
 
     # Repopulate and potentially alter memory schemas
     memstate.objectives .-= log(memstate.steps)
@@ -92,9 +122,6 @@ end
 # Restructuring Kernels
 ################################################################################
 
-"Defines how memory format alters"
-abstract type RestructuringKernel end
-
 """
 
     restructure_kernel(kernel, trace)
@@ -103,14 +130,11 @@ Samples a choicemap that alters the granularity schema of `trace`.
 """
 function restructure_kernel end
 
-include("restructuring_kernel.jl"
+include("restructuring_kernel.jl")
 
 ################################################################################
 # Memory Optimizers
 ################################################################################
-
-"Defines the particular objective optimizing hyper chains"
-abstract type MemoryFitness end
 
 
 """
@@ -120,12 +144,6 @@ Returns the fitness of a hyper particle.
 """
 function memory_fitness end
 
-"""
-    restructure_kernel(optim, att, template::Trace)
-
-Returns a choicemap that alters the memory schema of a trace.
-"""
-function restructure_kernel end
 
 include("mem_fitness.jl")
 

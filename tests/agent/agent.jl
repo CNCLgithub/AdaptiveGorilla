@@ -50,7 +50,7 @@ function test_agent()
     # )
     attention = AttentionModule(UniformProtocol(; moves=24))
     planning = PlanningModule(CollisionCounter(; mat=Light, cooldown=18))
-    adaptive_g = GranOptim(; tau=1.0,
+    adaptive_g = HyperResampling(; tau=1.0,
                                      shift=false,
                                      size_cost = 100.0)
     memory = MemoryModule(adaptive_g, hpf.h)

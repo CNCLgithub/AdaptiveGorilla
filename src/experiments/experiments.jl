@@ -6,8 +6,12 @@ abstract type Experiment end
 """
 Runs the agent on the next tick of the experiment and
 returns some measurements of the agent's interal state.
+
+### Implementations:
+
+$(METHODLIST)
 """
-function step_agent! end
+function test_agent! end
 
 include("most.jl")
 include("target_ensemble.jl")

@@ -1,15 +1,12 @@
-
-"""
-    perceive!(::MentalState{T}, ::T, ::ChoiceMap) where {T<:PerceptionProtocol}
-
-Infer updates to mental representations
-"""
-function perceive! end
-
 """
     PerceptionModule(::T, ...)::MentalModule{T} where {T<:PerceptionProtocol}
 
 Constructor that should be implemented by each `PerceptionProtocol`
+
+## Implementations:
+
+$(METHODLIST)
+
 """
 function PerceptionModule end
 
