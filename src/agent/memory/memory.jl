@@ -62,7 +62,7 @@ function module_step!(
     vis::MentalModule{V}
     ) where {M<:HyperResampling,
              V<:HyperFilter}
-    assess_memory!(mem, vis)
+    assess_memory!(mem, t, vis)
     optimize_memory!(mem, t, vis)
     return nothing
 end
@@ -76,7 +76,7 @@ function assess_memory!(
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
     for i = 1:hf.h
-        increment = memory_fitness(mp.optim, vstate.chains[i])
+        increment = memory_fitness(mp.fitness, vstate.chains[i])
         mstate.objectives[i] = logsumexp(mstate.objectives[i], increment)
     end
     mstate.steps += 1

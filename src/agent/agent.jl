@@ -4,11 +4,7 @@ export Agent, MentalProtocol,
     PlanningProtocol,
     MemoryProtocol,
     AttentionProtocol,
-    perceive!,
-    plan!,
-    attend!,
-    memory!,
-    step_agent!
+    agent_step!
 
 
 "The algorithmic implementation of a mental process"

@@ -1,5 +1,5 @@
 export Experiment, get_obs,
-    render_agent_state, run_analyses
+    render_agent_state, run_analyses, test_agent!
 
 abstract type Experiment end
 

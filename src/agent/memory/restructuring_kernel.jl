@@ -118,6 +118,7 @@ function split_weights(h::MhoSplitMerge,
                         t,
                         attp.nns)
     # task-relevance of ensembles
+    nsingle = single_count(t)
     tr[nsingle+1:end]
 end
 
@@ -129,6 +130,8 @@ function merge_weights(h::MhoSplitMerge,
                         attp.partition,
                         t,
                         attp.nns)
+    # TODO: Remove softmax? and log?
+    importance = log.(softmax(tr, 10.0)) #TODO: hyper parameter
 
     nsingle = single_count(t)
     nensemble = ensemble_count(t)
@@ -137,8 +140,6 @@ function merge_weights(h::MhoSplitMerge,
     npairs = ncr(ntotal, 2)
     ws = Vector{Float64}(undef, npairs)
     # Coarse importance filter
-    # TODO: Remove softmax? and log?
-    importance = log.(softmax(ws, 10.0)) #TODO: hyper parameter
     # @show importance
     for i = 1:npairs
         (a, b) = combination(ntotal, 2, i)
