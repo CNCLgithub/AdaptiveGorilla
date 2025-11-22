@@ -1,38 +1,86 @@
+################################################################################
+# Uniform Rationing
+################################################################################
+
 export UniformProtocol
 
 @with_kw struct UniformProtocol <: AttentionProtocol
-    """Moves over singles"""
-    single_block! = ReweightBlock(single_ancestral_proposal, 20)
-    """Moves over ensemble"""
-    ensemble_block! = ReweightBlock(ensemble_ancestral_proposal, 3)
-    """Moves over babies"""
-    baby_block! = ReweightBlock(baby_ancestral_proposal, 3)
+    "Number of rejuvenation moves"
+    moves::Int64 = 10
+    partition::TracePartition = InertiaPartition()
 end
+
+struct UniformAuxState <: MentalState{UniformProtocol} end
 
 function AuxState(::UniformProtocol)
-    EmptyAuxState()
+    UniformAuxState()
 end
 
-function attend!(chain::APChain, p::UniformProtocol)
-    @unpack single_block!, ensemble_block!, baby_block! = p
-    @unpack proc, state, auxillary = chain
-    np = length(state.traces)
-    for i = 1:np
-        s = state.traces[i]
-        # 1. Single
-        k = s[:init_state => :k]
-        winner = categorical(Fill(1.0 / k, k))
-        single_block!(state, i, winner)
-
-        # 2. Ensemble
-        bernoulli(0.5) && ensemble_block!(state, i)
-
-        # 3. Baby
-        # bernoulli(0.5) && baby_block!(state, i)
+function module_step!(att::MentalModule{<:UniformProtocol},
+                      t::Int,
+                      vis::MentalModule{<:HyperFilter})
+    visp, visstate = mparse(vis)
+    for i = 1:visp.h
+        chain = visstate.chains[i]
+        attend!(chain, att)
     end
-
     return nothing
 end
+
+function attend!(chain::APChain,
+                 att::MentalModule{<:UniformProtocol})
+
+    @unpack proc, state, auxillary = chain
+    protocol, aux = mparse(att)
+
+    np = length(state.traces)
+
+    for i = 1:np # iterate through each particle
+        trace = state.traces[i]
+        nobj = Int64(object_count(trace))
+        # number of moves per object
+        steps_per_obj = round(Int, protocol.moves / nobj)
+        # Stage 2
+        # select latent and C_k
+        for j = 1:nobj
+            for _ = 1:steps_per_obj
+                prop = select_prop(protocol.partition, trace, j)
+                # Apply computation, estimate dS
+                new_trace, alpha = prop(trace)
+                if log(rand()) < alpha # update particle
+                    trace = new_trace
+                    state.log_weights[i] += alpha
+                end
+            end
+        end
+
+        # # TODO: Hyperparameter
+        for _ = 1:3
+            new_trace, w = baby_ancestral_proposal(trace)
+            if log(rand()) < w
+                trace = new_trace
+                state.log_weights[i] += w
+            end
+        end
+        state.traces[i] = trace
+    end
+    return nothing
+end
+
+function AttentionModule(m::UniformProtocol)
+    MentalModule(m, UniformAuxState())
+end
+
+# HACK: dummy function - called in collision counter
+function update_dPi!(att::MentalModule{A},
+                     obj::InertiaObject,
+                     delta::Float64) where {A<:UniformProtocol}
+    return nothing
+end
+
+################################################################################
+# Adaptive Computation
+################################################################################
 
 export AdaptiveComputation,
     AdaptiveAux,
@@ -43,7 +91,8 @@ export AdaptiveComputation,
     base_steps::Int64 = 3
     buffer_size::Int64 = 100
     "Distance metric in spatial maps"
-    map_metric::PreMetric = WeightedEuclidean(S3V(0.1, 0.1, 0.8))
+    map_metric_weights::S3V = S3V(0.1, 0.1, 0.8)
+    map_metric::PreMetric = WeightedEuclidean(map_metric_weights)
     "Number of nearest neighbors"
     nns::Int64 = 5
     "Importance softmax temperature"
@@ -131,8 +180,9 @@ function task_relevance(
     return tr
 end
 
-function attend!(att::MentalModule{A}, vis::MentalModule{V}
-                 ) where {A<:AttentionProtocol, V<:HyperFilter}
+function module_step!(att::MentalModule{<:AdaptiveComputation},
+                      t::Int,
+                      vis::MentalModule{<:HyperFilter})
     visp, visstate = mparse(vis)
     update_task_relevance!(att)
     for i = 1:visp.h
@@ -177,11 +227,6 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
             end
         end
 
-        # Localized birth-death
-        # j = argmax(importance)
-        # sample object randomly
-        # trace = baby_loop!(state, trace, i, nobj)
-        # baby block
         # # TODO: Hyperparameter
         for _ = 1:3
             new_trace, w = baby_ancestral_proposal(trace)
@@ -194,17 +239,4 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
     end
 
     return nothing
-end
-
-function baby_loop!(state, trace, i, n, steps = 3)
-    for _ = 1:steps
-        j = rand(1:n)
-        new_trace, w = bd_loc_transform(trace, j)
-        if log(rand()) < w
-            trace = new_trace
-            state.log_weights[i] += w
-            break
-        end
-    end
-    return trace
 end

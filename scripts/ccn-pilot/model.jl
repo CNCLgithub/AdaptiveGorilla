@@ -59,7 +59,7 @@ function run_trial!(pbar, exp)
     )
     planning = PlanningModule(CollisionCounter(; mat=Light))
     shift = MODEL == :full
-    memory = MemoryModule(AdaptiveGranularity(; tau=1.0,
+    memory = MemoryModule(HyperResampling(; tau=1.0,
                                               shift=shift), hpf.h)
 
     agent = Agent(perception, planning, memory, attention)

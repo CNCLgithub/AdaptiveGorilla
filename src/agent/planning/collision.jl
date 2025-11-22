@@ -2,7 +2,7 @@ export CollisionCounter,
     CollisionState
 
 """
-(TYPEDEF)
+    ($TYPEDEF)
 
 Protocol for counting collisions of objects that match target appearance `mat`.
 
@@ -14,8 +14,6 @@ $(TYPEDFIELDS)
 @with_kw struct CollisionCounter <: PlanningProtocol
     "Target appearance"
     mat::Material
-    "Distance tolerance"
-    tol::Float64 = 1E-4
     "Tick rate"
     tick_rate::Int = 1
     "Counting cool down"
@@ -47,13 +45,13 @@ Computes the marginal over collision counts.
 
 Also updates the \$\\delta \\pi\$ records in the attention module.
 """
-function plan!(planner::MentalModule{T},
-               attention::MentalModule{A},
-               perception::MentalModule{V},
-               t::Int
-    ) where {T<:CollisionCounter,
-             A<:AttentionProtocol,
-             V<:PerceptionProtocol}
+function module_step!(planner::MentalModule{T},
+                      t::Int,
+                      attention::MentalModule{A},
+                      perception::MentalModule{V}
+                      ) where {T<:CollisionCounter,
+                               A<:AttentionProtocol,
+                               V<:PerceptionProtocol}
 
     protocol, state = mparse(planner)
     if (t > 0 && t % protocol.tick_rate == 0)

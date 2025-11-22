@@ -120,12 +120,9 @@ returns a `Dict` containing:
 - the probability that the agent noticed the gorilla
 - The agent's expectation over the number of event counts
 """
-function step_agent!(agent::Agent, exp::MostExp, stepid::Int)
+function test_agent!(agent::Agent, exp::MostExp, stepid::Int)
     obs = get_obs(exp, stepid)
-    perceive!(agent, obs, stepid)
-    attend!(agent, stepid)
-    plan!(agent, stepid)
-    memory!(agent, stepid)
+    agent_step!(agent, stepid, obs)
     run_analyses(exp, agent)
 end
 

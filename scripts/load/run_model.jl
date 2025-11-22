@@ -115,15 +115,15 @@ VIS_HYPER_WINDOW = 18
 # Decision-making parameters
 COUNT_COOLDOWN=8 # The minimum time steps (1=~40ms) between collisions
 
-# Granularity Optimizer; See "?AdaptiveGranularity"
+# Granularity Optimizer; See "?HyperResampling"
 GO_TAU = 1.0
 GO_COST = 100.0
 GO_SHIFT = MODEL == :MO
 GO_PROTOCOL =
-    AdaptiveGranularity(;
-                        tau=GO_TAU,
-                        shift=GO_SHIFT,
-                        size_cost=GO_COST)
+    HyperResampling(;
+              tau=GO_TAU,
+              shift=GO_SHIFT,
+              size_cost=GO_COST)
 
 # Adaptive Computation; See "?AdaptiveComputation"
 

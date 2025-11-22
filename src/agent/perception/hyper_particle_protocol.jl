@@ -39,8 +39,9 @@ function PerceptionModule(m::HyperFilter, q::IncrementalQuery)
     MentalModule(m, s)
 end
 
-function perceive!(perception::MentalModule{T},
-                   obs::Gen.ChoiceMap
+function module_step!(perception::MentalModule{T},
+                      t::Int,
+                      obs::Gen.ChoiceMap
     ) where {T<:HyperFilter}
 
     pm, x = mparse(perception)

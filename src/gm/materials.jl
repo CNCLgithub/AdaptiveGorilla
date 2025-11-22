@@ -14,6 +14,21 @@ end
 
 NMAT = length(instances(Material))
 
+function Base.convert(::Type{Material}, mat::String)
+    Material(mat)
+end
+
+function Material(mat::String)
+    v = if mat == "Light"
+        1
+    elseif mat == "Dark"
+        2
+    else
+        error("Material $(mat) is not valid")
+    end
+    Material(v)
+end
+
 import Base.show
 
 Base.show(io::IO, x::Material) = x == Light ? "light" : "dark"
