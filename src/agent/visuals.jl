@@ -46,7 +46,7 @@ function render_frame(perception::MentalModule{V},
     mho = -Inf
     for i = 1:vp.h
         _chain = vs.chains[i]
-        _mho = granularity_objective(memory, attention, _chain)
+        _mho = memory_fitness(memp.fitness, _chain)
         if _mho > mho
             chain = _chain
         end
@@ -79,7 +79,7 @@ function render_frame(perception::MentalModule{V},
     mho = -Inf
     for i = 1:vp.h
         _chain = vs.chains[i]
-        _mho = granularity_objective(memory, attention, _chain)
+        _mho = memory_fitness(memp.fitness, _chain)
         if _mho > mho
             chain = _chain
         end
