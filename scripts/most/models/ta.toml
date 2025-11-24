@@ -35,14 +35,10 @@ tick_rate = 1
 ################################################################################
 
 [Attention]
-protocol = "AdaptiveComputation"
+protocol = "UniformProtocol"
 
 [Attention.params]
-itemp = 10.0
-base_steps = 8
-load = 16
-buffer_size = 2000
-map_metric_weights = [0.1, 0.1, 0.8]
+moves = 24
 
 ################################################################################
 # Memory
@@ -63,9 +59,4 @@ protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
 restructure_prob = 0.5
-
-[Memory.params.kernel.params.heuristic]
-protocol = "MhoSplitMerge"
-
-[Memory.params.kernel.params.heuristic.params]
-att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
+heuristic = { protocol = "UniformSplitMerge" }
