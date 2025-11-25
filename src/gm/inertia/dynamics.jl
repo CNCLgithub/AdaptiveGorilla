@@ -61,7 +61,7 @@ function force_prior(e::InertiaEnsemble, wm::InertiaWM)
     @unpack stability, force_low, force_high = wm
     @unpack rate = e
     unstable = 1.0 - stability
-    # More stable, the more objects
+    # More objects => more stable
     w = 1.0 - unstable^rate
     (w,
      force_low,

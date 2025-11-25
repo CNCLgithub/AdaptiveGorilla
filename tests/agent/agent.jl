@@ -16,27 +16,27 @@ function test_agent()
                    area_height = 480.0,
                    birth_weight = 0.01,
                    single_size = 5.0,
-                   single_noise = 0.5,
-                   single_rfs_logweight = 1.1,
-                   stability = 0.75,
+                   single_noise = 1.0,
+                   single_cpoisson_log_penalty = -3000.0,
+                   stability = 0.70,
                    vel = 4.5,
-                   force_low = 3.0,
-                   force_high = 10.0,
+                   force_low = 10.0,
+                   force_high = 20.0,
                    material_noise = 0.01,
-                   ensemble_var_shift = 0.1)
-    dpath = "/spaths/datasets/most/dataset.json"
-    # dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
+                   ensemble_var_shift = 0.05)
+
+    frames = 190
+    trial_idx = 4
+    # dpath = "/spaths/datasets/most/dataset.json"
     # dpath = "/spaths/datasets/load_curve/dataset.json"
-    trial_idx = 1
-    frames = 240
-    exp = MostExp(dpath, wm, trial_idx,
-                  Dark, frames, true; ntarget=4)
-    # exp = TEnsExp(dpath, wm, trial_idx,
-    #               false, false, frames)
-    query = exp.init_query
+    # exp = MostExp(dpath, wm, trial_idx,
+    #               Dark, frames, true; ntarget=4)
+    dpath = "/spaths/datasets/target_ensemble/2025-06-09_W96KtK/dataset.json"
+    exp = TEnsExp(dpath, wm, trial_idx,
+                  false, true, frames)
     pf = AdaptiveParticleFilter(particles = 5)
-    hpf = HyperFilter(;dt=10, pf=pf, h=5)
-    perception = PerceptionModule(hpf, query)
+    hpf = HyperFilter(;dt=18, pf=pf, h=5)
+    perception = PerceptionModule(hpf, exp.init_query)
     # attention = AttentionModule(
     #     AdaptiveComputation(;
     #                         itemp=10.0,
@@ -48,13 +48,20 @@ function test_agent()
     #                         map_metric=WeightedEuclidean(S3V(0.1, 0.1, 0.8)),
     #                         )
     # )
-    attention = AttentionModule(UniformProtocol(; moves=24))
-    planning = PlanningModule(CollisionCounter(; mat=Light, cooldown=18))
-    adaptive_g = HyperResampling(; tau=1.0,
-                                     shift=false,
-                                     size_cost = 100.0)
-    memory = MemoryModule(adaptive_g, hpf.h)
-
+    # attention = AttentionModule(UniformProtocol(; moves=24))
+    attention = AttentionModule(AdaptiveComputation(; base_steps=8, load=16, buffer_size=2000,
+                                                    itemp = 8.0, nns = 10))
+    planning = PlanningModule(CollisionCounter(; mat=Light, cooldown=8))
+    memory = MemoryModule(
+        HyperResampling(;
+                        perception = perception,
+                        fitness = MhoFitness(;att = attention, beta=3.5,
+                                             complexity_mass=10.0, complexity_factor = 6.0),
+                        kernel = SplitMergeKernel(;heuristic=MhoSplitMerge(;att = attention)),
+                        # fitness = MLLFitness(),
+                        # kernel = StaticRKernel(),
+                        tau = 1.0,
+                        ))
     # Cool, =)
     agent = Agent(perception, planning, memory, attention)
 
@@ -74,7 +81,8 @@ function test_agent()
     # @profile for t = 1:(frames - 1)
     @time for t = 1:(frames - 1)
         @show t
-        _results = step_agent!(agent, exp, t)
+        agent_step!(agent, t, get_obs(exp, t))
+        _results = run_analyses(exp, agent)
         _results[:frame] = t
         push!(results, _results)
         render && render_agent_state(exp, agent, t, out)

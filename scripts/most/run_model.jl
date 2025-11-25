@@ -68,16 +68,11 @@ end
 PARAMS = parse_args(ARGS, s)
 
 ################################################################################
-# Model Variant
-################################################################################
-
-# which model variant to run (uncomment 1 of the lines below)
-MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
-
-################################################################################
 # Model Parameters
 ################################################################################
+
+MODEL = PARAMS["model"]
+MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
 # World model parameters; See "?InertiaWM" for documentation.
 WM = InertiaWM(;
@@ -87,7 +82,7 @@ WM = InertiaWM(;
                birth_weight = 0.01,
                single_size = 5.0,
                single_noise = 0.15,
-               single_rfs_logweight = 1.1,
+               single_cpoisson_log_penalty = 1.1,
                stability = 0.75,
                vel = 4.5,
                force_low = 3.0,
@@ -133,13 +128,10 @@ NOTICE_P_THRESH = 0.20
 # Methods
 ################################################################################
 
-# Initializes the agent
-# (Done from scratch each time to avoid bugs / memory leaks)
-function init_agent(query)
-    load_agent(MODEL_PARAMS, query)
-end
 
 function run_model!(pbar, exp)
+    # Initializes the agent
+    # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
     colp = 0.0
     noticed = 0

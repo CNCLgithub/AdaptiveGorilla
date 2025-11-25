@@ -121,8 +121,8 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     # new_vel = 0.25 .* (get_vel(a) + get_vel(b))
     # [2025-06-16 Mon] switched to sqrt
     mag_pos = max(norm(delta_pos), 1.0)
-    var = 0.5 * mag_pos
-    new_vel = (get_vel(a) + get_vel(b)) ./  (2.0 * sqrt(mag_pos))
+    var = sqrt(mag_pos)
+    new_vel = (get_vel(a) + get_vel(b)) ./ var
     InertiaEnsemble(
         2,
         matws,
@@ -144,7 +144,7 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     delta_vel = get_vel(a) - get_vel(b)
     new_pos = get_pos(b) + delta_pos / new_count
     new_vel = get_vel(b) + delta_vel / new_count
-    var = get_var(b) + norm(delta_pos) / new_count
+    var = get_var(b) + sqrt(norm(delta_pos)) / new_count
     InertiaEnsemble(
         new_count,
         matws,
@@ -166,7 +166,9 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     delta_vel = (get_vel(a) - get_vel(b)) / new_count
     new_pos = get_pos(b) + delta_pos
     new_vel = get_vel(b) + delta_vel
-    var = get_var(a) + get_var(b)
+
+    mag_pos = max(norm(delta_pos), 1.0)
+    var = sqrt(mag_pos) + 0.5 * (get_var(a) + get_var(b))
     InertiaEnsemble(
         new_count,
         matws,

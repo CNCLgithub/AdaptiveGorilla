@@ -1,9 +1,10 @@
-export HyperResampling,
-        MemoryAssessments,
-        MemoryFitness,
-        memory_fitness,
-        RestructuringKernel,
-        restructure_kernel
+export MemoryModule,
+    HyperResampling,
+    MemoryAssessments,
+    MemoryFitness,
+    memory_fitness,
+    RestructuringKernel,
+    restructure_kernel
 
 ################################################################################
 # Memory Protocols

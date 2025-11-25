@@ -82,10 +82,16 @@ end
 
 function baby_ancestral_proposal(trace::InertiaTrace)
     t = first(get_args(trace))
-    new_trace, w, discard = regenerate(trace, select(
+    selection = select(
         :kernel => t => :bd => :i,
         :kernel => t => :bd => :switch,
-    ))
+    )
+    new_trace, w, discard = regenerate(trace, selection)
+    # orig_choices = get_selected(get_choices(trace), selection)
+    # new_choices = get_selected(get_choices(new_trace), selection)
+    # @show w
+    # display(orig_choices)
+    # display(new_choices)
     (new_trace, w)
 end
 

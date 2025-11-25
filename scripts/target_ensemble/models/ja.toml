@@ -1,0 +1,62 @@
+format = "Agent"
+version = "1.0"
+name = "Just Attention"
+
+
+################################################################################
+# Perception
+################################################################################
+
+[Perception]
+protocol = "HyperFilter"
+
+[Perception.params]
+dt = 18 # Time window, ~1.5s
+h  = 5  # Number of hyper particles
+
+[Perception.params.pf]
+protocol = "AdaptiveParticleFilter"
+params = {particles = 5} # Number of inner particles
+
+################################################################################
+# Planning
+################################################################################
+
+[Planning]
+protocol = "CollisionCounter"
+
+[Planning.params]
+mat = "Light"
+cooldown = 12
+tick_rate = 1
+
+################################################################################
+# Attention
+################################################################################
+
+[Attention]
+protocol = "AdaptiveComputation"
+
+[Attention.params]
+itemp = 10.0
+base_steps = 8
+load = 16
+buffer_size = 2000
+map_metric_weights = [0.1, 0.1, 0.8]
+
+################################################################################
+# Memory
+################################################################################
+
+[Memory]
+protocol = "HyperResampling"
+
+[Memory.params]
+tau = 1.0
+perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
+
+[Memory.params.fitness]
+protocol = "MLLFitness"
+
+[Memory.params.kernel]
+protocol = "StaticRKernel"

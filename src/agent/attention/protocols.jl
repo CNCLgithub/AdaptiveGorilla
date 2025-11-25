@@ -54,15 +54,9 @@ function attend!(chain::APChain,
             end
         end
 
-        # # TODO: Hyperparameter
-        for _ = 1:3
-            new_trace, w = baby_ancestral_proposal(trace)
-            if log(rand()) < w
-                trace = new_trace
-                state.log_weights[i] += w
-            end
-        end
-        state.traces[i] = trace
+        # state.traces[i] = trace
+        state.traces[i], delta_score = baby_loop(trace)
+        state.log_weights[i] += delta_score
     end
     return nothing
 end
@@ -227,16 +221,39 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
             end
         end
 
-        # # TODO: Hyperparameter
-        for _ = 1:3
-            new_trace, w = baby_ancestral_proposal(trace)
-            if log(rand()) < w
-                trace = new_trace
-                state.log_weights[i] += w
-            end
-        end
-        state.traces[i] = trace
+        # state.traces[i] = trace
+        state.traces[i], delta_score = baby_loop(trace)
+        state.log_weights[i] += delta_score
     end
 
     return nothing
+end
+
+# function baby_loop(trace::Trace, idx::Int, steps = 10)
+#     delta_score = 0.0
+#     for _ = 1:steps
+#         new_trace, w = bd_loc_transform(trace, idx)
+#         if log(rand()) < w
+#             trace = new_trace
+#             delta_score = w
+#             break
+#         end
+#     end
+#     return (trace, delta_score)
+# end
+
+
+
+# TODO: Hyperparameter
+function baby_loop(trace::Trace, steps = 10)
+    delta_score = 0.0
+    for _ = 1:steps
+        new_trace, w = baby_ancestral_proposal(trace)
+        if log(rand()) < w
+            trace = new_trace
+            delta_score = w
+            break
+        end
+    end
+    return (trace, delta_score)
 end

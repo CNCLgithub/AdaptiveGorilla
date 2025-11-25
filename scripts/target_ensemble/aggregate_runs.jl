@@ -31,11 +31,11 @@ function main()
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed,
-		:error => mean)
+        :error => mean)
     show(c; allrows=true)
     CSV.write(OUT_PATH, c)
     c = combine(all,
-		:error => mean)
+        :error => mean)
     show(c; allrows=true)
 end
 

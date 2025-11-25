@@ -87,7 +87,7 @@ WM = InertiaWM(;
                birth_weight = 0.01,
                single_size = 5.0,
                single_noise = 0.15,
-               single_rfs_logweight = 1.1,
+               single_cpoisson_log_penalty = 1.1,
                stability = 0.75,
                vel = 4.5,
                force_low = 3.0,
@@ -175,7 +175,6 @@ function main()
         gt_count = count_collisions(experiment)
         @show gt_count
         results = run_model!(pbar, experiment)
-
         show(results; allrows=true)
     end
     finish!(pbar)

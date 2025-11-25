@@ -28,11 +28,7 @@ $(TYPEDFIELDS)
 
     # Individual obj parameters
     single_size::Float64 = 10.0
-    single_rfs_logweight::Float64 = -2500.0
-    # Ensemble parameters
-    # REVIEW: Are these used?
-    # ensemble_shape::Float64 = 2.0
-    # ensemble_scale::Float64 = 0.5
+    single_cpoisson_log_penalty::Float64 = -2500.0
 
     "Probability that a baby is born for a given step"
     birth_weight::Float64 = 0.01

@@ -47,7 +47,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 10
+    default = 1
 
     "model"
     help = "Model Variant"
@@ -71,21 +71,6 @@ MODEL = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
 # World model parameters; See "?InertiaWM" for documentation.
-# WM = InertiaWM(;
-#                object_rate = 8.0,
-#                area_width = 720.0,
-#                area_height = 480.0,
-#                birth_weight = 0.01,
-#                single_size = 5.0,
-#                single_noise = 0.15,
-#                single_cpoisson_log_penalty = 1.1,
-#                stability = 0.75,
-#                vel = 4.5,
-#                force_low = 3.0,
-#                force_high = 10.0,
-#                material_noise = 0.01,
-#                ensemble_var_shift = 0.1)
-
 WM = InertiaWM(object_rate = 8.0,
                area_width = 720.0,
                area_height = 480.0,
@@ -111,8 +96,9 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
-LONE_PARENT = [true, false]
+# LONE_PARENT = [true, false]
 # SWAP_COLORS = [false, true]
+LONE_PARENT = [true]
 SWAP_COLORS = [false]
 
 ################################################################################
@@ -150,17 +136,24 @@ function run_model!(pbar, exp)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
-    colp = 0.0
-    noticed = 0
+    display(agent.memory)
+    out = "/spaths/tests/target-ensemble"
+    isdir(out) || mkpath(out)
+
+    results = DataFrame(
+        :frame => Int64[],
+        :gorilla_p => Float64[],
+        :collision_p => Float64[],
+        :birth_p => Float64[],
+    )
     for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, exp, t)
-        colp = _results[:collision_p]
-        if  _results[:gorilla_p] >= NOTICE_P_THRESH
-            noticed += 1
-        end
+        _results[:frame] = t
+        push!(results, _results)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
-    (noticed, colp)
+    return results
 end
 
 ################################################################################
@@ -175,26 +168,11 @@ function main()
     for swap = SWAP_COLORS, lone = LONE_PARENT
         experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
         gt_count = count_collisions(experiment)
-        Threads.@threads for c = 1:CHAINS
-            ndetected, expected_count = run_model!(pbar, experiment)
-            count_error = abs(gt_count - expected_count) / gt_count
-            push!(result,
-                  (scene          = SCENE,
-                   color          = swap ? :dark : :light,
-                   parent         = lone ? :lone : :grouped,
-                   chain          = c,
-                   ndetected      = ndetected,
-                   expected_count = expected_count,
-                   count_error    = count_error))
-        end
+        @show gt_count
+        results = run_model!(pbar, experiment)
+        show(results; allrows=true)
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
-    isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result)
-    count_f = x -> count(>(10.0), x)
-    display(combine(groupby(df, [:scene, :color, :parent]), :ndetected => count_f))
-    CSV.write("$(out_dir)/$(SCENE).csv", df)
     return nothing
 end;
 
