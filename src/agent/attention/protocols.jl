@@ -229,26 +229,15 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
     return nothing
 end
 
-# function baby_loop(trace::Trace, idx::Int, steps = 10)
-#     delta_score = 0.0
-#     for _ = 1:steps
-#         new_trace, w = bd_loc_transform(trace, idx)
-#         if log(rand()) < w
-#             trace = new_trace
-#             delta_score = w
-#             break
-#         end
-#     end
-#     return (trace, delta_score)
-# end
-
-
-
-# TODO: Hyperparameter
-function baby_loop(trace::Trace, steps = 10)
+function baby_loop(trace::Trace, steps = 5)
     delta_score = 0.0
     for _ = 1:steps
-        new_trace, w = baby_ancestral_proposal(trace)
+        if rand() < 0.5
+            new_trace, w = baby_ancestral_proposal(trace)
+        else
+            idx = rand(1:representation_count(trace))
+            new_trace, w = bd_loc_transform(trace, idx)
+        end
         if log(rand()) < w
             trace = new_trace
             delta_score = w
@@ -257,3 +246,19 @@ function baby_loop(trace::Trace, steps = 10)
     end
     return (trace, delta_score)
 end
+
+
+
+# TODO: Hyperparameter
+# function baby_loop(trace::Trace, steps = 10)
+#     delta_score = 0.0
+#     for _ = 1:steps
+#         new_trace, w = baby_ancestral_proposal(trace)
+#         if log(rand()) < w
+#             trace = new_trace
+#             delta_score = w
+#             break
+#         end
+#     end
+#     return (trace, delta_score)
+# end

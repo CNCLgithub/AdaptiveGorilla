@@ -71,6 +71,26 @@ function module_step!(planner::MentalModule{T},
     return nothing
 end
 
+function closest_wall(object::InertiaObject, walls)
+    wall = walls[1]
+    x = get_pos(object)
+    v = get_vel(object)
+    distance = abs(wall.d - dot(x, wall.normal))
+    wall_idx = 1
+    for i = 2:4
+        wall = walls[i]
+        x = get_pos(object)
+        v = get_vel(object)
+        d = abs(wall.d - dot(x, wall.normal))
+        if distance > d
+            distance = d
+            wall_idx = i
+        end
+    end
+    return wall_idx
+end
+
+
 function plan_with_delta_pi!(
     pl::CollisionCounter, att::MentalModule{A}, tr::InertiaTrace
     ) where {A<:AttentionProtocol}
@@ -86,12 +106,10 @@ function plan_with_delta_pi!(
         single = singles[j]
         # only consider targets
         if single.mat == pl.mat
-            # REVIEW: maybe just look at closest wall?
-            for k = 1:4 # each wall
-                (_colprob, _dpi) = colprob_and_agrad(single, walls[k])
-                colprob = logsumexp(colprob, _colprob)
-                dpi = logsumexp(dpi, _dpi)
-            end
+            closest = walls[closest_wall(single, walls)]
+            (_colprob, _dpi) = colprob_and_agrad(single, closest)
+            colprob = logsumexp(colprob, _colprob)
+            dpi = logsumexp(dpi, _dpi)
         end
         # @show dpi
         update_dPi!(att, single, dpi)
@@ -102,11 +120,10 @@ function plan_with_delta_pi!(
         # target proportion of ensemble
         w = x.matws[Int64(pl.mat)]
         if w  > 0.1
-            for k = 1:4 # each wall
-                (_colprob, _dpi) = colprob_and_agrad(x, walls[k])
-                colprob = logsumexp(colprob, _colprob)
-                dpi = logsumexp(dpi, _dpi)
-            end
+            closest = walls[closest_wall(x, walls)]
+            (_colprob, _dpi) = colprob_and_agrad(x, closest)
+            colprob = logsumexp(colprob, _colprob)
+            dpi = logsumexp(dpi, _dpi)
         end
         update_dPi!(att, x, dpi)
     end
@@ -133,7 +150,7 @@ function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
 
     # Account for heading - low prob if object is facing away
     log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
-    log_angle = clamp(log_angle, -10.0, 0.0)
+    log_angle = clamp(log_angle, -20.0, 0.0)
     logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
 
     # pdf is the derivative of the cdf

@@ -96,9 +96,16 @@ function ensemble_count(tr::InertiaTrace)
     length(state.ensembles)
 end
 
+# REVIEW: This is the number of objects representend.
+# This is not the number of object representations
 function object_count(tr::InertiaTrace)
     state = get_last_state(tr)
     object_count(state)
+end
+
+function representation_count(tr::InertiaTrace)
+    state = get_last_state(tr)
+    length(state.singles) + length(state.ensembles)
 end
 
 function marginal_ll(trace::InertiaTrace)

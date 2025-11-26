@@ -47,7 +47,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 10
+    default = 60
 
     "model"
     help = "Model Variant"
@@ -70,35 +70,7 @@ PARAMS = parse_args(ARGS, s)
 MODEL = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
-# World model parameters; See "?InertiaWM" for documentation.
-# WM = InertiaWM(;
-#                object_rate = 8.0,
-#                area_width = 720.0,
-#                area_height = 480.0,
-#                birth_weight = 0.01,
-#                single_size = 5.0,
-#                single_noise = 0.15,
-#                single_cpoisson_log_penalty = 1.1,
-#                stability = 0.75,
-#                vel = 4.5,
-#                force_low = 3.0,
-#                force_high = 10.0,
-#                material_noise = 0.01,
-#                ensemble_var_shift = 0.1)
-
-WM = InertiaWM(object_rate = 8.0,
-               area_width = 720.0,
-               area_height = 480.0,
-               birth_weight = 0.01,
-               single_size = 5.0,
-               single_noise = 1.0,
-               single_cpoisson_log_penalty = -3000.0,
-               stability = 0.70,
-               vel = 4.5,
-               force_low = 10.0,
-               force_high = 20.0,
-               material_noise = 0.01,
-               ensemble_var_shift = 0.05)
+WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
@@ -192,7 +164,7 @@ function main()
     out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(result)
-    count_f = x -> count(>(10.0), x)
+    count_f = x -> count(>(20.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color, :parent]), :ndetected => count_f))
     CSV.write("$(out_dir)/$(SCENE).csv", df)
     return nothing

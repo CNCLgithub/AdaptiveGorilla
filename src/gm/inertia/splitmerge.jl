@@ -144,7 +144,8 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     delta_vel = get_vel(a) - get_vel(b)
     new_pos = get_pos(b) + delta_pos / new_count
     new_vel = get_vel(b) + delta_vel / new_count
-    var = get_var(b) + sqrt(norm(delta_pos)) / new_count
+    var = get_var(b) + norm(delta_pos) / new_count
+    # println("Growing λ=$(b.rate)+1 $(get_var(b)) -> $(var)")
     InertiaEnsemble(
         new_count,
         matws,
@@ -168,7 +169,9 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     new_vel = get_vel(b) + delta_vel
 
     mag_pos = max(norm(delta_pos), 1.0)
-    var = sqrt(mag_pos) + 0.5 * (get_var(a) + get_var(b))
+    var = mag_pos + get_var(a) * a.rate / new_count +
+        get_var(b) * b.rate / new_count
+    # println("Growing $(get_var(a)), $(get_var(b)) -> $(var)")
     InertiaEnsemble(
         new_count,
         matws,

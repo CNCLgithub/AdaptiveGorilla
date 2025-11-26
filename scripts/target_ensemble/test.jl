@@ -17,7 +17,7 @@ using ProgressMeter
 using DataFrames, CSV
 using AdaptiveGorilla
 
-using AdaptiveGorilla: S3V, count_collisions
+using AdaptiveGorilla: S3V, count_collisions, get_last_state, predict
 using Distances: WeightedEuclidean
 
 ################################################################################
@@ -71,19 +71,7 @@ MODEL = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
 # World model parameters; See "?InertiaWM" for documentation.
-WM = InertiaWM(object_rate = 8.0,
-               area_width = 720.0,
-               area_height = 480.0,
-               birth_weight = 0.01,
-               single_size = 5.0,
-               single_noise = 1.0,
-               single_cpoisson_log_penalty = -3000.0,
-               stability = 0.70,
-               vel = 4.5,
-               force_low = 10.0,
-               force_high = 20.0,
-               material_noise = 0.01,
-               ensemble_var_shift = 0.05)
+WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
@@ -93,12 +81,13 @@ WM = InertiaWM(object_rate = 8.0,
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 180
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 # LONE_PARENT = [true, false]
 # SWAP_COLORS = [false, true]
-LONE_PARENT = [true]
+# LONE_PARENT = [false]
+LONE_PARENT = [false]
 SWAP_COLORS = [false]
 
 ################################################################################
@@ -153,6 +142,20 @@ function run_model!(pbar, exp)
         render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
+
+    # Dissect internal of perception after last frame
+    visp, visstate = mparse(agent.perception)
+    for i = 1:visp.h
+        chain = visstate.chains[i]
+        particles = chain.state
+        mll = AdaptiveGorilla.marginal_ll(particles.traces[1])
+        mll = zeros(length(mll))
+        for x = particles.traces
+            mll .+= AdaptiveGorilla.marginal_ll(x)
+        end
+        mll .*= 1.0 / length(particles.traces)
+        @show mll
+    end
     return results
 end
 
@@ -171,6 +174,8 @@ function main()
         @show gt_count
         results = run_model!(pbar, experiment)
         show(results; allrows=true)
+        println()
+        @show count(results[!, :gorilla_p] .> 0.2)
     end
     finish!(pbar)
     return nothing

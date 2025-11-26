@@ -172,7 +172,8 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     x, y = pos
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
-    new_var = clamp(var * (1.0 + dvar), 10.0, 1000.0)
+    new_var = clamp(var * (1.0 + dvar), 10.0, 100.0)
+    new_var = clamp(var + dvar, 10.0, 300.0)
     # @show (var, update[3])
     setproperties(e; pos = new_pos,
                   vel = new_vel,

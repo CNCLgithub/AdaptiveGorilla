@@ -1,41 +1,5 @@
 export load_agent
 
-using TOML
-
-struct ModuleRef end
-
-function link(; modules::Dict, ref::String)
-    modules[Symbol(ref)]
-end
-
-function load_and_link!(subpart, parts, dest, proto, params)
-    protocol = getfield(AdaptiveGorilla, Symbol(proto))
-    subpart[Symbol(dest)] =
-        if protocol <: ModuleRef
-            link(; modules = parts, params...)
-        else
-            protocol(; params...)
-        end
-    return nothing
-end
-
-function load_inner(parts, toml)
-    kwargs = Dict{Symbol, Any}()
-    for (key, val) = toml
-        if typeof(val) <: Dict && haskey(val, "protocol")
-            proto = val["protocol"]
-            # Recurse
-            rest = haskey(val, "params") ? load_inner(parts, val["params"]) : Dict()
-
-            # Nested component
-            load_and_link!(kwargs, parts, key, proto, rest)
-        else
-            kwargs[Symbol(key)] = val
-        end
-    end
-    return kwargs
-end
-
 function load_perception!(parts, toml, query)
     stub = toml["Perception"]
     protocol = getfield(AdaptiveGorilla, Symbol(stub["protocol"]))
