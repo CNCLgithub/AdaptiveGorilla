@@ -91,7 +91,7 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     new_pos = get_pos(e) + delta_pos
     new_vel = get_vel(e) + delta_vel
     # var = get_var(e) - (norm(delta_pos) - get_var(e)) / new_count
-    var = get_var(e) - norm(delta_pos) - norm(delta_vel)
+    var = get_var(e) - norm(delta_pos) / new_count
     var = max(10.0, var)
     InertiaEnsemble(
         new_count,
@@ -121,7 +121,7 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     # new_vel = 0.25 .* (get_vel(a) + get_vel(b))
     # [2025-06-16 Mon] switched to sqrt
     mag_pos = max(norm(delta_pos), 1.0)
-    var = sqrt(mag_pos)
+    var = 0.5 * mag_pos
     new_vel = (get_vel(a) + get_vel(b)) ./ var
     InertiaEnsemble(
         2,

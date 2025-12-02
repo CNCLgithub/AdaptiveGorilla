@@ -1,8 +1,8 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # Configuration
-MODEL="$1"
-OUTPUT_FILE="scripts/target_ensemble/${MODEL}-joblist.txt"
+MODELS=( "mo" "ja" "ta" "fr" )
+OUTPUT_FILE="scripts/target_ensemble/joblist.txt"
 NSCENES=6
 NTHREADS=8
 TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
@@ -12,7 +12,11 @@ TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
 : > "$OUTPUT_FILE"
 
 # Loop and write lines
-for i in $(seq 1 $NSCENES)
+
+for model in "${MODELS[@]}"
 do
-    echo "${TEMPLATE} ${MODEL} ${i}" >> "$OUTPUT_FILE"
+    for i in $(seq 1 $NSCENES)
+    do
+        echo "${TEMPLATE} ${model} ${i}" >> "$OUTPUT_FILE"
+    done
 done

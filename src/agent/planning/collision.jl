@@ -150,7 +150,7 @@ function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
 
     # Account for heading - low prob if object is facing away
     log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
-    log_angle = clamp(log_angle, -20.0, 0.0)
+    log_angle = clamp(log_angle, -10.0, 0.0)
     logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
 
     # pdf is the derivative of the cdf

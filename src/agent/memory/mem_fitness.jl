@@ -40,12 +40,21 @@ function memory_fitness(gop::MhoFitness,
     lml = log_ml_estimate(state) / gop.beta
     # average across particles
     nparticles = length(state.traces)
-    result = Vector{Float64}(undef, nparticles)
+    magv = Vector{Float64}(undef, nparticles)
+    ircv = Vector{Float64}(undef, nparticles)
     @inbounds for i = 1:nparticles
-        result[i] = trace_mho(attx, attp, gop, state.traces[i])
+        magv[i], ircv[i] = trace_mho(attx, attp, gop, state.traces[i])
     end
-    eff = logsumexp(result) - log(nparticles)
-    mho = eff + lml
+
+    mag = logsumexp(magv) - log(nparticles)
+    irc = logsumexp(ircv) - log(nparticles)
+    mho = mag - irc
+    # print_granularity_schema(chain)
+    # println("mho = $(round(mag; digits=2))(mag) - $(round(irc;digits=2))(irc) = $(mho)")
+    # @show lml
+    # @show mho + lml
+    # println("--------------")
+    mho + lml
 end
 
 function trace_mho(attx::AdaptiveAux,
@@ -58,15 +67,39 @@ function trace_mho(attx::AdaptiveAux,
                         attp.nns)
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
+    # @show tr
+    # @show importance
     trace_mho(mag, importance, gop.complexity_mass, gop.complexity_mass)
 end
 
 function trace_mho(mag, imp, factor, mass)
     n = length(imp)
     waste = 0.0
-    for i = 1:n
-        waste += exp(-factor * imp[i])
+    @inbounds for i = 1:n
+        # waste += exp(-factor * imp[i])
+        waste += -factor * log(max(imp[i], 0.001))
+        # waste += exp(factor * abs(imp[i] - 1)) - 1
     end
-    complexity = exp(mass * waste)
-    return mag - log(complexity)
+    # REVIEW: In log space?
+    complexity = log(waste + 1E-4) / mass
+    # @show mag
+    # @show complexity
+    return mag, complexity
+end
+
+function print_granularity_schema(chain::APChain)
+    tr = retrieve_map(chain)
+    print_granularity_schema(tr)
+end
+
+function print_granularity_schema(tr::InertiaTrace)
+    state = get_last_state(tr)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
+    c = object_count(tr)
+    println("Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
+    ndark = count(x -> material(x) == Dark, state.singles)
+    println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
+    println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
+    return nothing
 end

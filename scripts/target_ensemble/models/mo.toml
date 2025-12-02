@@ -11,7 +11,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 18 # Time window, 750ms
+dt = 12 # Time window, 750ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown = 12   # Cooldown between hits (prevents overcounting)
+cooldown = 18   # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
 
 ################################################################################
@@ -38,11 +38,12 @@ tick_rate = 1  # How often to evaluate counting (same as perception)
 protocol = "AdaptiveComputation"
 
 [Attention.params]
-itemp = 5.0                          # importance temperature
+itemp = 8.0                           # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
 buffer_size = 2000                    # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
+nns = 20
 
 ################################################################################
 # Memory
@@ -59,16 +60,16 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 5.0               # Log-regularization constant for MLL component
-complexity_mass = 10.0   # Slope of exponential irrelevant complexity curve
-complexity_factor = 4.0  # Sensitivity to irrelevant representations
+beta = 300.0             # Log-regularization constant for MLL component
+complexity_mass = 0.50   # Slope of exponential irrelevant complexity curve
+complexity_factor = 0.8  # Sensitivity to irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
 protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
-restructure_prob = 0.5   # Probability that restructuring occurs
+restructure_prob = 0.80  # Probability that restructuring occurs
 
 [Memory.params.kernel.params.heuristic]
 protocol = "MhoSplitMerge"

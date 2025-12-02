@@ -55,7 +55,8 @@ function attend!(chain::APChain,
         end
 
         # state.traces[i] = trace
-        state.traces[i], delta_score = baby_loop(trace)
+        ws = fill(1.0 / nobj, nobj)
+        state.traces[i], delta_score = baby_loop(trace, ws)
         state.log_weights[i] += delta_score
     end
     return nothing
@@ -222,22 +223,28 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         end
 
         # state.traces[i] = trace
-        state.traces[i], delta_score = baby_loop(trace)
+        state.traces[i], delta_score = baby_loop(trace, importance)
         state.log_weights[i] += delta_score
     end
 
     return nothing
 end
 
-function baby_loop(trace::Trace, steps = 5)
+function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
     delta_score = 0.0
     for _ = 1:steps
-        if rand() < 0.5
-            new_trace, w = baby_ancestral_proposal(trace)
-        else
-            idx = rand(1:representation_count(trace))
-            new_trace, w = bd_loc_transform(trace, idx)
-        end
+        # Importance driven (or uniform)
+        idx = categorical(ws)
+        new_trace, w = bd_loc_transform(trace, idx)
+        # new_trace, w = baby_ancestral_proposal(trace)
+        # idx = rand(1:representation_count(trace))
+        # new_trace, w = bd_loc_transform(trace, idx)
+        # if rand() < 0.5
+        #     new_trace, w = baby_ancestral_proposal(trace)
+        # else
+        #     idx = rand(1:representation_count(trace))
+        #     new_trace, w = bd_loc_transform(trace, idx)
+        # end
         if log(rand()) < w
             trace = new_trace
             delta_score = w

@@ -50,16 +50,15 @@ end
 ################################################################################
 
 function split_prob(h::SplitMergeHeuristic, tr::InertiaTrace)
-    nsingle = single_count(tr)
-    nensemble = ensemble_count(tr)
-    ntotal = nsingle + nensemble
-    nsplit = nensemble
-    nmerges = ncr(ntotal, 2)
-    split_prob = nsplit / (nsplit + nmerges)
+    # Only one ensemble -> can't merge
+    representation_count(tr) == 1 && return 1.0
+    # No ensemble -> can't split
+    ensemble_count(tr) == 0 && return 0.0
+    # 50/50 split/merge
+    return 0.5
 end
 
 struct UniformSplitMerge <: SplitMergeHeuristic end
-
 
 
 function sample_split_move!(cm::ChoiceMap,
@@ -102,6 +101,11 @@ function sample_merge_move!(cm::ChoiceMap,
                             t::InertiaTrace)
     ws = merge_weights(h, t)
     # Greedy optimization
+    if isempty(ws)
+        @show single_count(t)
+        @show ensemble_count(t)
+    end
+
     min_w = minimum(ws)
     pair_idx = rand(findall(==(min_w), ws))
     cm[:s0 => :nsm] = 3 # merge branch
@@ -131,7 +135,7 @@ function merge_weights(h::MhoSplitMerge,
                         t,
                         attp.nns)
     # TODO: Remove softmax? and log?
-    importance = log.(softmax(tr, 10.0)) #TODO: hyper parameter
+    importance = log.(softmax(tr, attp.itemp))
 
     nsingle = single_count(t)
     nensemble = ensemble_count(t)

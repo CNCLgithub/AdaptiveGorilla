@@ -1,28 +1,3 @@
-struct ReweightBlock
-    proposal
-    steps::Int32
-end
-
-function (b::ReweightBlock)(state::Gen.ParticleFilterState,
-                            pidx::Int,
-                            args...)
-    @unpack proposal, steps = b
-    s = state.traces[pidx]
-    c = 0
-    for _ = 1:steps
-        s_prime, w = proposal(s, args...)
-        if log(rand()) < w # MH acceptance ratio
-            s = s_prime
-            # mh reweighting
-            state.log_weights[pidx] += w
-            c += 1
-        end
-    end
-    # println("Acceptance ratio: $(c / steps)")
-    state.traces[pidx] = s
-    return nothing
-end
-
 function single_ancestral_proposal(trace::InertiaTrace,
                                    single::Int)
     # println("single ancestral proposal")
@@ -98,14 +73,17 @@ end
 """
 Proposes new objects near location
 """
-@gen function bd_loc_proposal(trace::InertiaTrace, posx::Float64, posy::Float64)
+@gen function bd_loc_proposal(trace::InertiaTrace,
+                              posx::Float64,
+                              posy::Float64,
+                              sigma::Float64)
     t, wm = get_args(trace)
     # 50% unless death occurred (then 0)
-    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
+    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.9
     birth ~ bernoulli(w)
     if birth
         # make proposal around posx, posy
-        baby ~ nearby_single(wm, posx, posy)
+        baby ~ nearby_single(wm, posx, posy, sigma)
         force ~ inertia_force(wm, baby)
     end
     return single_count(trace)
@@ -170,18 +148,29 @@ end
     end
 end
 
-function bd_loc_transform(trace::InertiaTrace, idx::Int64)
+function bd_loc_args(trace::InertiaTrace, idx::Int64)
+    t, wm, _ = get_args(trace)
     posx, posy = get_pos(object_from_idx(trace, idx))
+    object = object_from_idx(trace, idx)
+    sigma = if typeof(object) <: InertiaSingle
+        3.0 * wm.single_size
+    else
+        3.0 * get_var(object)
+    end
+    (posx, posy, sigma)
+end
+
+function bd_loc_transform(trace::InertiaTrace, idx::Int64)
     trans = SymmetricTraceTranslator(bd_loc_proposal,
-                                     (posx, posy),
+                                     bd_loc_args(trace, idx),
                                      bd_loc_involution)
     new_trace, w = apply_translator(trans, trace)
 end
 
 
-@gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64)
-    x ~ normal(px, 0.1 * wm.area_width)
-    y ~ normal(py, 0.1 * wm.area_width)
+@gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64, sigma = 100.0)
+    x ~ normal(px, sigma)
+    y ~ normal(py, sigma)
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)

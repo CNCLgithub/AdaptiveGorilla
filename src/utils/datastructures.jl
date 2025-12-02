@@ -38,14 +38,6 @@ function fit_map!(m::HashMap, metric)
     if isempty(m.new_coords) || isempty(m.new_samples)
         m.map = nothing
     else
-        # tc = m.coords
-        # ts = m.samples
-        # m.coords = m.new_coords
-        # m.samples = m.new_samples
-        # m.new_coords = tc
-        # m.new_samples = ts
-        # copyto!(m.coords, m.new_coords)
-        # copyto!(m.samples, m.new_samples)
         # TODO: Implement Base.copyto!
         m.coords = deepcopy(m.new_coords)
         m.samples = deepcopy(m.new_samples)

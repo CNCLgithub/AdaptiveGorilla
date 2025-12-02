@@ -50,18 +50,18 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 60
+    default = 32
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ta
+    default = :mo
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 2
+    default = 1
 
 end
 
@@ -74,21 +74,22 @@ PARAMS = parse_args(ARGS, s)
 MODEL = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
+WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 # World model parameters; See "?InertiaWM" for documentation.
-WM = InertiaWM(;
-               object_rate = 8.0,
-               area_width = 720.0,
-               area_height = 480.0,
-               birth_weight = 0.01,
-               single_size = 5.0,
-               single_noise = 0.15,
-               single_cpoisson_log_penalty = 1.1,
-               stability = 0.75,
-               vel = 4.5,
-               force_low = 3.0,
-               force_high = 10.0,
-               material_noise = 0.01,
-               ensemble_var_shift = 0.1)
+# WM = InertiaWM(;
+#                object_rate = 8.0,
+#                area_width = 720.0,
+#                area_height = 480.0,
+#                birth_weight = 0.01,
+#                single_size = 5.0,
+#                single_noise = 0.15,
+#                single_cpoisson_log_penalty = 1.1,
+#                stability = 0.75,
+#                vel = 4.5,
+#                force_low = 3.0,
+#                force_high = 10.0,
+#                material_noise = 0.01,
+#                ensemble_var_shift = 0.1)
 
 ################################################################################
 # ANALYSES
@@ -122,7 +123,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.20
+NOTICE_P_THRESH = 0.50
 
 ################################################################################
 # Methods
@@ -138,7 +139,7 @@ function run_model!(pbar, exp)
     for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, exp, t)
         colp = _results[:collision_p]
-        if  _results[:gorilla_p] >= NOTICE_P_THRESH
+        if  _results[:gorilla_p] > NOTICE_P_THRESH
             noticed += 1
         end
         next!(pbar)
@@ -154,11 +155,10 @@ end
 function main()
     result = NamedTuple[]
     pbar = Progress(2 * CHAINS * (FRAMES-1);
-                    desc="Running $(MODEL) model...", dt = 1.0)
+                    desc="Running $(MODEL) model...", dt = 2.0)
     for color = COLORS
         experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA)
         gt_count = count_collisions(experiment)
-        @show gt_count
         Threads.@threads for c = 1:CHAINS
             ndetected, expected_count = run_model!(pbar, experiment)
             count_error = abs(gt_count - expected_count) / gt_count
@@ -176,6 +176,8 @@ function main()
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(result)
     CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))
+    count_f = x -> count(>(24.0), x) / CHAINS
+    display(combine(groupby(df, [:scene, :color]), :ndetected => count_f))
     return nothing
 end;
 

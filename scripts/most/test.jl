@@ -56,7 +56,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :fr
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -68,32 +68,14 @@ end
 PARAMS = parse_args(ARGS, s)
 
 ################################################################################
-# Model Variant
+# Model Parameters
 ################################################################################
 
 # which model variant to run (uncomment 1 of the lines below)
 MODEL = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
-################################################################################
-# Model Parameters
-################################################################################
-
-# World model parameters; See "?InertiaWM" for documentation.
-WM = InertiaWM(;
-               object_rate = 8.0,
-               area_width = 720.0,
-               area_height = 480.0,
-               birth_weight = 0.01,
-               single_size = 5.0,
-               single_noise = 0.15,
-               single_cpoisson_log_penalty = 1.1,
-               stability = 0.75,
-               vel = 4.5,
-               force_low = 3.0,
-               force_high = 10.0,
-               material_noise = 0.01,
-               ensemble_var_shift = 0.1)
+WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 
 ################################################################################
 # ANALYSES
@@ -176,6 +158,9 @@ function main()
         @show gt_count
         results = run_model!(pbar, experiment)
         show(results; allrows=true)
+        println("\n  ------")
+        count_f = x -> count(>(0.5), x) / CHAINS
+        @show count_f(results[!, :gorilla_p])
     end
     finish!(pbar)
     return nothing

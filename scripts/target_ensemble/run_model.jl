@@ -47,7 +47,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 60
+    default = 32
 
     "model"
     help = "Model Variant"
@@ -112,7 +112,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.2
+NOTICE_P_THRESH = 0.5
 
 ################################################################################
 # Methods
@@ -127,7 +127,7 @@ function run_model!(pbar, exp)
     for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, exp, t)
         colp = _results[:collision_p]
-        if  _results[:gorilla_p] >= NOTICE_P_THRESH
+        if  _results[:gorilla_p] > NOTICE_P_THRESH
             noticed += 1
         end
         next!(pbar)
@@ -141,12 +141,15 @@ end
 
 function main()
     result = NamedTuple[]
-    pbar = Progress(
-        length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1);
-        desc="Running $(MODEL) model...", dt = 1.0)
+    nsteps = length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1)
+    pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
+    # Go through each of the conditions
     for swap = SWAP_COLORS, lone = LONE_PARENT
+        # Load the experiment
         experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
+        # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
+        # Run the model several chains
         Threads.@threads for c = 1:CHAINS
             ndetected, expected_count = run_model!(pbar, experiment)
             count_error = abs(gt_count - expected_count) / gt_count
@@ -164,7 +167,7 @@ function main()
     out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(result)
-    count_f = x -> count(>(20.0), x) / CHAINS
+    count_f = x -> count(>(24.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color, :parent]), :ndetected => count_f))
     CSV.write("$(out_dir)/$(SCENE).csv", df)
     return nothing

@@ -99,6 +99,14 @@ function optimize_memory!(mem::MentalModule{M},
     # Repopulate and potentially alter memory schemas
     memstate.objectives .-= log(memstate.steps)
     ws = softmax(memstate.objectives, memp.tau)
+    # #
+    # println("################################################# ")
+    # println("#________________CHAIN WEIGHTS__________________# ")
+    # println("################################################# ")
+    # for i = 1:visp.h
+    #     print_granularity_schema(visstate.chains[i])
+    #     @show ws[i]
+    # end
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
 
@@ -156,18 +164,3 @@ function memory_fitness end
 
 include("mem_fitness.jl")
 
-# function print_granularity_schema(chain::APChain)
-#     tr = retrieve_map(chain)
-#     print_granularity_schema(tr)
-# end
-# function print_granularity_schema(tr::InertiaTrace)
-#     state = get_last_state(tr)
-#     ns = length(state.singles)
-#     ne = length(state.ensembles)
-#     c = object_count(tr)
-#     println("MAP Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
-#     ndark = count(x -> material(x) == Dark, state.singles)
-#     println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
-#     println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
-#     return nothing
-# end

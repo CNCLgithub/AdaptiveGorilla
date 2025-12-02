@@ -81,7 +81,7 @@ WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 180
+FRAMES  = 110
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 # LONE_PARENT = [true, false]
@@ -115,7 +115,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.2
+NOTICE_P_THRESH = 0.5
 
 ################################################################################
 # Methods
@@ -136,6 +136,7 @@ function run_model!(pbar, exp)
         :birth_p => Float64[],
     )
     for t = 1:(FRAMES - 1)
+        # println("###       TIME $(t)     ###")
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
@@ -175,7 +176,7 @@ function main()
         results = run_model!(pbar, experiment)
         show(results; allrows=true)
         println()
-        @show count(results[!, :gorilla_p] .> 0.2)
+        @show count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
     end
     finish!(pbar)
     return nothing
