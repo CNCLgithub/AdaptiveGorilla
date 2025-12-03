@@ -3,11 +3,11 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 18
+NOTICE_MIN_FRAMES = 24
 
 DATASET = "most"
 
-MODELS = [:MO, :AC, :FR]
+MODELS = [:mo, :ja, :ta, :fr]
 
 function load_result(path::String)
     CSV.read(path, DataFrame)

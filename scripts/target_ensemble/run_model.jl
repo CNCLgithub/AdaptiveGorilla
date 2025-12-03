@@ -84,8 +84,7 @@ FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 LONE_PARENT = [true, false]
-# SWAP_COLORS = [false, true]
-SWAP_COLORS = [false]
+SWAP_COLORS = [false, true]
 
 ################################################################################
 # ANALYSES

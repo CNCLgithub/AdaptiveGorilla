@@ -3,11 +3,11 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 18
+NOTICE_MIN_FRAMES = 24
 
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 
-MODEL = :FR
+MODEL = :mo
 BASE_PATH = "/spaths/experiments/$(DATASET)/$(MODEL)-NOTICE"
 RUN_PATH = "$(BASE_PATH)/scenes"
 OUT_PATH = "$(BASE_PATH)/aggregate.csv"
@@ -31,11 +31,18 @@ function main()
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed,
-        :error => mean)
+        :count_error => mean)
+    show(c; allrows=true)
+    g = groupby(all, [:color, :parent])
+    c = combine(g,
+                :ndetected =>
+                    (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
+                    :noticed,
+        :count_error => mean)
     show(c; allrows=true)
     CSV.write(OUT_PATH, c)
     c = combine(all,
-        :error => mean)
+        :count_error => mean)
     show(c; allrows=true)
 end
 
