@@ -78,9 +78,7 @@ function trace_mho(mag, imp, factor, mass)
     @inbounds for i = 1:n
         # waste += exp(-factor * imp[i])
         waste += -factor * log(max(imp[i], 0.001))
-        # waste += exp(factor * abs(imp[i] - 1)) - 1
     end
-    # REVIEW: In log space?
     complexity = log(waste + 1E-4) / mass
     # @show mag
     # @show complexity

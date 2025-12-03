@@ -38,7 +38,7 @@ tick_rate = 1  # How often to evaluate counting (same as perception)
 protocol = "AdaptiveComputation"
 
 [Attention.params]
-itemp = 10.0                          # importance temperature
+itemp = 8.0                          # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
 buffer_size = 2000                    # Size of task-relevance heatmap

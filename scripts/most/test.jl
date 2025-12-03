@@ -96,7 +96,7 @@ FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Light]
+COLORS = [Dark]
 
 ################################################################################
 # Analysis Parameters
@@ -124,7 +124,6 @@ end
 
 function run_model!(pbar, exp)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
-    display(agent.memory)
     out = "/spaths/tests/most"
     isdir(out) || mkpath(out)
 
