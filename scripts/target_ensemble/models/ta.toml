@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"
-cooldown = 12
+cooldown = 18
 tick_rate = 1
 
 ################################################################################
@@ -58,5 +58,5 @@ protocol = "MLLFitness"
 protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
-restructure_prob = 0.5
+restructure_prob = 0.8
 heuristic = { protocol = "UniformSplitMerge" }
