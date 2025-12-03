@@ -37,7 +37,7 @@ function attend!(chain::APChain,
 
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
-        nobj = Int64(object_count(trace))
+        nobj = representation_count(trace)
         # number of moves per object
         steps_per_obj = round(Int, protocol.moves / nobj)
         # Stage 2
@@ -236,15 +236,6 @@ function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
         # Importance driven (or uniform)
         idx = categorical(ws)
         new_trace, w = bd_loc_transform(trace, idx)
-        # new_trace, w = baby_ancestral_proposal(trace)
-        # idx = rand(1:representation_count(trace))
-        # new_trace, w = bd_loc_transform(trace, idx)
-        # if rand() < 0.5
-        #     new_trace, w = baby_ancestral_proposal(trace)
-        # else
-        #     idx = rand(1:representation_count(trace))
-        #     new_trace, w = bd_loc_transform(trace, idx)
-        # end
         if log(rand()) < w
             trace = new_trace
             delta_score = w
@@ -253,19 +244,3 @@ function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
     end
     return (trace, delta_score)
 end
-
-
-
-# TODO: Hyperparameter
-# function baby_loop(trace::Trace, steps = 10)
-#     delta_score = 0.0
-#     for _ = 1:steps
-#         new_trace, w = baby_ancestral_proposal(trace)
-#         if log(rand()) < w
-#             trace = new_trace
-#             delta_score = w
-#             break
-#         end
-#     end
-#     return (trace, delta_score)
-# end

@@ -189,6 +189,8 @@ end
 #     # collision counting
 #     (-Inf, -Inf)
 # end
+
+# REVIEW: evaluated accuracy
 function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     r = rate(obj)
     prop_light = materials(obj)[1]
