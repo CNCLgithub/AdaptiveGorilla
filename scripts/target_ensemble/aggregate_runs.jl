@@ -3,7 +3,7 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 24
+NOTICE_MIN_FRAMES = 12
 
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 

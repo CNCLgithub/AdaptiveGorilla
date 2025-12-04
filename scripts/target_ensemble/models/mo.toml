@@ -11,7 +11,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 18 # Time window, 750ms
+dt = 12 # Time window, 750ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -41,7 +41,7 @@ protocol = "AdaptiveComputation"
 itemp = 20.0                          # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
-buffer_size = 1000                    # Size of task-relevance heatmap
+buffer_size = 2000                    # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
 nns = 50
 
@@ -53,7 +53,7 @@ nns = 50
 protocol = "HyperResampling"
 
 [Memory.params]
-tau = 0.1   # Temporature for resampling hyper chains
+tau = 1.0   # Temporature for resampling hyper chains
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
@@ -62,14 +62,14 @@ protocol = "MhoFitness"
 [Memory.params.fitness.params]
 beta = 500.0              # Log-regularization constant for MLL component
 complexity_mass = 0.50    # Slope of exponential irrelevant complexity curve
-complexity_factor = 5.0    # Sensitivity to irrelevant representations
+complexity_factor = 8.0    # Sensitivity to irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
 protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
-restructure_prob = 0.70  # Probability that restructuring occurs
+restructure_prob = 0.50  # Probability that restructuring occurs
 
 [Memory.params.kernel.params.heuristic]
 protocol = "MhoSplitMerge"

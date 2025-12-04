@@ -99,14 +99,15 @@ function optimize_memory!(mem::MentalModule{M},
     # Repopulate and potentially alter memory schemas
     memstate.objectives .-= log(memstate.steps)
     ws = softmax(memstate.objectives, memp.tau)
-    # #
-    println("################################################# ")
-    println("#________________CHAIN WEIGHTS__________________# ")
-    println("################################################# ")
-    for i = 1:visp.h
-        print_granularity_schema(visstate.chains[i])
-        println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
-    end
+    #
+    # println("################################################# ")
+    # println("#________________CHAIN WEIGHTS__________________# ")
+    # println("################################################# ")
+    # for i = 1:visp.h
+    #     print_granularity_schema(visstate.chains[i])
+    #     println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
+    # end
+    #
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
 
