@@ -85,21 +85,15 @@ An individual object representation for `InertiaWM`
 
 $(TYPEDFIELDS)
 """
-@with_kw struct InertiaSingle <: InertiaObject
+struct InertiaSingle <: InertiaObject
     mat::Material
     pos::S2V
     vel::S2V
-    size::Float64 = 10.0
 end
 
-function InertiaSingle(m::Material, p::S2V, v::S2V)
-    InertiaSingle(;mat = m,pos = p, vel = v)
-end
-
+material(s::InertiaSingle) = s.mat
 get_pos(s::InertiaSingle) = s.pos
 get_vel(s::InertiaSingle) = s.vel
-get_size(s::InertiaSingle) = s.size
-material(s::InertiaSingle) = s.mat
 
 """
 $(TYPEDEF)

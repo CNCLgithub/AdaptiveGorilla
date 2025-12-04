@@ -140,11 +140,11 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     # treating force directly as velocity;
     # update velocity by x percentage;
     # but f isn't normalized to be similar to v
-    @unpack mat, pos, vel, size = s
+    @unpack mat, pos, vel = s
     @unpack area_height, area_width = wm
     # vx, vy = f
     vx, vy = vel + f
-    mxv = 2.0 * wm.vel
+    mxv = 3.0 * wm.vel
     vx = clamp(vx, -mxv, mxv)
     vy = clamp(vy, -mxv, mxv)
     x = clamp(pos[1] + vx,
@@ -156,7 +156,7 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     new_pos = S2V(x, y)
     new_vel = S2V(vx, vy)
     # @show (vel, f, new_vel)
-    InertiaSingle(mat, new_pos, new_vel, size)
+    InertiaSingle(mat, new_pos, new_vel)
 end
 
 

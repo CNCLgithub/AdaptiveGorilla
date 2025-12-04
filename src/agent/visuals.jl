@@ -104,7 +104,7 @@ function render_frame(perception::MentalModule{V},
     end
 
     trace = retrieve_map(chain)
-    n = Int64(object_count(trace))
+    n = representation_count(trace)
     importance = fill(1.0 / n, n)
     MOTCore.paint(objp, trace, importance)
     # render_assigments(trace)

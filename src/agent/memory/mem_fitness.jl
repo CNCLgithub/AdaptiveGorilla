@@ -49,11 +49,11 @@ function memory_fitness(gop::MhoFitness,
     mag = logsumexp(magv) - log(nparticles)
     irc = logsumexp(ircv) - log(nparticles)
     mho = mag - irc
-    # print_granularity_schema(chain)
-    # println("mho = $(round(mag; digits=2))(mag) - $(round(irc;digits=2))(irc) = $(mho)")
-    # @show lml
-    # @show mho + lml
-    # println("--------------")
+    print_granularity_schema(chain)
+    println("mho = $(round(mag; digits=2))(mag) - $(round(irc;digits=2))(irc) = $(mho)")
+    @show lml
+    @show mho + lml
+    println("--------------")
     mho + lml
 end
 
@@ -67,22 +67,29 @@ function trace_mho(attx::AdaptiveAux,
                         attp.nns)
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
-    # @show tr
+    @show tr
+    state = get_last_state(trace)
+    obj = object_from_idx(state, argmax(mag))
+    println("pos: $(get_pos(obj)) \n vel: $(get_vel(obj))")
     # @show importance
-    trace_mho(mag, importance, gop.complexity_mass, gop.complexity_mass)
+    c = comp_complexity(importance,
+                        gop.complexity_factor,
+                        gop.complexity_mass)
+    (mag, c)
 end
 
-function trace_mho(mag, imp, factor, mass)
+function comp_complexity(imp, factor, mass)
     n = length(imp)
     waste = 0.0
     @inbounds for i = 1:n
         # waste += exp(-factor * imp[i])
-        waste += -factor * log(max(imp[i], 0.001))
+        # w = -factor * log(max(imp[i], 0.001))
+        # w = (1 - imp[i]) / (factor + (1 - factor)*imp[i])
+        w = (1 - imp[i])^(factor)
+        # println("i $(imp[i]) -> w $(w)")
+        waste += w
     end
-    complexity = log(waste + 1E-4) / mass
-    # @show mag
-    # @show complexity
-    return mag, complexity
+    (waste + 1E-4) / mass
 end
 
 function print_granularity_schema(chain::APChain)

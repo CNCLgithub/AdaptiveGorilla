@@ -41,8 +41,7 @@ function detect_gorilla(trace::InertiaTrace,
 
     t, wm, _ = get_args(trace)
     nobj = Int64(wm.object_rate)
-    result = -Inf
-    t == 0 && return result
+    t == 0 && return -Inf
     rfs = extract_rfs_subtrace(trace, t)
     pt = rfs.ptensor
     scores = rfs.pscores
@@ -56,14 +55,14 @@ function detect_gorilla(trace::InertiaTrace,
     if (nx != nobj + 1 ) ||
         ns == 0  ||
         (object_count(state) != nobj + 1 )
-        return result
+        return -Inf
     end
+    result = -Inf
     @inbounds for p = 1:np, e = 1:ns
         pt[nx, e, p] || continue
         result = logsumexp(result, scores[p])
     end
-    result -= rfs.score
-    return result
+    result - rfs.score
 end
 
 function had_birth(trace::InertiaTrace,

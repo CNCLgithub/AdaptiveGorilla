@@ -230,10 +230,11 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
     return nothing
 end
 
-function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
+function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 4)
     delta_score = 0.0
     for _ = 1:steps
         # Importance driven (or uniform)
+        # new_trace, w = baby_ancestral_proposal(trace)
         idx = categorical(ws)
         new_trace, w = bd_loc_transform(trace, idx)
         if log(rand()) < w

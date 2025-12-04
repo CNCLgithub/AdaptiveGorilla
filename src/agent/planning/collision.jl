@@ -159,7 +159,7 @@ function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
 end
 
 
-function colprob_and_agrad(obj::InertiaSingle, w::Wall)
+function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     # Distance between object and wall
     x = get_pos(obj)
     v = get_vel(obj)
@@ -167,15 +167,15 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall)
 
     # Distance distribution over near future
     v_orth = dot(v, w.normal)
-    mu = 0.5 * v_orth + get_size(obj)
-    sigma = 5.0 * abs(v_orth)
-    z = (distance - mu) / sigma
+    # mu = 0.5 * v_orth + radius
+    sigma = 1.5 * abs(v_orth)
+    z = (distance - radius) / sigma
     # CCDF up to wall
     lcdf = Distributions.logcdf(standard_normal, z)
 
     # Account for heading - low prob if object is facing away
     log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
-    log_angle = clamp(log_angle, -10.0, 0.0)
+    log_angle = clamp(log_angle, -1000.0, 0.0)
     logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
 
     # pdf is the derivative of the cdf
@@ -205,7 +205,7 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     lcdf = Distributions.logcdf(standard_normal, z)
     # probability of any collision * prop targets
     p = log1mexp(r * lcdf)
-    dpdx = -log(prop_light) * log_grad_normal_cdf_erfcx(z)
+    dpdx = 100 * -log(prop_light) * log_grad_normal_cdf_erfcx(z)
     (p, dpdx)
 end
 

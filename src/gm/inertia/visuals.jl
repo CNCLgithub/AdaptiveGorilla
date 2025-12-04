@@ -115,7 +115,7 @@ Applies the Object painter to an InertiaSingle
 """
 function MOTCore.paint(p::ObjectPainter, obj::InertiaSingle)
     color = obj.mat == Dark ? (0.1, 0.1, 0.1) : (0.9, 0.9, 0.9)
-    _draw_circle(get_pos(obj), obj.size, color,
+    _draw_circle(get_pos(obj), 5.0, color,
                  opacity = p.alpha; style = :stroke)
         return nothing
     end
