@@ -144,7 +144,7 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
     @unpack area_height, area_width = wm
     # vx, vy = f
     vx, vy = vel + f
-    mxv = 3.0 * wm.vel
+    mxv = 2.0 * wm.vel
     vx = clamp(vx, -mxv, mxv)
     vy = clamp(vy, -mxv, mxv)
     x = clamp(pos[1] + vx,

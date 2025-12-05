@@ -58,5 +58,5 @@ protocol = "MLLFitness"
 protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
-restructure_prob = 0.8
+restructure_prob = 0.5
 heuristic = { protocol = "UniformSplitMerge" }

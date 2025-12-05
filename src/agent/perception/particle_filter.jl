@@ -49,10 +49,6 @@ function estimate_marginal(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticle
     mass = logsumexp(ws)
     acc = -Inf
     @inbounds for i = 1:length(ws)
-        # TODO: Investigate and remove
-        # if sum(ws) != 1.0 || isnan(ws[i]) || isinf(ws[i])
-        #     error("Issue with particle weights: $(ws)")
-        # end
         v = func(args..., state.traces[i])
         w = ws[i] - mass
         acc = logsumexp(acc, w + v)

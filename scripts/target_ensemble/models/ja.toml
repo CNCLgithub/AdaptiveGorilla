@@ -41,9 +41,9 @@ protocol = "AdaptiveComputation"
 itemp = 8.0                           # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
-buffer_size = 2000                    # Size of task-relevance heatmap
+buffer_size = 1000                    # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
-nns = 20
+nns = 50
 
 ################################################################################
 # Memory

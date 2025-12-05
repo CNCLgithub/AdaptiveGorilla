@@ -60,6 +60,7 @@ function module_step!(planner::MentalModule{T},
                               plan_with_delta_pi!,
                               (protocol, attention))
         if state.cooldown == 0
+            # println("LOG COL PROB: $(w)")
             if log(rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
@@ -110,6 +111,10 @@ function plan_with_delta_pi!(
             (_colprob, _dpi) = colprob_and_agrad(single, closest)
             colprob = logsumexp(colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
+            # println("pos: $(get_pos(single)) \n vel: $(get_vel(single))")
+            # @show closest
+            # @show _colprob
+            # @show colprob
         end
         # @show dpi
         update_dPi!(att, single, dpi)
@@ -124,6 +129,10 @@ function plan_with_delta_pi!(
             (_colprob, _dpi) = colprob_and_agrad(x, closest)
             colprob = logsumexp(colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
+            # println("pos: $(get_pos(x)) \n vel: $(get_vel(x)) \n spread: $(get_var(x))")
+            # @show closest
+            # @show _colprob
+            # @show colprob
         end
         update_dPi!(att, x, dpi)
     end
@@ -191,9 +200,9 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v = get_vel(obj)
     distance = abs(w.d - dot(x, w.normal)) - radius
 
-    v_orth = dot(v, w.normal) + 1E-5
+    v_orth = dot(v, w.normal)
     # Average time (steps) to collision
-    dt = distance / v_orth
+    dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Variance gets bigger with overall speed
     sigma = 0.5 * sqrt(norm(v) + 1E-5)
     # Z score of 1 step in the future
@@ -225,8 +234,8 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
 
     # Average time for the ensemble to reach
     # the wall
-    v_orth = dot(v, w.normal) + 1E-5
-    dt = distance / v_orth
+    v_orth = dot(v, w.normal)
+    dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
 
     # Variance increases with speed as before,
     # but decreases with ensemble.

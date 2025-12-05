@@ -81,7 +81,7 @@ WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 180
+FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 # LONE_PARENT = [true, false]
@@ -136,7 +136,9 @@ function run_model!(pbar, exp)
         :birth_p => Float64[],
     )
     for t = 1:(FRAMES - 1)
+        # println("###########                     ###########")
         # println("###########       TIME $(t)     ###########")
+        # println("###########                     ###########")
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
