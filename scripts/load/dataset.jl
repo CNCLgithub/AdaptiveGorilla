@@ -1,3 +1,11 @@
+# Dataset for Study 3 - load curves
+#
+# The main logic as follows:
+# 1. Generate a template scene with all targets + distractors
+# 2. Evaluate a model on variants of the template,
+#    revealing more and more distractors
+
+
 using Gen
 using JSON3
 using MOTCore
@@ -6,11 +14,12 @@ using StaticArrays
 const S2V = SVector{2, Float64}
 
 dataset = "load_curve"
-maxadded = 4 # upper limit of added objects
+stepsize = 2 # Number of distractors to add per step
+nsteps   = 5 # Number of steps
 mincount = 3 # Number of light and dark objects
-nscenes = 2 * maxadded - 1 # unique scenes
-# Each scene will have 2 conditions:
-# Gorilla Light | Gorilla Dark
+nscenes = 10
+# Each scene will have 5 conditions: +0 -> +4 distractors
+ 
 fps = 24
 duration = 10 # seconds
 frames = fps * duration
@@ -18,7 +27,7 @@ out_dir = "/spaths/datasets/$(dataset)"
 isdir(out_dir) || mkdir(out_dir)
 out_path = "$(out_dir)/dataset.json"
 
-function gen_trial(nframes::Int64, nlight::Int64, ndark::Int64)
+function gen_base_scene(nframes::Int64, nlight::Int64, ndark::Int64)
     wm = init_wm(nlight + ndark)
     _, states = wm_scholl(nframes, wm)
     steps = Vector{Vector{S2V}}(undef,nframes)
@@ -68,21 +77,13 @@ end
 
 function main()
     data = Dict()
-    trials = []
-    # Increase Light
-    for toadd = 0:maxadded
-        trial = gen_trial(frames,
-                          mincount + toadd, mincount)
-        push!(trials, trial)
+    templates = []
+    for i = 1:nscenes
+        trial = gen_base_scene(frames, 4, mincount + (nsteps - 1) * stepsize)
+        push!(templates, trial)
     end
-    # Increase Dark
-    for toadd = 1:maxadded
-        trial = gen_trial(frames,
-                          mincount, mincount + toadd)
-        push!(trials, trial)
-    end
-    data[:trials] = trials
-    data[:manifest] = Dict(:ntrials => length(trials),
+    data[:trials] = templates
+    data[:manifest] = Dict(:ntrials => length(templates),
                            :duration => duration,
                            :fps => fps,
                            :frames => frames)

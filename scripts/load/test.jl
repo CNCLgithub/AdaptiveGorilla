@@ -47,7 +47,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 16
+    default = 1
 
     "model"
     help = "Model Variant"
@@ -81,8 +81,8 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
-NTARGETS = 3
-NDISTRACTORS = [3, 5, 7, 9, 11]
+NTARGETS = 4
+NDISTRACTORS = 4
 
 ################################################################################
 # ANALYSES
@@ -116,20 +116,28 @@ NOTICE_P_THRESH = 0.5
 ################################################################################
 
 function run_model!(pbar, exp)
+    out = "/spaths/tests/load"
+    isdir(out) || mkpath(out)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
-    colp = 0.0
-    noticed = 0
+    results = DataFrame(
+        :frame => Int64[],
+        :gorilla_p => Float64[],
+        :collision_p => Float64[],
+        :birth_p => Float64[],
+    )
     for t = 1:(FRAMES - 1)
+        # println("###########                     ###########")
+        # println("###########       TIME $(t)     ###########")
+        # println("###########                     ###########")
         _results = test_agent!(agent, exp, t)
-        colp = _results[:collision_p]
-        if  _results[:gorilla_p] > NOTICE_P_THRESH
-            noticed += 1
-        end
+        _results[:frame] = t
+        push!(results, _results)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
-    (noticed, colp)
+    return results
 end
 
 ################################################################################
@@ -138,44 +146,20 @@ end
 
 function main()
     result = NamedTuple[]
-    nsteps = length(NDISTRACTORS) * CHAINS * (FRAMES-1)
+    nsteps = FRAMES-1
     pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
-    # Go through each of the conditions
-    for ndistractor = NDISTRACTORS
-        # Load the world model
-        wm = load_wm_from_toml("$(@__DIR__)/models/wm.toml";
-                               object_rate = Float64(NTARGETS + ndistractor))
-        # Load the experiment
-        experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, ndistractor)
-        # Retrieve the number of true collisions
-        gt_count = count_collisions(experiment)
-        @show gt_count
-        # Run the model several chains
-        Threads.@threads for c = 1:CHAINS
-            run = @timed run_model!(pbar, experiment)
-            ndetected, expected_count = run.value
-            count_error = abs(gt_count - expected_count) / gt_count
-            push!(result,
-                  (scene          = SCENE,
-                   ndark          = ndistractor,
-                   chain          = c,
-                   ndetected      = ndetected,
-                   expected_count = expected_count,
-                   count_error    = count_error,
-                   time           = run.time))
-        end
-    end
+    # Load the world model
+    wm = load_wm_from_toml("$(@__DIR__)/models/wm.toml";
+                            object_rate = Float64(NTARGETS + NDISTRACTORS))
+    # Load the experiment
+    experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, NDISTRACTORS)
+    # Retrieve the number of true collisions
+    gt_count = count_collisions(experiment)
+    @show gt_count
+    results = run_model!(pbar, experiment)
+    show(results; allrows=true)
+    println()
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
-    isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result)
-    CSV.write("$(out_dir)/$(SCENE).csv", df)
-
-    # Quick display
-    display(combine(groupby(df, [:scene, :ndark]),
-                    :expected_count => mean,
-                    :count_error => mean,
-                    :time => mean))
     return nothing
 end;
 

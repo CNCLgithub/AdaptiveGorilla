@@ -35,11 +35,11 @@ function write_obs_mask!(
     return nothing
 end
 
-function load_wm_from_toml(path::String)
+function load_wm_from_toml(path::String; kwargs...)
     toml = TOML.parsefile(path)
     stub = toml["WorldModel"]
     parts = Dict()
     protocol = getfield(AdaptiveGorilla, Symbol(stub["protocol"]))
-    kwargs = load_inner(parts, stub["params"])
-    protocol(; kwargs...)
+    specified = load_inner(parts, stub["params"])
+    protocol(; merge(specified, kwargs)...)
 end
