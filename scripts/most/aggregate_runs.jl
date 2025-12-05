@@ -31,7 +31,7 @@ function aggregate_results(model)
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed,
-		:count_error => mean)
+        :count_error => mean)
     show(c; allrows=true)
     CSV.write(OUT_PATH, c)
 end
@@ -40,7 +40,7 @@ function main()
     for model = MODELS
         println(model)
         aggregate_results(model)
-	println("")
+        println("")
     end
 end
 
