@@ -79,10 +79,10 @@ MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 DATASET = "load_curve"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 360
 
 NTARGETS = 4
-NDISTRACTORS = 4
+NDISTRACTORS = 8
 
 ################################################################################
 # ANALYSES
@@ -127,14 +127,14 @@ function run_model!(pbar, exp)
         :collision_p => Float64[],
         :birth_p => Float64[],
     )
-    for t = 1:(FRAMES - 1)
+    @time for t = 1:(FRAMES - 1)
         # println("###########                     ###########")
         # println("###########       TIME $(t)     ###########")
         # println("###########                     ###########")
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        # render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results

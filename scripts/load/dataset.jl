@@ -21,7 +21,7 @@ nscenes = 10
 # Each scene will have 5 conditions: +0 -> +4 distractors
  
 fps = 24
-duration = 10 # seconds
+duration = 15 # seconds
 frames = fps * duration
 out_dir = "/spaths/datasets/$(dataset)"
 isdir(out_dir) || mkdir(out_dir)
