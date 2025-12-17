@@ -2,12 +2,9 @@ using CSV
 using DataFrames
 using Statistics: mean
 
-
 NOTICE_MIN_FRAMES = 18
-
 DATASET = "load_curve"
-
-MODELS = [:MO, :AC, :FR]
+MODELS = [:mo, :ja, :ta, :fr]
 
 function load_result(path::String)
     CSV.read(path, DataFrame)
@@ -23,26 +20,27 @@ end
 function aggregate_results(model)
     BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)-NOTICE"
     RUN_PATH = "$(BASE_PATH)/scenes"
-    model_results = merge_results(RUN_PATH)
-    model_results[:, :model] .= model
-    return model_results
+    all = merge_results(RUN_PATH)
+    g = groupby(all, [:scene, :ndark])
+    c = combine(g,
+        :time => mean,
+        :count_error => mean)
+    show(c; allrows=true)
+    c[!, :model] .= model
+    return c
 end
 
+
 function main()
-    OUT_PATH = "/spaths/experiments/$(DATASET)/aggregate.csv"
-    results = []
+    dfs = DataFrame[]
     for model = MODELS
-        push!(results, aggregate_results(model))
+        println(model)
+        push!(dfs, aggregate_results(model))
+        println("")
     end
-    all = vcat(results...)
-    g = groupby(all, [:model, :scene, :color])
-    c = combine(g,
-                :ndetected =>
-                    (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
-                    :noticed,
-		:count_error => mean => :error)
-    show(c; allrows=true)
-    CSV.write(OUT_PATH, c)
+    df = vcat(dfs...)
+    OUT_PATH = "/spaths/experiments/$(DATASET)/aggregate.csv"
+    CSV.write(OUT_PATH, df)
 end
 
 main()

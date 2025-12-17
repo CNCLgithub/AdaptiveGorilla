@@ -2,7 +2,7 @@
 
 # Configuration
 OUTPUT_FILE="scripts/load/joblist.txt"
-NSCENES=9
+NSCENES=10
 NTHREADS=8
 TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
  scripts/load/run_model.jl"
@@ -13,13 +13,17 @@ TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
 # Loop and write lines
 for i in $(seq 1 $NSCENES)
 do
-    echo "${TEMPLATE} MO ${i}" >> "$OUTPUT_FILE"
+    echo "${TEMPLATE} mo ${i}" >> "$OUTPUT_FILE"
 done
 for i in $(seq 1 $NSCENES)
 do
-    echo "${TEMPLATE} AC ${i}" >> "$OUTPUT_FILE"
+    echo "${TEMPLATE} ja ${i}" >> "$OUTPUT_FILE"
 done
 for i in $(seq 1 $NSCENES)
 do
-    echo "${TEMPLATE} FR ${i}" >> "$OUTPUT_FILE"
+    echo "${TEMPLATE} ta ${i}" >> "$OUTPUT_FILE"
+done
+for i in $(seq 1 $NSCENES)
+do
+    echo "${TEMPLATE} fr ${i}" >> "$OUTPUT_FILE"
 done
