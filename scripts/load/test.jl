@@ -53,12 +53,12 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ta
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 4
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -127,14 +127,14 @@ function run_model!(pbar, exp)
         :collision_p => Float64[],
         :birth_p => Float64[],
     )
-    @time for t = 1:(FRAMES - 1)
+    for t = 1:(FRAMES - 1)
         # println("###########                     ###########")
         # println("###########       TIME $(t)     ###########")
         # println("###########                     ###########")
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        # render_agent_state(exp, agent, t, out)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results

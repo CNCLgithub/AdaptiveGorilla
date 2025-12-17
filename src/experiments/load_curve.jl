@@ -238,13 +238,13 @@ function render_agent_state(exp::LoadCurve, agent::Agent, t::Int, path::String)
 
 
     # Attention
-    init = InitPainter(path = "$(path)/attention-$(t).png",
-                       background = "white")
+    # init = InitPainter(path = "$(path)/attention-$(t).png",
+    #                    background = "white")
 
-    _, wm, _ = exp.init_query.args
-    # setup
-    MOTCore.paint(init, wm)
-    render_attention(agent.attention)
-    finish()
+    # _, wm, _ = exp.init_query.args
+    # # setup
+    # MOTCore.paint(init, wm)
+    # render_attention(agent.attention)
+    # finish()
     return nothing
 end

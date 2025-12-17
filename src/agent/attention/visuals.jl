@@ -25,3 +25,7 @@ function render_attention(att::MentalModule{AdaptiveComputation})
     end
     return nothing
 end
+
+function render_attention(att::MentalModule{UniformProtocol})
+    return nothing
+end
