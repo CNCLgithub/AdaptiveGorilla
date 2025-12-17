@@ -1,4 +1,4 @@
-export MLLFitness, MhoFitness
+export MLLFitness, MhoFitness, CompFitness
 
 ################################################################################
 # Marginal Log-likelihood Optimization
@@ -72,13 +72,13 @@ function trace_mho(attx::AdaptiveAux,
     # obj = object_from_idx(state, argmax(mag))
     # println("pos: $(get_pos(obj)) \n vel: $(get_vel(obj))")
     # @show importance
-    c = comp_complexity(importance,
-                        gop.complexity_factor,
-                        gop.complexity_mass)
+    c = irr_complexity(importance,
+                       gop.complexity_factor,
+                       gop.complexity_mass)
     (mag, c)
 end
 
-function comp_complexity(imp, factor, mass)
+function irr_complexity(imp, factor, mass)
     n = length(imp)
     waste = 0.0
     @inbounds for i = 1:n
@@ -107,4 +107,36 @@ function print_granularity_schema(tr::InertiaTrace)
     println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
     println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
     return nothing
+end
+
+################################################################################
+# Computational Complexity
+################################################################################
+
+@with_kw struct CompFitness <: MemoryFitness
+    "Log-scaling factor for MLL"
+    beta::Float64 = 5.0
+    "Overall exponential slope of complexity cost"
+    complexity_mass::Float64 = 0.5
+end
+
+function memory_fitness(gop::CompFitness,
+                        chain::APChain)
+    @unpack state = chain
+    lml = log_ml_estimate(state) / gop.beta
+    # average across particles
+    nparticles = length(state.traces)
+    compv = Vector{Float64}(undef, nparticles)
+    ircv = Vector{Float64}(undef, nparticles)
+    @inbounds for i = 1:nparticles
+        compv[i] = comp_complexity(state.traces[i], gop.complexity_mass)
+    end
+
+    mag = logsumexp(compv) - log(nparticles)
+    mag + lml
+end
+
+function comp_complexity(trace::InertiaTrace,
+                         mass::Float64)
+    -Float64(representation_count(trace) / mass)
 end

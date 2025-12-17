@@ -51,8 +51,12 @@ protocol = "HyperResampling"
 tau = 1.0
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
+# [Memory.params.fitness]
+# protocol = "MLLFitness"
+
 [Memory.params.fitness]
-protocol = "MLLFitness"
+protocol = "CompFitness"
+params = { "beta" = 500.0, "complexity_mass" = 0.50}
 
 [Memory.params.kernel]
 protocol = "SplitMergeKernel"

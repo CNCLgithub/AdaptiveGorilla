@@ -79,10 +79,10 @@ MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 DATASET = "load_curve"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 360
+FRAMES  = 120
 
 NTARGETS = 4
-NDISTRACTORS = 8
+NDISTRACTORS = 4
 
 ################################################################################
 # ANALYSES

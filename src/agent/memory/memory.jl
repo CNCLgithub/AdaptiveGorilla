@@ -107,7 +107,7 @@ function optimize_memory!(mem::MentalModule{M},
     #     print_granularity_schema(visstate.chains[i])
     #     println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
     # end
-    #
+
     next_gen = Vector{Int}(undef, visp.h)
     Distributions.rand!(Distributions.Categorical(ws), next_gen)
 
