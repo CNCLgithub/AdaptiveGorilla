@@ -23,8 +23,6 @@ $(TYPEDFIELDS)
     materials::Vector{Material} = collect(instances(Material))
     "Average number of objects in the scene"
     object_rate::Float64 = 8.0
-    "Number of individual representations"
-    irate::Float64 = 0.5
 
     # Individual obj parameters
     single_size::Float64 = 10.0
