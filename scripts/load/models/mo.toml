@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown = 6   # Cooldown between hits (prevents overcounting)
+cooldown = 12  # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
 
 ################################################################################
@@ -41,7 +41,7 @@ protocol = "AdaptiveComputation"
 itemp = 20.0                          # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
-buffer_size = 1000                    # Size of task-relevance heatmap
+buffer_size = 2000                    # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
 nns = 50
 
@@ -61,8 +61,8 @@ protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
 beta = 500.0              # Log-regularization constant for MLL component
-complexity_mass = 0.50    # Slope of exponential irrelevant complexity curve
-complexity_factor = 8.0    # Sensitivity to irrelevant representations
+complexity_mass = 2.00    # Slope of exponential irrelevant complexity curve
+complexity_factor = 9.0    # Sensitivity to irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]

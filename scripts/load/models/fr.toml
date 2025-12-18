@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"
-cooldown = 6
+cooldown = 12
 tick_rate = 1
 
 ################################################################################
