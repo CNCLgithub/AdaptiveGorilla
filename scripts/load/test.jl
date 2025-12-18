@@ -53,7 +53,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ta
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -79,7 +79,7 @@ MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 DATASET = "load_curve"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 120
+FRAMES  = 360
 
 NTARGETS = 4
 NDISTRACTORS = 4

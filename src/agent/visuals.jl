@@ -67,7 +67,7 @@ function render_frame(perception::MentalModule{V},
     importance = softmax(tr, attp.itemp)
     MOTCore.paint(objp, trace, importance)
     render_assigments(trace)
-    render_attention(attention)
+    # render_attention(attention)
     # for i = 1:vp.h
     #     trace = retrieve_map(vs.chains[i])
     #     tr = task_relevance(attx,

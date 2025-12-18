@@ -50,6 +50,10 @@ function memory_fitness(gop::MhoFitness,
     irc = logsumexp(ircv) - log(nparticles)
     mho = mag - irc
     # print_granularity_schema(chain)
+    # println(task_relevance(attx,
+    #                        attp.partition,
+    #                        state.traces[1],
+    #                        attp.nns))
     # println("mho = $(round(mag; digits=2))(mag) - $(round(irc;digits=2))(irc) = $(mho)")
     # @show lml
     # @show mho + lml
@@ -82,9 +86,6 @@ function irr_complexity(imp, factor, mass)
     n = length(imp)
     waste = 0.0
     @inbounds for i = 1:n
-        # waste += exp(-factor * imp[i])
-        # w = -factor * log(max(imp[i], 0.001))
-        # w = (1 - imp[i]) / (factor + (1 - factor)*imp[i])
         w = (1 - imp[i])^(factor)
         # println("i $(imp[i]) -> w $(w)")
         waste += w

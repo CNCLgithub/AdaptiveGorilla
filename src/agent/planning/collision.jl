@@ -167,33 +167,6 @@ function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
     (logcolprob, dpdz)
 end
 
-
-# function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
-#     # Distance between object and wall
-#     x = get_pos(obj)
-#     v = get_vel(obj)
-#     distance = abs(w.d - dot(x, w.normal))
-
-#     # Distance distribution over near future
-#     v_orth = dot(v, w.normal)
-#     # mu = 0.5 * v_orth + radius
-#     # sigma = 1.5 * abs(v_orth)
-#     sigma = 2.5 * radius
-#     z = distance / sigma
-#     # CCDF up to wall
-#     lcdf = Distributions.logcdf(standard_normal, z)
-
-#     # Account for heading - low prob if object is facing away
-#     costheta = dot(normalize(v), w.normal)
-#     log_angle = log(max(0.0, costheta))
-#     log_angle = clamp(log_angle, -1000.0, 0.0)
-#     logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
-
-#     # pdf is the derivative of the cdf
-#     dpdz = log_angle + log_grad_normal_cdf_erfcx(z)
-#     (logcolprob, dpdz)
-# end
-
 function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     # Distance between object and wall
     x = get_pos(obj)
@@ -217,12 +190,6 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     dpdz = Distributions.logpdf(standard_normal, z)
     (lcdf, dpdz)
 end
-# function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
-#     # Ensemble representations do not maintain persistent
-#     # object trajectories, so they cannot inform
-#     # collision counting
-#     (-Inf, -Inf)
-# end
 
 function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     r = rate(obj)
@@ -255,31 +222,6 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     dpdz += log(prop_light)
     (lcdf, dpdz)
 end
-# REVIEW: evaluated accuracy
-# function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
-#     r = rate(obj)
-#     prop_light = materials(obj)[1]
-#     isapprox(prop_light, 0; atol=1e-4) && return (-Inf, -Inf)
-#     x = get_pos(obj)
-#     sigma = sqrt(get_var(obj))
-#     distance = abs(w.d - dot(x, w.normal))
-#     v_orth = dot(get_vel(obj), w.normal)
-#     time_dilation = log(0.5) * distance / v_orth
-#     # Variance integrates ensemble spread
-#     # This dilutes probability density
-#     z = distance / sigma
-#     # probability of a single object not colliding
-#     lcdf = Distributions.logcdf(standard_normal, z)
-#     # scale by the probability that heading towards wall
-#     dt = distance / get_vel(obj)
-#     log_angle = log(0.5) * dt
-#     lcdf += log_angle
-
-#     # probability of any collision * prop targets
-#     p = log1mexp(r * lcdf) + log(prop_light)
-#     dpdx = -log(prop_light) * log_grad_normal_cdf_erfcx(z) +
-#     (p, dpdx)
-# end
 
 # VISUALS
 
