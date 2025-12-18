@@ -53,7 +53,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ta
 
     "scene"
     help = "Which scene to run"
@@ -82,7 +82,7 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 360
 
 NTARGETS = 4
-NDISTRACTORS = 4
+NDISTRACTORS = 9
 
 ################################################################################
 # ANALYSES

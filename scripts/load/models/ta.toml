@@ -56,7 +56,7 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
 protocol = "CompFitness"
-params = { "beta" = 500.0, "complexity_mass" = 0.50}
+params = { "beta" = 500.0, "complexity_mass" = 0.25}
 
 [Memory.params.kernel]
 protocol = "SplitMergeKernel"
