@@ -26,8 +26,8 @@ function aggregate_results(model)
         :time => mean,
         :count_error => mean)
     show(c; allrows=true)
-    c[!, :model] .= model
-    return c
+    all[!, :model] .= model
+    return all
 end
 
 
