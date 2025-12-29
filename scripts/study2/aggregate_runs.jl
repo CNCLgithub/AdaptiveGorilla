@@ -26,10 +26,11 @@ function aggregate_results(model)
                 :ndetected =>
                     (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
                     :noticed,
-        :count_error => mean)
+        :count_error => mean,
+        :time => mean)
     show(c; allrows=true)
-    c[!, :model] .= model
-    return c
+    all[!, :model] .= model
+    return all
 end
 
 
