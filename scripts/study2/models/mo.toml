@@ -2,7 +2,6 @@ format = "Agent"
 version = "1.0"
 name = "Multi-Granular Optimization"
 
-
 ################################################################################
 # Perception
 ################################################################################
@@ -11,7 +10,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 12 # Time window, 750ms
+dt = 12 # Time window, 500ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -41,7 +40,7 @@ protocol = "AdaptiveComputation"
 itemp = 20.0                          # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
-buffer_size = 1000                    # Size of task-relevance heatmap
+buffer_size = 2000                    # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
 nns = 50
 
@@ -60,9 +59,9 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 500.0              # Log-regularization constant for MLL component
-complexity_mass = 2.00    # Slope of exponential irrelevant complexity curve
-complexity_factor = 9.0    # Sensitivity to irrelevant representations
+beta = 500.0            # Log-regularization constant for MLL component
+complexity_mass = 2.00  # Slope of exponential irrelevant complexity curve
+complexity_factor = 9.0 # Sensitivity to irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]

@@ -87,7 +87,7 @@ FRAMES  = 240
 # LONE_PARENT = [true, false]
 # SWAP_COLORS = [false, true]
 # LONE_PARENT = [false]
-LONE_PARENT = [false]
+LONE_PARENT = [true]
 SWAP_COLORS = [false]
 
 ################################################################################
@@ -115,7 +115,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.5
 
 ################################################################################
 # Methods
@@ -125,7 +125,6 @@ function run_model!(pbar, exp)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
-    display(agent.memory)
     out = "/spaths/tests/target-ensemble"
     isdir(out) || mkpath(out)
 

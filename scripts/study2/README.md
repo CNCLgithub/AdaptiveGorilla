@@ -13,7 +13,6 @@ These scripts correspond to study 2 exploring the presence of irrelevant targets
 - `gen_joblist.sh`: A helper script to create a joblist for Yale's [dSQ](https://github.com/ycrc/dsq) program.
 - `render_dataset.jl`: A simple visualizer of object motions. Meant for internal purposes. To view the trials, see the experiment code in https://github.com/CNCLgithub/ib-jspsych
 
-
 ## Running on a cluster
 
 This code ran on Yale's HPC managed by YCRC, using SLURM. This code can be easily run on a local machine via the command line or Julia REPL (see individual scripts).

@@ -24,8 +24,8 @@ using Distances: WeightedEuclidean
 # Command Line Interface
 ################################################################################
 
-MODEL_VARIANTS = Dict(:mo => "Multi-Granular Optimization",
-                      :ta => "Task-Agnostic Regranularization",
+MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
+                      :ta => "Task-Agnostic",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
@@ -75,21 +75,6 @@ MODEL = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
 WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
-# World model parameters; See "?InertiaWM" for documentation.
-# WM = InertiaWM(;
-#                object_rate = 8.0,
-#                area_width = 720.0,
-#                area_height = 480.0,
-#                birth_weight = 0.01,
-#                single_size = 5.0,
-#                single_noise = 0.15,
-#                single_cpoisson_log_penalty = 1.1,
-#                stability = 0.75,
-#                vel = 4.5,
-#                force_low = 3.0,
-#                force_high = 10.0,
-#                material_noise = 0.01,
-#                ensemble_var_shift = 0.1)
 
 ################################################################################
 # ANALYSES
@@ -154,21 +139,23 @@ end
 
 function main()
     result = NamedTuple[]
-    pbar = Progress(2 * CHAINS * (FRAMES-1);
+    pbar = Progress(length(COLORS) * CHAINS * (FRAMES-1);
                     desc="Running $(MODEL) model...", dt = 2.0)
     for color = COLORS
         experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA)
         gt_count = count_collisions(experiment)
         Threads.@threads for c = 1:CHAINS
-            ndetected, expected_count = run_model!(pbar, experiment)
+            run = @timed run_model!(pbar, experiment)
+            ndetected, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
             push!(result,
-                  (scene = SCENE,
-                   color = color == Light ? :light : :dark,
-                   chian = c,
-                   ndetected = ndetected,
+                  (scene          = SCENE,
+                   color          = color == Light ? :light : :dark,
+                   chain          = c,
+                   ndetected      = ndetected,
                    expected_count = expected_count,
-                   count_error = count_error))
+                   count_error    = count_error,
+                   time           = run.time))
         end
     end
     finish!(pbar)

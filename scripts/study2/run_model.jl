@@ -10,22 +10,17 @@
 # Includes
 ################################################################################
 
-using Gen
 using ArgParse
-using Gen_Compose
 using ProgressMeter
 using DataFrames, CSV
 using AdaptiveGorilla
-
-using AdaptiveGorilla: S3V, count_collisions
-using Distances: WeightedEuclidean
 
 ################################################################################
 # Command Line Interface
 ################################################################################
 
-MODEL_VARIANTS = Dict(:mo => "Multi-Granular Optimization",
-                      :ta => "Task-Agnostic Regranularization",
+MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
+                      :ta => "Task-Agnostic",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
@@ -150,7 +145,8 @@ function main()
         gt_count = count_collisions(experiment)
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
-            ndetected, expected_count = run_model!(pbar, experiment)
+            run = @timed run_model!(pbar, experiment)
+            ndetected, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
             push!(result,
                   (scene          = SCENE,
@@ -159,16 +155,18 @@ function main()
                    chain          = c,
                    ndetected      = ndetected,
                    expected_count = expected_count,
-                   count_error    = count_error))
+                   count_error    = count_error,
+                   time           = run.time))
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
+
+    # Record results to CSV
+    out_dir = "/spaths/experiments/" *
+        "$(DATASET)/$(MODEL)-$(ANALYSIS)" *
+        "/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result)
-    count_f = x -> count(>(24.0), x) / CHAINS
-    display(combine(groupby(df, [:scene, :color, :parent]), :ndetected => count_f))
-    CSV.write("$(out_dir)/$(SCENE).csv", df)
+    CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))
     return nothing
 end;
 

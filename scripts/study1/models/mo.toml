@@ -69,7 +69,7 @@ att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
-restructure_prob = 0.8   # Probability that restructuring occurs
+restructure_prob = 0.50  # Probability that restructuring occurs
 
 [Memory.params.kernel.params.heuristic]
 protocol = "MhoSplitMerge"
