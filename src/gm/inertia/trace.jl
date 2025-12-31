@@ -34,19 +34,13 @@ Criterion:
     3. All targets (xs[1-4]) are tracked
     4. The gorilla (x = n + 1) is tracked
 """
-function detect_gorilla(trace::InertiaTrace,
-                        ntargets::Int = 4,
-                        nobj::Int = 8,
-                        temp::Float64 = 1.0)
-
+function detect_gorilla(trace::InertiaTrace)
     t, wm, _ = get_args(trace)
     nobj = Int64(wm.object_rate)
     t == 0 && return -Inf
-    rfs = extract_rfs_subtrace(trace, t)
-    pt = rfs.ptensor
-    scores = rfs.pscores
-    nx,ne,np = size(pt)
     state = get_last_state(trace)
+    rfs = extract_rfs_subtrace(trace, t)
+    nx,ne,np = size(rfs.ptensor)
     ns = length(state.singles)
     # Cases for 0 prob
     # No gorilla
@@ -59,14 +53,13 @@ function detect_gorilla(trace::InertiaTrace,
     end
     result = -Inf
     @inbounds for p = 1:np, e = 1:ns
-        pt[nx, e, p] || continue
-        result = logsumexp(result, scores[p])
+        rfs.ptensor[nx, e, p] || continue
+        result = logsumexp(result, rfs.pscores[p])
     end
     result - rfs.score
 end
 
-function had_birth(trace::InertiaTrace,
-                   nobj::Int = 8)
+function had_birth(trace::InertiaTrace)
     _, wm, _ = get_args(trace)
     nobj = Int64(wm.object_rate)
     state = get_last_state(trace)

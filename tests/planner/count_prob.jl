@@ -66,13 +66,22 @@ using AdaptiveGorilla: InertiaSingle, init_walls, closest_wall, Light, colprob_a
 # _colprob = -0.0
 # colprob = 1.147970607462346e-13
 
+# x = [94.08386704821129, -36.87527629129443]
+# v = [-9.0, -2.7831946253101987]
+# v_orth = 2.7831946253102005
+# dt = 71.18608303816471
+# sigma = 1.5346439885590686
+# z = -45.73443975372093
+# dpdz = -1046.7384283265692
+
 function test_case_1()
 
     walls = init_walls(720.0, 480.0)
 
     s = InertiaSingle(Light,
-                      [-59.0, -91.1],
-                      [13.0, 0.015])
+                      [94.08386704821129, -36.87527629129443],
+                      [-9.0, -2.7831946253101987],
+                      )
     closest = walls[closest_wall(s, walls)]
     @show s
     @show closest
@@ -81,27 +90,27 @@ function test_case_1()
     @show dpi
 
 
-    s = InertiaSingle(Light,
+    # s = InertiaSingle(Light,
 
-         [12.0, 210.],
-                      [9.0, 9.0])
-    closest = walls[closest_wall(s, walls)]
-    @show s
-    @show closest
-    (colprob, dpi) = colprob_and_agrad(s, closest)
-    @show colprob
-    @show dpi
+    #      [12.0, 210.],
+    #                   [9.0, 9.0])
+    # closest = walls[closest_wall(s, walls)]
+    # @show s
+    # @show closest
+    # (colprob, dpi) = colprob_and_agrad(s, closest)
+    # @show colprob
+    # @show dpi
 
 
-    s = InertiaSingle(Light,
-                      [12.0, 235.],
-                      [9.0, 9.0])
-    closest = walls[closest_wall(s, walls)]
-    @show s
-    @show closest
-    (colprob, dpi) = colprob_and_agrad(s, closest)
-    @show colprob
-    @show dpi
+    # s = InertiaSingle(Light,
+    #                   [12.0, 235.],
+    #                   [9.0, 9.0])
+    # closest = walls[closest_wall(s, walls)]
+    # @show s
+    # @show closest
+    # (colprob, dpi) = colprob_and_agrad(s, closest)
+    # @show colprob
+    # @show dpi
 end
 
 test_case_1();

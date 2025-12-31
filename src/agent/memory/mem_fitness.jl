@@ -86,11 +86,12 @@ function irr_complexity(imp, factor, mass)
     n = length(imp)
     waste = 0.0
     @inbounds for i = 1:n
-        w = (1 - imp[i])^(factor)
+        w = mass * (1 - imp[i])^(factor)
         # println("i $(imp[i]) -> w $(w)")
         waste += w
     end
-    (waste + 1E-4) / mass
+    # pad, will be denominator
+    (waste + 1E-4)
 end
 
 function print_granularity_schema(chain::APChain)

@@ -177,17 +177,20 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     # Average time (steps) to collision
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Variance gets bigger with overall speed
-    sigma = 0.5 * sqrt(norm(v) + 1E-5)
+    sigma = sqrt(norm(v) + 1E-5)
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
-    # @show v_orth
-    # @show dt
-    # @show sigma
-    # @show z
     # CCDF up to 1 step
     lcdf = Distributions.logcdf(standard_normal, z)
     # pdf is the derivative of the cdf
     dpdz = Distributions.logpdf(standard_normal, z)
+    # @show x
+    # @show v
+    # @show v_orth
+    # @show dt
+    # @show sigma
+    # @show z
+    # @show dpdz
     (lcdf, dpdz)
 end
 

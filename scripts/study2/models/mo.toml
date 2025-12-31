@@ -59,19 +59,20 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 500.0            # Log-regularization constant for MLL component
-complexity_mass = 2.00  # Slope of exponential irrelevant complexity curve
-complexity_factor = 9.0 # Sensitivity to irrelevant representations
+beta = 400.0             # Log-regularization constant for MLL component
+complexity_mass = 5.0    # Slope of exponential irrelevant complexity curve
+complexity_factor = 20.0 # Sensitivity to irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
 protocol = "SplitMergeKernel"
 
 [Memory.params.kernel.params]
-restructure_prob = 0.50  # Probability that restructuring occurs
+restructure_prob = 0.75  # Probability that restructuring occurs
 
 [Memory.params.kernel.params.heuristic]
 protocol = "MhoSplitMerge"
 
 [Memory.params.kernel.params.heuristic.params]
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
+max_merge_elems = 6

@@ -91,7 +91,7 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     new_pos = get_pos(e) + delta_pos
     new_vel = get_vel(e) + delta_vel
     # var = get_var(e) - (norm(delta_pos) - get_var(e)) / new_count
-    var = get_var(e) - norm(delta_pos) / new_count
+    var = get_var(e) - 0.25 * norm(delta_pos) / new_count
     var = max(10.0, var)
     InertiaEnsemble(
         new_count,
@@ -116,18 +116,14 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     matws[Int64(b.mat)] += 0.5
     delta_pos = (get_pos(a) + get_pos(b))
     new_pos = 0.5 .* delta_pos
-    # REVIEW: dampen vel based on count?
-    # [2025-06-13 Fri] switched factor from 0.5 -> 0.25
-    # new_vel = 0.25 .* (get_vel(a) + get_vel(b))
-    # [2025-06-16 Mon] switched to sqrt
     mag_pos = max(norm(delta_pos), 1.0)
-    var = 0.5 * mag_pos
-    new_vel = (get_vel(a) + get_vel(b)) ./ var
+    std = 0.25 * mag_pos
+    new_vel = 0.5 * (get_vel(a) + get_vel(b))
     InertiaEnsemble(
         2,
         matws,
         new_pos,
-        var,
+        std,
         new_vel
     )
 end
@@ -144,7 +140,7 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     delta_vel = get_vel(a) - get_vel(b)
     new_pos = get_pos(b) + delta_pos / new_count
     new_vel = get_vel(b) + delta_vel / new_count
-    var = get_var(b) + norm(delta_pos) / new_count
+    var = get_var(b) + 0.25*norm(delta_pos) / new_count
     # println("Growing λ=$(b.rate)+1 $(get_var(b)) -> $(var)")
     InertiaEnsemble(
         new_count,
@@ -169,7 +165,7 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     new_vel = get_vel(b) + delta_vel
 
     mag_pos = max(norm(delta_pos), 1.0)
-    var = mag_pos + get_var(a) * a.rate / new_count +
+    var = 0.25*mag_pos + get_var(a) * a.rate / new_count +
         get_var(b) * b.rate / new_count
     # println("Growing $(get_var(a)), $(get_var(b)) -> $(var)")
     InertiaEnsemble(

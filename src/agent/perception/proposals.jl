@@ -79,7 +79,7 @@ Proposes new objects near location
                               sigma::Float64)
     t, wm = get_args(trace)
     # 50% unless death occurred (then 0)
-    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.9
+    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
     birth ~ bernoulli(w)
     if birth
         # make proposal around posx, posy
@@ -150,13 +150,14 @@ end
 
 function bd_loc_args(trace::InertiaTrace, idx::Int64)
     t, wm, _ = get_args(trace)
-    posx, posy = get_pos(object_from_idx(trace, idx))
     object = object_from_idx(trace, idx)
-    sigma = if typeof(object) <: InertiaSingle
-        2.0 * wm.single_size
-    else
-        2.0 * get_var(object)
-    end
+    posx, posy = get_pos(object)
+    sigma = wm.area_width * 0.20
+    # sigma = if typeof(object) <: InertiaSingle
+    #     3.0 * wm.single_size
+    # else
+    #     3.0 * get_var(object)
+    # end
     (posx, posy, sigma)
 end
 

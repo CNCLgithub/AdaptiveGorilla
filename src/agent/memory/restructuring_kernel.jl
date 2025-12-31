@@ -1,6 +1,7 @@
 export StaticRKernel, SplitMergeKernel,
     SplitMergeHeuristic, UniformSplitMerge, MhoSplitMerge
 
+using SparseArrays: sparsevec
 
 ################################################################################
 # Dummy Static Kernel
@@ -32,11 +33,10 @@ function restructure_kernel(kappa::SplitMergeKernel,
                             t::InertiaTrace)
     cm = choicemap()
     if rand() < kappa.restructure_prob
+        # SPLIT | MERGE
         if rand() < split_prob(kappa.heuristic, t)
-            # SPLIT
             sample_split_move!(cm, kappa.heuristic, t)
         else
-            # MERGE
             sample_merge_move!(cm, kappa.heuristic, t)
         end
     else
@@ -84,7 +84,10 @@ function sample_merge_move!(cm::ChoiceMap,
 end
 
 @with_kw struct MhoSplitMerge <: SplitMergeHeuristic
+    "Reference to and AdaptiveComputation module"
     att::MentalModule{<:AdaptiveComputation}
+    "Maximum element count considered for merging"
+    max_merge_elems::Int64 = 5
 end
 
 # NOTE: Greedy - argmax
@@ -106,8 +109,8 @@ function sample_merge_move!(cm::ChoiceMap,
         @show ensemble_count(t)
     end
 
-    min_w = minimum(ws)
-    pair_idx = rand(findall(==(min_w), ws))
+    max_w = maximum(ws)
+    pair_idx = rand(findall(==(max_w), ws))
     cm[:s0 => :nsm] = 3 # merge branch
     cm[:s0 => :state => :pair] = pair_idx
     return nothing
@@ -134,24 +137,39 @@ function merge_weights(h::MhoSplitMerge,
                         attp.partition,
                         t,
                         attp.nns)
-    # TODO: Remove softmax? and log?
-    importance = log.(softmax(tr, attp.itemp))
 
-    nsingle = single_count(t)
-    nensemble = ensemble_count(t)
-    ntotal = nsingle + nensemble
-    # sample which pair to merge
-    npairs = ncr(ntotal, 2)
-    ws = Vector{Float64}(undef, npairs)
-    # Coarse importance filter
-    # @show importance
-    for i = 1:npairs
-        (a, b) = combination(ntotal, 2, i)
+    # Determine importance: Less importance -> higher merge weight
+    # NOTE: importance temperature scales with |tr|
+    #   - at low |tr|, differences don't matter as much
+    temp = attp.itemp - logsumexp(tr)
+    temp = max(temp, 1.0)
+    importance = softmax(tr, temp)
+
+    # The weight of each merge pair is simply the sum of their importance values
+    ntotal = length(importance)
+    # Only consider the `k` least important elements
+    # (to reduce combinatoric explosions)
+    ncandidates = min(ntotal, h.max_merge_elems)
+    cand_indices = partialsortperm(importance, 1:ncandidates)
+    sparse_pairs = ncr(ncandidates, 2)
+    pair_id = Vector{Int64}(undef, sparse_pairs)
+    pair_ws = Vector{Float64}(undef, sparse_pairs)
+    for i = 1:sparse_pairs
+        (x, y) = combination(ncandidates, 2, i)
+        a = cand_indices[x]
+        b = cand_indices[y]
         # Pr(Merge) inv. prop. importance
-        ws[i] = logsumexp(importance[a], importance[b])
+        pair_id[i] = comb_index(ntotal, [a, b])
+        pair_ws[i] = - (importance[a] + importance[b])
     end
+    # Normalize
+    rmul!(pair_ws, 1.0 / sum(pair_ws))
+    
+    # Store merge-weights in a sparse vector
+    total_pairs = ncr(ntotal, 2)
+    ws = sparsevec(pair_id, pair_ws, total_pairs)
 
     # NOTE: to retrieve members use:
-    # selected = combination(npairs, 2, pair_idx)
+    # selected = combination(total_pairs, 2, pair_idx)
     return ws
 end

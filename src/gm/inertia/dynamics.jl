@@ -6,26 +6,16 @@ function object_bounds(wm::InertiaWM)
 end
 
 """
-Death of a specific object - balanced light and dark
+Uniform probability of Pr(Obj | Death = true)
 """
 function death_weights(wm::InertiaWM, st::InertiaState)
     n = length(st.singles)
     fill(1.0 / n, n)
-    # ndark = count(x -> material(x) == Dark, st.singles)
-    # n = length(st.singles)
-    # kill_dark = ndark > 0.5 * n
-    # ws = zeros(n)
-    # @inbounds for i = 1:n
-    #     ws[i] = xor(material(st.singles[i]) == Dark, kill_dark) ?
-    #         0.0 : 1.0
-    # end
-    # rmul!(ws, 1.0 / sum(ws))
-    # return ws
 end
 
 function death_weight(wm::InertiaWM, st::InertiaState)
     object_count(st) <= wm.object_rate || isempty(st.singles) ?
-        0.0 : wm.birth_weight
+        0.0 : (1.0 - wm.birth_weight)
 end
 
 function death_from_switch(prev, idx)
@@ -58,14 +48,15 @@ function force_prior(o::InertiaSingle, wm::InertiaWM)
 end
 
 function force_prior(e::InertiaEnsemble, wm::InertiaWM)
-    @unpack stability, force_low, force_high = wm
-    @unpack rate = e
-    unstable = 1.0 - stability
+    # @unpack stability, force_low, force_high = wm
+    # @unpack rate = e
+    # unstable = 1.0 - stability
     # More objects => more stable
-    w = 1.0 - unstable^rate
-    (w,
-     force_low,
-     force_high)
+    # w = 1.0 - unstable^rate
+    # (w,
+    #  force_low,
+    #  force_high)
+    (1.0, 20.0, 20.0)
 end
 
 function step(wm::InertiaWM,
@@ -155,27 +146,20 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
               area_height * 0.5)
     new_pos = S2V(x, y)
     new_vel = S2V(vx, vy)
-    # @show (vel, f, new_vel)
     InertiaSingle(mat, new_pos, new_vel)
 end
 
 
 function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     iszero(e.rate) && return e
-    bx, by = wm.dimensions
     @unpack pos, vel, var, rate = e
-    dx, dy, dvar = update
-    # mxv = 2. * wm.vel / sqrt(rate)
-    # dx = clamp(dx, -mxv, mxv)
-    # dy = clamp(dy, -mxv, mxv)
-    new_vel = S2V(dx, dy)
     x, y = pos
+    dx, dy, dvar = update
+    bx, by = wm.dimensions
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
-    new_var = clamp(var * (1.0 + dvar), 10.0, 100.0)
     new_var = clamp(var + dvar, 10.0, 300.0)
-    # @show (var, update[3])
     setproperties(e; pos = new_pos,
-                  vel = new_vel,
+                  vel = S2V(dx, dy),
                   var = new_var)
 end
