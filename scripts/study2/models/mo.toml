@@ -59,7 +59,7 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 50.0             # Log-regularization constant for MLL component
+beta = 100.0             # Log-regularization constant for MLL component
 complexity_mass = 3.00   # Slope of exponential irrelevant complexity curve
 complexity_factor = 200  # irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
@@ -68,7 +68,7 @@ att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 protocol = "MhoSplitMerge"
 
 [Memory.params.kernel.params]
-merge_tau = 20.0
+merge_tau = 1.0
 merge_max_elems = 4
 restructure_prob_min = 0.25  
 restructure_prob_max = 0.95  

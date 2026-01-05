@@ -146,9 +146,9 @@ function split_prob(kappa::MhoSplitMerge,
 
     # Guess whether split or merge is better.
     # Possible heuristics:
-    #   1. Any -Inf? => Merge
+    #   1. more than 1 -Inf? => Merge
     #   2. Max delta is ensemble? => Split
-    any(isinf, deltas)  && return 0.1
+    count(isinf, deltas) > 1  && return 0.1
     argmax(deltas) > ns && return 0.9
      
     # 50/50

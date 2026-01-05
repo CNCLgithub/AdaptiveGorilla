@@ -78,8 +78,8 @@ FRAMES  = 200
 # LONE_PARENT = [true, false]
 # SWAP_COLORS = [false, true]
  
-# LONE_PARENT = [true]
-LONE_PARENT = [false]
+LONE_PARENT = [true]
+# LONE_PARENT = [false]
 
 SWAP_COLORS = [false]
 
