@@ -5,6 +5,7 @@ function object_bounds(wm::InertiaWM)
     (xs, ys)
 end
 
+# TODO: death weight for extra color.
 """
 Uniform probability of Pr(Obj | Death = true)
 """
@@ -14,19 +15,15 @@ function death_weights(wm::InertiaWM, st::InertiaState)
 end
 
 function death_weight(wm::InertiaWM, st::InertiaState)
-    object_count(st) <= wm.object_rate || isempty(st.singles) ?
-        0.0 : (1.0 - wm.birth_weight)
+    object_count(st) > wm.object_rate && !isempty(st.singles) ?
+        (1.0 - wm.birth_weight) : 0
 end
 
 function death_from_switch(prev, idx)
-    singles = PersistentVector(prev)
-    idx == 0 && return singles
-    new_singles = PersistentVector{InertiaSingle}()
-    for (i, s) = enumerate(singles)
-        i == idx && continue
-        new_singles = FunctionalCollections.push(new_singles, s)
-    end
-    return new_singles
+    # do nothing
+    idx == 0 && return prev
+    new_singles = prev.singles[[1:idx-1; idx+1:end]]
+    return InertiaState(new_singles, prev.ensembles)
 end
 
 function birth_weight(wm::InertiaWM, st::InertiaState)
@@ -39,7 +36,8 @@ end
 
 function add_baby_from_switch(prev, baby)
     singles = PersistentVector(prev.singles)
-    FunctionalCollections.push(singles, baby)
+    singles = FunctionalCollections.push(singles, baby)
+    InertiaState(singles, prev.ensembles)
 end
 
 function force_prior(o::InertiaSingle, wm::InertiaWM)
@@ -47,21 +45,9 @@ function force_prior(o::InertiaSingle, wm::InertiaWM)
     (stability, force_low, force_high)
 end
 
-function force_prior(e::InertiaEnsemble, wm::InertiaWM)
-    # @unpack stability, force_low, force_high = wm
-    # @unpack rate = e
-    # unstable = 1.0 - stability
-    # More objects => more stable
-    # w = 1.0 - unstable^rate
-    # (w,
-    #  force_low,
-    #  force_high)
-    (1.0, 20.0, 20.0)
-end
-
 function step(wm::InertiaWM,
               state::InertiaState,
-              supdates::AbstractVector{S2V},
+              supdates::AbstractVector{S3V},
               eupdates::AbstractVector{S3V})
     @unpack singles, ensembles = state
     step(wm, singles, ensembles, supdates, eupdates)
@@ -70,7 +56,7 @@ end
 function step(wm::InertiaWM,
               singles::AbstractVector{InertiaSingle},
               ensembles::AbstractVector{InertiaEnsemble},
-              supdates::AbstractVector{S2V},
+              supdates::AbstractVector{S3V},
               eupdates::AbstractVector{S3V})
     @unpack walls = wm
     ns = length(singles)
@@ -81,13 +67,7 @@ function step(wm::InertiaWM,
     @assert ne == length(eupdates) "$(length(eupdates)) updates but only $ne ensembles"
     @inbounds for i = 1:ns
         obj = singles[i]
-        # force accumulator
-        facc = MVector{2, Float64}(supdates[i])
-        # interactions with walls
-        for w in walls
-            force!(facc, wm, w, obj)
-        end
-        new_singles[i] = update_state(obj, wm, facc)
+        new_singles[i] = update_state(obj, wm, supdates[i])
     end
     @inbounds for i = 1:ne
         new_ensembles[i] = update_state(ensembles[i], wm,
@@ -97,6 +77,8 @@ function step(wm::InertiaWM,
     InertiaState(PersistentVector(new_singles),
                  PersistentVector(new_ensembles))
 end
+
+# TODO: Depricate `force`
 
 """Computes the force of A -> B"""
 function force!(f::MVector{2, Float64}, ::InertiaWM, ::Object, ::Object)
@@ -121,23 +103,32 @@ function force!(f::MVector{2, Float64}, wm::InertiaWM, w::Wall, e::InertiaEnsemb
 end
 
 """
-    update_state(::Object, ::GM, ::MVector{2, Float64})
+    update_state(::Object, ::GM, ::MVector{3, Float64})
 
 resolve force on object
 """
 function update_state end
 
-function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
+function update_state(s::InertiaSingle, wm::InertiaWM, f::S3V)
     # treating force directly as velocity;
     # update velocity by x percentage;
     # but f isn't normalized to be similar to v
-    @unpack mat, pos, vel = s
     @unpack area_height, area_width = wm
-    # vx, vy = f
-    vx, vy = vel + f
+    @unpack mat, pos, vel, avel = s
+
+    tvx, tvy = vel
+    dvx, dvy, dvo = f
+    
+    new_avel = clamp(avel + dvo, -pi/5, pi/5)
+    cos_om = cos(new_avel)
+    sin_om = sin(new_avel)
+    avx = cos_om * tvx - sin_om * tvy
+    avy = sin_om * tvx + cos_om * tvy
+    
     mxv = 2.0 * wm.vel
-    vx = clamp(vx, -mxv, mxv)
-    vy = clamp(vy, -mxv, mxv)
+    vx = clamp(avx + dvx, -mxv, mxv)
+    vy = clamp(avy + dvy, -mxv, mxv)
+
     x = clamp(pos[1] + vx,
               -area_width * 0.5,
               area_width * 0.5)
@@ -145,8 +136,8 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::MVector{2, Float64})
               -area_height * 0.5,
               area_height * 0.5)
     new_pos = S2V(x, y)
-    new_vel = S2V(vx, vy)
-    InertiaSingle(mat, new_pos, new_vel)
+    new_tvel = S2V(vx, vy)
+    InertiaSingle(mat, new_pos, new_tvel, new_avel)
 end
 
 

@@ -1,9 +1,4 @@
-using Gen
-using MOTCore
-using Parameters
 using MOTCore: _draw_circle, _draw_text
-using AdaptiveGorilla
-using AdaptiveGorilla: inertia_init, InertiaSingle, InertiaEnsemble
 using Luxor: origin, background, Drawing, sethue, box, Point
 import MOTCore.paint
 
@@ -41,10 +36,11 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     color = (w, w, w)
     _draw_circle(get_pos(obj), 1.0 * std, color;
                  style = :stroke)
-    _draw_circle(get_pos(obj), 3.0 * std, color;
+    _draw_circle(get_pos(obj), 2.0 * std, color;
                  style = :stroke)
     rte = round(obj.rate; digits = 2)
-    _draw_text("λ $(rte)", get_pos(obj))
+    frc = round(obj.matws[1]; digits = 2)
+    _draw_text("λ $(rte) L $(frc)", get_pos(obj))
     return nothing
 end
 
@@ -61,16 +57,9 @@ Applies the painter to each element in the world state
 """
 function MOTCore.paint(p::Painter, wm::InertiaWM, st::InertiaState,
                        ws::Vector{Float64} = Float64[])
-    for e = st.ensembles
-        MOTCore.paint(p, e)
-    end
-
-    for o in st.singles
-        MOTCore.paint(p, o)
-    end
 
     # visualize birth
-    obj_counts = object_count(st)
+    # obj_counts = object_count(st)
     # if obj_counts > wm.object_rate && !isempty(st.singles)
     #     pos = get_pos(st.singles[end])
     #     _draw_circle(pos, 30.0, "purple", opacity = 0.4)
@@ -91,6 +80,13 @@ function MOTCore.paint(p::Painter, wm::InertiaWM, st::InertiaState,
             radius = 40.0 * ws[i + ns]
             _draw_circle(pos, radius, "red", opacity = 0.4)
         end
+    end
+    for e = st.ensembles
+        MOTCore.paint(p, e)
+    end
+
+    for o in st.singles
+        MOTCore.paint(p, o)
     end
     return nothing
 end

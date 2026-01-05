@@ -52,6 +52,8 @@ $(TYPEDFIELDS)
     stability::Float64 = 0.9
     force_low::Float64 = 1.0
     force_high::Float64 = force_low * 5.0
+    ang_acc::Float64 = 0.1
+    ensemble_force::Float64 = vel
     ensemble_var_shift::Float64 = 0.2
 
     # - wall force
@@ -87,11 +89,17 @@ struct InertiaSingle <: InertiaObject
     mat::Material
     pos::S2V
     vel::S2V
+    avel::Float64
+end
+
+function InertiaSingle(mat::Material, pos::S2V, vel::S2V)
+    InertiaSingle(mat, pos, vel, 0.0)
 end
 
 material(s::InertiaSingle) = s.mat
-get_pos(s::InertiaSingle) = s.pos
-get_vel(s::InertiaSingle) = s.vel
+get_pos(s::InertiaSingle)  = s.pos
+get_vel(s::InertiaSingle)  = s.vel
+get_avel(s::InertiaSingle)  = s.avel
 
 """
 $(TYPEDEF)

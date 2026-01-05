@@ -37,12 +37,12 @@ tick_rate = 1  # How often to evaluate counting (same as perception)
 protocol = "AdaptiveComputation"
 
 [Attention.params]
-itemp = 20.0                          # importance temperature
+itemp = 10.0                           # importance temperature
 base_steps = 8                        # Minimum load
 load = 16                             # Maximum load
-buffer_size = 2000                    # Size of task-relevance heatmap
+buffer_size = 1000                    # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
-nns = 50
+nns = 25
 
 ################################################################################
 # Memory
@@ -52,27 +52,25 @@ nns = 50
 protocol = "HyperResampling"
 
 [Memory.params]
-tau = 1.0   # Temporature for resampling hyper chains
+tau = 2.0   # Temporature for resampling hyper chains
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 400.0             # Log-regularization constant for MLL component
-complexity_mass = 5.0    # Slope of exponential irrelevant complexity curve
-complexity_factor = 20.0 # Sensitivity to irrelevant representations
+beta = 50.0             # Log-regularization constant for MLL component
+complexity_mass = 3.00   # Slope of exponential irrelevant complexity curve
+complexity_factor = 200  # irrelevant representations
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
-protocol = "SplitMergeKernel"
-
-[Memory.params.kernel.params]
-restructure_prob = 0.75  # Probability that restructuring occurs
-
-[Memory.params.kernel.params.heuristic]
 protocol = "MhoSplitMerge"
 
-[Memory.params.kernel.params.heuristic.params]
+[Memory.params.kernel.params]
+merge_tau = 20.0
+merge_max_elems = 4
+restructure_prob_min = 0.25  
+restructure_prob_max = 0.95  
+restructure_prob_slope = 10.0
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
-max_merge_elems = 6

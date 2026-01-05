@@ -80,6 +80,8 @@ function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState
     InertiaState(new_singles, new_ensembles)
 end
 
+VAR_POS = 0.2
+
 function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     new_count = e.rate - 1
     matws = deepcopy(e.matws)
@@ -91,7 +93,7 @@ function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     new_pos = get_pos(e) + delta_pos
     new_vel = get_vel(e) + delta_vel
     # var = get_var(e) - (norm(delta_pos) - get_var(e)) / new_count
-    var = get_var(e) - 0.25 * norm(delta_pos) / new_count
+    var = get_var(e) - VAR_POS * norm(delta_pos) / new_count
     var = max(10.0, var)
     InertiaEnsemble(
         new_count,
@@ -117,7 +119,7 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     delta_pos = (get_pos(a) + get_pos(b))
     new_pos = 0.5 .* delta_pos
     mag_pos = max(norm(delta_pos), 1.0)
-    std = 0.25 * mag_pos
+    std = VAR_POS * mag_pos
     new_vel = 0.5 * (get_vel(a) + get_vel(b))
     InertiaEnsemble(
         2,
@@ -140,7 +142,7 @@ function apply_merge(a::InertiaSingle, b::InertiaEnsemble)
     delta_vel = get_vel(a) - get_vel(b)
     new_pos = get_pos(b) + delta_pos / new_count
     new_vel = get_vel(b) + delta_vel / new_count
-    var = get_var(b) + 0.25*norm(delta_pos) / new_count
+    var = get_var(b) + (VAR_POS*norm(delta_pos)) / new_count
     # println("Growing λ=$(b.rate)+1 $(get_var(b)) -> $(var)")
     InertiaEnsemble(
         new_count,
@@ -178,12 +180,13 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
 end
 
 function split_merge_weights(wm::InertiaWM, x::InertiaState)
-    ws = [2.0, 1.0, 1.0]
+    # Nothing | Split | Merge
+    ws = [1.0, 1.0, 1.0]
     @unpack singles, ensembles = x
     if isempty(ensembles)
         ws[2] = 0.0
     end
-    if isempty(singles)
+    if length(singles) + length(ensembles) < 2
         ws[3] = 0.0
     end
     lmul!(1.0 / sum(ws), ws)

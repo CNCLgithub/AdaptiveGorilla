@@ -43,48 +43,37 @@ end
     ms = materials(wm)
     nm = length(ms)
     mws = Fill(1.0 / nm, nm)
-    midx = @trace(categorical(mws), :material)
-    material = ms[midx]
+    material ~ categorical(mws)
 
     xs, ys = object_bounds(wm)
-    x = @trace(uniform(xs[1], xs[2]), :x)
-    y = @trace(uniform(ys[1], ys[2]), :y)
+    x ~ uniform(xs[1], xs[2])
+    y ~ uniform(ys[1], ys[2])
 
-    ang = @trace(uniform(0., 2*pi), :ang)
-    mag = @trace(normal(wm.vel, 1.0), :std)
+    ang ~ uniform(0., 2*pi)
+    mag ~ normal(wm.vel, 1.0)
 
     loc = S2V(x, y)
     vel = S2V(mag*cos(ang), mag*sin(ang))
 
-    result::InertiaSingle = InertiaSingle(material, loc, vel)
+    result::InertiaSingle = InertiaSingle(ms[material], loc, vel)
     return result
 end
-
-@gen function no_birth(wm::InertiaWM)
-    # result::Vector{InertiaSingle} = InertiaSingle[]
-    result::InertiaSingle = InertiaSingle(Light, S2V(0, 0), S2V(0, 0))
-    return result
-end
-
-birth_switch = Gen.Switch(give_birth, no_birth)
 
 @gen function birth_process(wm::InertiaWM, prev::InertiaState)
     birth ~ give_birth(wm)
-    result::PersistentVector{InertiaSingle} =
-        add_baby_from_switch(prev, birth)
+    result::InertiaState = add_baby_from_switch(prev, birth)
     return result
 end
 
 @gen function death_process(wm::InertiaWM, prev::InertiaState)
     ws = death_weights(wm, prev)
     dead ~ categorical(ws)
-    result::PersistentVector{InertiaSingle} =
-        death_from_switch(prev.singles, dead)
+    result::InertiaState = death_from_switch(prev, dead)
     return result
 end
 
 @gen function no_birth_death(wm::InertiaWM, prev::InertiaState)
-    result::PersistentVector{InertiaSingle} = PersistentVector(prev.singles)
+    result::InertiaState = prev
     return result
 end
 
@@ -97,7 +86,7 @@ birth_death_switch = Gen.Switch(no_birth_death, birth_process, death_process)
     lmul!(1.0 / sum(ws), ws)
     i ~ categorical(ws)
     switch ~ birth_death_switch(i, wm, prev)
-    bd::InertiaState = InertiaState(switch, prev.ensembles)
+    bd::InertiaState = switch
     return bd
 end
 
@@ -152,17 +141,19 @@ end
     var = is_stable ? force_low : force_high
     fx ~ normal(0.0, var)
     fy ~ normal(0.0, var)
+    ang_var = is_stable ? wm.ang_acc / 10.0 : wm.ang_acc
+    fa ~ normal(0.0, ang_var)
     # converting back to vector form
-    force::S2V = S2V(fx, fy)
+    force::S3V = S3V(fx, fy, fa)
     return force
 end
 
 @gen static function inertia_ensemble(wm::InertiaWM,
                                       e::InertiaEnsemble)
-    force ~ inertia_force(wm, e)
-    spread ~ uniform(-wm.ensemble_var_shift,
-                     wm.ensemble_var_shift)
-    result::S3V = S3V(force[1], force[2], spread)
+    fx ~ normal(0.0, wm.ensemble_force)
+    fy ~ normal(0.0, wm.ensemble_force)
+    spread ~ uniform(-wm.ensemble_var_shift, wm.ensemble_var_shift)
+    result::S3V = S3V(fx, fy, spread)
     return result
 end
 

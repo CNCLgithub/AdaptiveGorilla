@@ -43,7 +43,6 @@ end
 function estimate_marginal(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticleFilter},
                            func::Function,
                            args::Tuple)
-
     @unpack state = chain
     ws = state.log_weights
     mass = logsumexp(ws)
@@ -52,6 +51,11 @@ function estimate_marginal(chain::PFChain{<:IncrementalQuery, <:AdaptiveParticle
         v = func(args..., state.traces[i])
         w = ws[i] - mass
         acc = logsumexp(acc, w + v)
+    end
+    if isnan(acc)
+        msg = "Marginal of $(func) lead to NaN, ws = $(ws);"
+        foreach(find_inf_scores, state.traces)
+        error(msg)
     end
     return acc
 end

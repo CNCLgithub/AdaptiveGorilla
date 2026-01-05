@@ -49,15 +49,18 @@ function memory_fitness(gop::MhoFitness,
     mag = logsumexp(magv) - log(nparticles)
     irc = logsumexp(ircv) - log(nparticles)
     mho = mag - irc
+
     # print_granularity_schema(chain)
     # println(task_relevance(attx,
     #                        attp.partition,
     #                        state.traces[1],
     #                        attp.nns))
-    # println("mho = $(round(mag; digits=2))(mag) - $(round(irc;digits=2))(irc) = $(mho)")
+    # println("mho = $(round(mag; digits=2))(mag) - "*
+    #     " $(round(irc;digits=2))(irc) = $(mho)")
     # @show lml
     # @show mho + lml
     # println("--------------")
+    
     mho + lml
 end
 
@@ -74,7 +77,7 @@ function trace_mho(attx::AdaptiveAux,
     # @show tr
     # state = get_last_state(trace)
     # obj = object_from_idx(state, argmax(mag))
-    # println("pos: $(get_pos(obj)) \n vel: $(get_vel(obj))")
+    # println("type: $(typeof(obj))\n pos: $(get_pos(obj)) \n vel: $(get_vel(obj))")
     # @show importance
     c = irr_complexity(importance,
                        gop.complexity_factor,
@@ -82,7 +85,7 @@ function trace_mho(attx::AdaptiveAux,
     (mag, c)
 end
 
-function irr_complexity(imp, factor, mass)
+function irr_complexity(imp::Vector, factor::Float64, mass::Float64)
     n = length(imp)
     waste = 0.0
     @inbounds for i = 1:n

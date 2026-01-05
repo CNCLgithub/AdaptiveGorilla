@@ -79,8 +79,8 @@ function test_case_1()
     walls = init_walls(720.0, 480.0)
 
     s = InertiaSingle(Light,
-                      [94.08386704821129, -36.87527629129443],
-                      [-9.0, -2.7831946253101987],
+                      [83.64992156826096, -53.422653662777584],
+                      [-5.933051092792338, 7.2419205169875465],
                       )
     closest = walls[closest_wall(s, walls)]
     @show s
@@ -113,17 +113,17 @@ function test_case_1()
     # @show dpi
 end
 
-test_case_1();
+# test_case_1();
 
 using AdaptiveGorilla: InertiaEnsemble
 
 function test_case_2()
     walls = init_walls(720.0, 480.0)
-    e = InertiaEnsemble(4.0,
-                        [0.25, 0.75],
-                        [12.0, 100.0],
-                        70.0,
-                        [3.0, 4.0])
+    e = InertiaEnsemble(8.0,
+                        [0.5, 0.5],
+                        [1.5, 20.0],
+                        150.0,
+                        [-5.0, 2.0])
     closest = walls[closest_wall(e, walls)]
     @show e
     @show closest
@@ -132,4 +132,4 @@ function test_case_2()
     @show dpi
 end
 
-# test_case_2();
+test_case_2();

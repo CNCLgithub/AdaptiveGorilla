@@ -50,7 +50,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 32
+    default = 16
 
     "model"
     help = "Model Variant"
@@ -163,7 +163,7 @@ function main()
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(result)
     CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))
-    count_f = x -> count(>(24.0), x) / CHAINS
+    count_f = x -> count(>(12.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color]), :ndetected => count_f))
     return nothing
 end;

@@ -11,14 +11,14 @@
 ################################################################################
 
 using Gen
+using CSV
 using ArgParse
+using DataFrames
 using Gen_Compose
 using ProgressMeter
-using DataFrames, CSV
 using AdaptiveGorilla
-
-using AdaptiveGorilla: S3V, count_collisions, get_last_state, predict
-using Distances: WeightedEuclidean
+using UnicodePlots: Plot, lineplot!, hline!
+using AdaptiveGorilla: count_collisions 
 
 ################################################################################
 # Command Line Interface
@@ -72,13 +72,15 @@ WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 200
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 # LONE_PARENT = [true, false]
 # SWAP_COLORS = [false, true]
-# LONE_PARENT = [false]
+ 
+# LONE_PARENT = [true]
 LONE_PARENT = [false]
+
 SWAP_COLORS = [false]
 
 ################################################################################
@@ -106,7 +108,7 @@ CHAINS = 1
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.15
 
 ################################################################################
 # Methods
@@ -169,6 +171,22 @@ function main()
         show(results; allrows=true)
         println()
         @show count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
+        plot = Plot(;
+                    xlabel = "t",
+                    ylabel = "Pr(Notice)",
+                    xlim = (1, FRAMES-1),
+                    ylim = (0, 1),
+                    title="Color: $(swap ? :Dark : :Light) | " *
+                        "Parent: $(lone ? :Lone : :Group)")
+        hline!(plot,
+               NOTICE_P_THRESH,
+               name = "Threshold")
+        lineplot!(plot,
+                  results[!, :frame],
+                  results[!, :gorilla_p],
+                  name = "Estimate")
+        display(plot)
+
     end
     finish!(pbar)
     return nothing

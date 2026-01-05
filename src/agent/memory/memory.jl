@@ -99,7 +99,10 @@ function optimize_memory!(mem::MentalModule{M},
     # Repopulate and potentially alter memory schemas
     memstate.objectives .-= log(memstate.steps)
     ws = softmax(memstate.objectives, memp.tau)
-    #
+    
+    next_gen = Vector{Int}(undef, visp.h)
+    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+
     # println("################################################# ")
     # println("#________________CHAIN WEIGHTS__________________# ")
     # println("################################################# ")
@@ -107,9 +110,7 @@ function optimize_memory!(mem::MentalModule{M},
     #     print_granularity_schema(visstate.chains[i])
     #     println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
     # end
-
-    next_gen = Vector{Int}(undef, visp.h)
-    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    # @show next_gen
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation
@@ -135,21 +136,6 @@ function optimize_memory!(mem::MentalModule{M},
     return nothing
 end
 
-
-################################################################################
-# Restructuring Kernels
-################################################################################
-
-"""
-
-    restructure_kernel(kernel, trace)
-
-Samples a choicemap that alters the granularity schema of `trace`.
-"""
-function restructure_kernel end
-
-include("restructuring_kernel.jl")
-
 ################################################################################
 # Memory Optimizers
 ################################################################################
@@ -164,4 +150,19 @@ function memory_fitness end
 
 
 include("mem_fitness.jl")
+
+
+################################################################################
+# Restructuring Kernels
+################################################################################
+
+"""
+
+    restructure_kernel(kernel, trace)
+
+Samples a choicemap that alters the granularity schema of `trace`.
+"""
+function restructure_kernel end
+
+include("restructuring_kernel.jl")
 

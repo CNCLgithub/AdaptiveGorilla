@@ -1,5 +1,6 @@
 export softmax,
-    softmax!
+    softmax!,
+    inv_softmax
 
 
 isbetween(x::Real, low::Real, high::Real) = (x >= low) && (x <= high)
@@ -31,6 +32,23 @@ function softmax!(out::Array{Float64}, x::Array{Float64}, t::Float64 = 1.0)
     end
     rmul!(out, 1.0 / sxs)
     return nothing
+end
+# [-186.65753744619295, -158.29758474787073, -1513.98631230785, -49.46817006742267, -Inf, -Inf]
+# TODO: complete me!
+function inv_softmax(x::Array{Float64}, t::Float64 = 1.0,
+                     e::Float64 = -1E8)
+    n = length(x)
+    softmax(-max.(x, e), t)
+    # # n = length(x)
+    # # inf_mask = findall(isinf, x)
+    # # result = zeros(Float64, n)
+    # k = length(inf_mask)
+    # if k > 0
+    #     result[inf_mask] .= 1.0 / k
+    # else
+    #     softmax!(result, -x, t)
+    # end
+    # return result
 end
 
 function inbounds(pos::S2V, bbmin::S2V, bbmax::S2V)
@@ -138,6 +156,23 @@ function comb_index(n::Int, s::Vector{Int})
         end
     end
     return index
+end
+
+function combination_rank(n::Int, p::Int, c::Vector{Int})
+    @assert length(c) == p "Combination must have exactly p elements"
+    @assert issorted(c) "Combination must be strictly increasing: $(c)"
+    @assert 1 ≤ c[1] && c[end] ≤ n "Elements must be between 1 and n inclusive"
+    
+    x = 0  # Lexicographic index starts at 1 for the smallest combination
+    prev = 0
+    for i in 1:(p-1)
+        for val in (prev + 1):(c[i] - 1)
+            x += ncr(n - val, p - i)
+        end
+        prev = c[i]
+    end
+    x += c[p] - prev  # Add the offset for the last position
+    return x
 end
 
 const NEGLN2 = -log(2)

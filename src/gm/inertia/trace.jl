@@ -59,12 +59,15 @@ function detect_gorilla(trace::InertiaTrace)
     result - rfs.score
 end
 
-function had_birth(trace::InertiaTrace)
+function had_birth_bool(trace::InertiaTrace)
     _, wm, _ = get_args(trace)
     nobj = Int64(wm.object_rate)
     state = get_last_state(trace)
-    total = object_count(state)
-    total > nobj ? 0.0 : -Inf
+    object_count(state) > nobj 
+end
+
+function had_birth(trace::InertiaTrace)
+    had_birth_bool(trace) ? 0.0 : -Inf
 end
 
 function get_last_state(tr::InertiaTrace)

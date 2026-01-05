@@ -173,11 +173,13 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v = get_vel(obj)
     distance = abs(w.d - dot(x, w.normal)) - radius
 
-    v_orth = dot(v, w.normal)
+    v_orth = min(dot(v, w.normal), 4.5)
     # Average time (steps) to collision
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
-    # Variance gets bigger with overall speed
-    sigma = sqrt(norm(v) + 1E-5)
+    
+    # Penalty for higher angular velocity
+    sigma = 1.0 / exp(-abs(get_avel(obj)))
+
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
@@ -187,9 +189,11 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     # @show x
     # @show v
     # @show v_orth
+    # @show get_avel(obj)
     # @show dt
     # @show sigma
     # @show z
+    # @show lcdf
     # @show dpdz
     (lcdf, dpdz)
 end
@@ -198,6 +202,7 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     r = rate(obj)
     prop_light = materials(obj)[1]
     isapprox(prop_light, 0; atol=1e-4) && return (-Inf, -Inf)
+    lpl = log(prop_light)
     x = get_pos(obj)
     v = get_vel(obj)
     distance = abs(w.d - dot(x, w.normal))
@@ -205,24 +210,23 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     # Average time for the ensemble to reach
     # the wall
     v_orth = dot(v, w.normal)
-    dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
+    dt = v_orth < 1E-5 ? 200.0 : distance / v_orth
 
     # Variance increases with speed as before,
     # but decreases with ensemble.
     # This is because ensemble spread relates
     # to its entropy, with more entropy
     # increasing the variance over velocity direction
-    sigma = sqrt(norm(v) / get_var(obj))
+    sigma = 5.0  / sqrt(get_var(obj))
     z = (1.0 - dt) / sigma
     # CDF up to 1 step
     pcol = Distributions.logcdf(standard_normal, z)
     # Scale by the number of objects,
     # and the proportion that are light
-    lcdf = r * pcol + log(prop_light)
+    lcdf = r * pcol + lpl
 
     # pdf is the derivative of the cdf
-    dpdz = Distributions.logpdf(standard_normal, z)
-    dpdz += log(prop_light)
+    dpdz = (r-1) * Distributions.logpdf(standard_normal, z) + lpl + r
     (lcdf, dpdz)
 end
 

@@ -20,7 +20,7 @@ function predict(wm::InertiaWM, st::InertiaState)
                 single_var,
                 Float64(Int(single.mat)),
                 material_noise)
-        es[i] = CPoissonElement{Detection}(detect, args, penalty)
+        es[i] = CIsoElement{Detection}(detect, args, penalty)
     end
     # the ensembles
     @inbounds for i = 1:ne
@@ -31,7 +31,7 @@ function predict(wm::InertiaWM, st::InertiaState)
                     light_w,        # Proportion light
                     material_noise) # variance for color
         es[ns + i] =
-            PoissonElement{Detection}(rate, detect_mixture, mix_args)
+            CPoissonElement{Detection}(rate, detect_mixture, mix_args, -3000.0)
     end
     return es
 end
