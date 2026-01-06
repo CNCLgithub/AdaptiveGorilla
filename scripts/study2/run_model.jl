@@ -44,7 +44,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 32
+    default = 124
 
     "model"
     help = "Model Variant"
@@ -81,8 +81,10 @@ FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
 LONE_PARENT = [true, false]
+NP = length(LONE_PARENT)
 # SWAP_COLORS = [false, true]
 SWAP_COLORS = [false]
+NSC = length(SWAP_COLORS)
 
 ################################################################################
 # ANALYSES
@@ -109,7 +111,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.1
+NOTICE_P_THRESH = 0.5
 
 ################################################################################
 # Methods
@@ -134,23 +136,46 @@ function run_model!(pbar, exp)
     (noticed, pgorilla, colp)
 end
 
+RunSummary = @NamedTuple begin
+    scene          :: Int64
+    color          :: Symbol
+    parent         :: Symbol
+    chain          :: Int64
+    ndetected      :: Int64
+    expected_count :: Float64
+    count_error    :: Float64
+    time           :: Float64
+end
+
+
+TimeSeries = @NamedTuple begin
+    color   :: Symbol
+    parent  :: Symbol
+    chain   :: Int64
+    frame   :: UnitRange{Int64}
+    pnotice :: Vector{Float64}
+    
+end
+
 ################################################################################
 # Main Entry
 ################################################################################
 
 function main()
-    result = NamedTuple[]
-    nsteps = length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1)
-    pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
-    noticed_df = DataFrame(;
-                           color = Symbol[],
-                           parent = Symbol[],
-                           chain = Int64[],
-                           frame = Int64[],
-                           pnotice = Float64[])
+    nruns = NSC * NP * CHAINS
+    nsteps = nruns * (FRAMES-1)
+    pbar = Progress(nsteps;
+                    desc="Running $(MODEL) model...",
+                    dt = 1.0)
+    # Preallocate simulation results
+    summaries = Vector{RunSummary}(undef, nruns)
+    time_series = Vector{TimeSeries}(undef, nruns)
+    linds = LinearIndices((CHAINS, NP, NSC))
     # Go through each of the conditions
-    for swap = SWAP_COLORS, lone = LONE_PARENT
+    for (i, swap) = enumerate(SWAP_COLORS), (j, lone) = enumerate(LONE_PARENT)
+
         color = swap ? :dark : :light
+        parent = lone ? :lone : :grouped
         # Load the experiment
         experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
         # Retrieve the number of true collisions
@@ -160,21 +185,25 @@ function main()
             run = @timed run_model!(pbar, experiment)
             ndetected, pnoticed, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
-            push!(result,
-                  (scene          = SCENE,
-                   color          = color,
-                   parent         = lone ? :lone : :grouped,
-                   chain          = c,
-                   ndetected      = ndetected,
-                   expected_count = expected_count,
-                   count_error    = count_error,
-                   time           = run.time))
-            append!(noticed_df,
-                    DataFrame(color = color,
-                              parent = lone ? :lone : :group,
-                              chain = c,
-                              frame = 1:(FRAMES-1),
-                              pnotice = pnoticed))
+
+            summaries[linds[c,j,i]] = RunSummary((
+                scene          = SCENE,
+                color          = color,
+                parent         = parent,
+                chain          = c,
+                ndetected      = ndetected,
+                expected_count = expected_count,
+                count_error    = count_error,
+                time           = run.time
+            ))
+
+            time_series[linds[c,j,i]] = TimeSeries((
+                color   = color,
+                parent  = parent,
+                chain   = c,
+                frame   = 1:(FRAMES-1),
+                pnotice = pnoticed
+            ))
         end
     end
     finish!(pbar)
@@ -184,33 +213,39 @@ function main()
         "$(DATASET)/$(MODEL)-$(ANALYSIS)" *
         "/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result)
+    df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-    count_f = x -> count(>(6), x) / CHAINS
+    count_f = x -> count(>(12), x) / CHAINS
 
     by_cond = groupby(df, [:color, :parent])
     display(combine(by_cond, :ndetected => count_f))
     for k = keys(by_cond)
         g = by_cond[k]
         display(
-            histogram(g[!, :ndetected], nbins=60, vertical=true, height=10,
-                      title = repr(NamedTuple(k)))
+            histogram(g[!, :ndetected], nbins=30, vertical=true,
+                      height=40,
+                      width =80,
+                      title = repr(NamedTuple(k)),
+                      xlim = (0, 48))
         )
     end
 
+    noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
     by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
                        :pnotice => mean)
     plot = Plot(;
+                title="Chain Averages",
                 xlabel = "t",
                 ylabel = "Pr(Notice)",
                 xlim = (1, FRAMES-1),
                 ylim = (0, 1),
-                title="Chain Averages"
+                width = 80,
+                height = 60,
                 )
     g_by_frame = groupby(by_frame, [:color, :parent])
     for k = keys(g_by_frame)
         g = g_by_frame[k]
-        lineplot!(plot, g[!, :frame], g[!, :pnotice_mean],
+        lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
                   name = repr(NamedTuple(k)))
     end
     display(plot)

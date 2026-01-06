@@ -125,7 +125,7 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::S3V)
     avx = cos_om * tvx - sin_om * tvy
     avy = sin_om * tvx + cos_om * tvy
     
-    mxv = 2.0 * wm.vel
+    mxv = 3.0 * wm.vel
     vx = clamp(avx + dvx, -mxv, mxv)
     vy = clamp(avy + dvy, -mxv, mxv)
 
@@ -146,6 +146,11 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     @unpack pos, vel, var, rate = e
     x, y = pos
     dx, dy, dvar = update
+
+    mxv = 2.0 * wm.vel
+    dx = clamp(dx, -mxv, mxv)
+    dy = clamp(dy, -mxv, mxv)
+
     bx, by = wm.dimensions
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))

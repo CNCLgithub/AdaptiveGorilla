@@ -122,7 +122,17 @@ end
 # API
 #################################################################################
 
+function get_map_hyper(agent::Agent)
+    memp, memstate = mparse(agent.memory)
+    visp, visstate = mparse(agent.perception)
+    
+    idx = argmax(memstate.objectives)
+    best_hp = visstate.chains[idx]
+    retrieve_map(best_hp)
+end
+
 function run_analyses(::TEnsExp, agent::Agent)
+    # gorilla_p = exp(detect_gorilla(get_map_hyper(agent)))
     gorilla_p = exp(estimate_marginal(agent.perception,
                                   detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,

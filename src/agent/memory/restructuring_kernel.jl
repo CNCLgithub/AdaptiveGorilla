@@ -204,6 +204,7 @@ function merge_weights(k::MhoSplitMerge,
     # importance = softmax(tr, temp)
     # importance = softmax(tr, attp.itemp)
 
+    attp, attx = mparse(k.att)
     # @show tr
     # @show importance
     # The weight of each merge pair is simply the sum of their importance values
@@ -223,7 +224,11 @@ function merge_weights(k::MhoSplitMerge,
         pair_id[i] = combination_rank(ntotal, 2, [a, b])
         # pair_ws[i] = .75*(1.0 - importance[a])^75 * .75*(1.0 - importance[b])^75
         # pair_ws[i] = 0.5((1.0 - importance[a])^100 * (1.0 - importance[b])^100)
-        pair_ws[i] = logsumexp(deltas[a], deltas[b])
+        pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
+            dissimilarity(t, attp.map_metric, a, b)
+        # pair_ws[i] = logsumexp(
+        #     logsumexp(deltas[a], deltas[b]),
+        #     -dissimilarity(t, a, b))
         # println("W: $(a),$(b) => $(pair_ws[i])")
         # println("ID: $(a),$(b) => $(pair_id[i]) =>"*
         #     " $(combination(ntotal, 2, pair_id[i]))")

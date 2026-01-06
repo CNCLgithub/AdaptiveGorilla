@@ -78,10 +78,10 @@ FRAMES  = 200
 # LONE_PARENT = [true, false]
 # SWAP_COLORS = [false, true]
  
-LONE_PARENT = [true]
-# LONE_PARENT = [false]
+LONE_PARENT = true
+# LONE_PARENT = false
 
-SWAP_COLORS = [false]
+SWAP_COLORS = false
 
 ################################################################################
 # ANALYSES
@@ -100,21 +100,24 @@ end
 # Analysis Parameters
 ################################################################################
 
+# RENDER = true
+RENDER = false
+
 # Number of model runs per condition
-CHAINS = 1
+CHAINS = RENDER ? 1 : 8
 
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.15
+NOTICE_P_THRESH = 0.5
 
 ################################################################################
 # Methods
 ################################################################################
 
-function run_model!(pbar, exp)
+function run_model!(pbar, exp, render=false)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
@@ -134,22 +137,8 @@ function run_model!(pbar, exp)
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        render && render_agent_state(exp, agent, t, out)
         next!(pbar)
-    end
-
-    # Dissect internal of perception after last frame
-    visp, visstate = mparse(agent.perception)
-    for i = 1:visp.h
-        chain = visstate.chains[i]
-        particles = chain.state
-        mll = AdaptiveGorilla.marginal_ll(particles.traces[1])
-        mll = zeros(length(mll))
-        for x = particles.traces
-            mll .+= AdaptiveGorilla.marginal_ll(x)
-        end
-        mll .*= 1.0 / length(particles.traces)
-        @show mll
     end
     return results
 end
@@ -161,34 +150,33 @@ end
 function main()
     result = NamedTuple[]
     pbar = Progress(
-        length(SWAP_COLORS) * length(LONE_PARENT) * CHAINS * (FRAMES-1);
+        CHAINS * (FRAMES-1);
         desc="Running $(MODEL) model...", dt = 1.0)
-    for swap = SWAP_COLORS, lone = LONE_PARENT
-        experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
+    plot = Plot(;
+                xlabel = "t",
+                ylabel = "Pr(Notice)",
+                xlim = (1, FRAMES-1),
+                ylim = (0, 1),
+                title="Color: $(SWAP_COLORS ? :Dark : :Light) | " *
+                    "Parent: $(LONE_PARENT ? :Lone : :Group)")
+    hline!(plot,
+           NOTICE_P_THRESH,
+           name = "Threshold")
+    Threads.@threads for c = 1:CHAINS
+        experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
         gt_count = count_collisions(experiment)
-        @show gt_count
-        results = run_model!(pbar, experiment)
-        show(results; allrows=true)
-        println()
-        @show count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
-        plot = Plot(;
-                    xlabel = "t",
-                    ylabel = "Pr(Notice)",
-                    xlim = (1, FRAMES-1),
-                    ylim = (0, 1),
-                    title="Color: $(swap ? :Dark : :Light) | " *
-                        "Parent: $(lone ? :Lone : :Group)")
-        hline!(plot,
-               NOTICE_P_THRESH,
-               name = "Threshold")
+        results = run_model!(pbar, experiment, RENDER)
+        RENDER && show(results; allrows=true)
+        # println()
+        ndetect = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
+        println("Times detected: $(ndetect)")
         lineplot!(plot,
                   results[!, :frame],
                   results[!, :gorilla_p],
-                  name = "Estimate")
-        display(plot)
-
+                  name = "Chain $(c)")
     end
     finish!(pbar)
+    display(plot)
     return nothing
 end;
 

@@ -75,10 +75,10 @@ function trace_mho(attx::AdaptiveAux,
     mag = logsumexp(tr)
     importance = softmax(tr, attp.itemp)
     # @show tr
+    # @show importance
     # state = get_last_state(trace)
     # obj = object_from_idx(state, argmax(mag))
     # println("type: $(typeof(obj))\n pos: $(get_pos(obj)) \n vel: $(get_vel(obj))")
-    # @show importance
     c = irr_complexity(importance,
                        gop.complexity_factor,
                        gop.complexity_mass)
