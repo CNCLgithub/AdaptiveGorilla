@@ -125,7 +125,7 @@ function update_state(s::InertiaSingle, wm::InertiaWM, f::S3V)
     avx = cos_om * tvx - sin_om * tvy
     avy = sin_om * tvx + cos_om * tvy
     
-    mxv = 3.0 * wm.vel
+    mxv = 2.0 * wm.vel
     vx = clamp(avx + dvx, -mxv, mxv)
     vy = clamp(avy + dvy, -mxv, mxv)
 

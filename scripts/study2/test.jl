@@ -17,8 +17,11 @@ using DataFrames
 using Gen_Compose
 using ProgressMeter
 using AdaptiveGorilla
-using UnicodePlots: Plot, lineplot!, hline!
-using AdaptiveGorilla: count_collisions 
+using UnicodePlots: Plot, lineplot!, hline!, histogram
+using AdaptiveGorilla: count_collisions
+
+using Random
+Random.seed!(123)
 
 ################################################################################
 # Command Line Interface
@@ -74,10 +77,6 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 200
 
-# 4 Conditions total: 2 colors x 2 gorilla parents
-# LONE_PARENT = [true, false]
-# SWAP_COLORS = [false, true]
- 
 LONE_PARENT = true
 # LONE_PARENT = false
 
@@ -104,14 +103,14 @@ end
 RENDER = false
 
 # Number of model runs per condition
-CHAINS = RENDER ? 1 : 8
+CHAINS = RENDER ? 1 : 32
 
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.5
+NOTICE_P_THRESH = 0.25
 
 ################################################################################
 # Methods
@@ -153,30 +152,35 @@ function main()
         CHAINS * (FRAMES-1);
         desc="Running $(MODEL) model...", dt = 1.0)
     plot = Plot(;
+                title="Color: $(SWAP_COLORS ? :Dark : :Light) | " *
+                    "Parent: $(LONE_PARENT ? :Lone : :Group)",
                 xlabel = "t",
                 ylabel = "Pr(Notice)",
                 xlim = (1, FRAMES-1),
-                ylim = (0, 1),
-                title="Color: $(SWAP_COLORS ? :Dark : :Light) | " *
-                    "Parent: $(LONE_PARENT ? :Lone : :Group)")
+                width = 60, height=20,
+                )
     hline!(plot,
            NOTICE_P_THRESH,
            name = "Threshold")
+    ndetected = Vector{Int64}(undef, CHAINS)
     Threads.@threads for c = 1:CHAINS
         experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
         gt_count = count_collisions(experiment)
         results = run_model!(pbar, experiment, RENDER)
-        RENDER && show(results; allrows=true)
+        # RENDER && show(results; allrows=true)
         # println()
-        ndetect = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
-        println("Times detected: $(ndetect)")
+        ndetected[c] = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
         lineplot!(plot,
                   results[!, :frame],
-                  results[!, :gorilla_p],
-                  name = "Chain $(c)")
+                  results[!, :gorilla_p])
     end
     finish!(pbar)
     display(plot)
+    RENDER || display(
+        histogram(ndetected, nbins=10, vertical=true,
+                  title = "Frames noticed",
+                  xlim = (0, 48))
+    )
     return nothing
 end;
 

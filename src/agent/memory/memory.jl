@@ -98,17 +98,32 @@ function optimize_memory!(mem::MentalModule{M},
 
     # Repopulate and potentially alter memory schemas
     memstate.objectives .-= log(memstate.steps)
+    lognormed_objectives = memstate.objectives .-
+        logsumexp(memstate.objectives)
+    ess = Gen.effective_sample_size(lognormed_objectives)
     ws = softmax(memstate.objectives, memp.tau)
-    
     next_gen = Vector{Int}(undef, visp.h)
-    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    if ess < 0.5 * visp.h
+        Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    else
+        next_gen[:] = 1:visp.h
+    end
 
+    # println()
     # println("################################################# ")
     # println("#________________CHAIN WEIGHTS__________________# ")
+    # println("#________________FRAME: $(t)    ________________# ")
     # println("################################################# ")
+    # attp, attx = mparse(memp.fitness.att)
     # for i = 1:visp.h
     #     print_granularity_schema(visstate.chains[i])
     #     println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
+    #     tr = task_relevance(attx,
+    #                         attp.partition,
+    #                         retrieve_map(visstate.chains[i]),
+    #                         attp.nns)
+    #     @show tr 
+    # mag = logsumexp(tr)
     # end
     # @show next_gen
 

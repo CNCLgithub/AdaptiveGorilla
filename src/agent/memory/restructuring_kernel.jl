@@ -148,7 +148,7 @@ function split_prob(kappa::MhoSplitMerge,
     # Possible heuristics:
     #   1. more than 1 -Inf? => Merge
     #   2. Max delta is ensemble? => Split
-    count(isinf, deltas) > 1  && return 0.1
+    count(isinf, deltas) > 2  && return 0.1
     argmax(deltas) > ns && return 0.9
      
     # 50/50

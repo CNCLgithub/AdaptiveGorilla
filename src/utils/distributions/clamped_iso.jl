@@ -14,8 +14,6 @@ end
 GenRFS.distribution(rfe::CIsoElement) = rfe.d
 GenRFS.args(rfe::CIsoElement) = rfe.args
 
-const cpoisson_cardinality = truncated(Poisson(1.1); upper = 2)
-
 function GenRFS.cardinality(rfe::CIsoElement, n::Int)
     n == 1 ? 0.0 : rfe.log_penalty
 end

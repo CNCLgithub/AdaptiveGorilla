@@ -17,6 +17,9 @@ using AdaptiveGorilla
 using Statistics: mean
 using UnicodePlots: Plot, lineplot!, histogram
 
+using Random
+Random.seed!(123)
+
 ################################################################################
 # Command Line Interface
 ################################################################################
@@ -44,7 +47,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 124
+    default = 64
 
     "model"
     help = "Model Variant"
@@ -111,21 +114,21 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.5
+NOTICE_P_THRESH = 0.25
 
 ################################################################################
 # Methods
 ################################################################################
 
-function run_model!(pbar, exp)
+function run_model!(pbar, experiment)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
-    agent = load_agent(MODEL_PARAMS, exp.init_query)
+    agent = load_agent(MODEL_PARAMS, experiment.init_query)
     colp = 0.0
     noticed = 0
     pgorilla = Vector{Float64}(undef, FRAMES-1)
     for t = 1:(FRAMES - 1)
-        _results = test_agent!(agent, exp, t)
+        _results = test_agent!(agent, experiment, t)
         colp = _results[:collision_p]
         if  _results[:gorilla_p] > NOTICE_P_THRESH
             noticed += 1
@@ -223,8 +226,6 @@ function main()
         g = by_cond[k]
         display(
             histogram(g[!, :ndetected], nbins=30, vertical=true,
-                      height=40,
-                      width =80,
                       title = repr(NamedTuple(k)),
                       xlim = (0, 48))
         )
@@ -239,8 +240,6 @@ function main()
                 ylabel = "Pr(Notice)",
                 xlim = (1, FRAMES-1),
                 ylim = (0, 1),
-                width = 80,
-                height = 60,
                 )
     g_by_frame = groupby(by_frame, [:color, :parent])
     for k = keys(g_by_frame)

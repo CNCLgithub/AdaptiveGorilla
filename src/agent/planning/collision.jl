@@ -172,29 +172,28 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     x = get_pos(obj)
     v = get_vel(obj)
     distance = abs(w.d - dot(x, w.normal)) - radius
-
-    v_orth = min(dot(v, w.normal), 4.5)
     # Average time (steps) to collision
+    v_orth = min(dot(v, w.normal), 4.5)
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
-    
     # Penalty for higher angular velocity
-    sigma = radius * exp(-abs(get_avel(obj)))
-
+    sigma = exp(-0.5*abs(get_avel(obj)))
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
     lcdf = Distributions.logcdf(standard_normal, z)
     # pdf is the derivative of the cdf
     dpdz = Distributions.logpdf(standard_normal, z)
-    # @show x
-    # @show v
-    # @show v_orth
-    # @show get_avel(obj)
-    # @show dt
-    # @show sigma
-    # @show z
-    # @show lcdf
-    # @show dpdz
+    # if dpdz > -15
+    #     @show x
+    #     @show v
+    #     @show v_orth
+    #     @show get_avel(obj)
+    #     @show dt
+    #     @show sigma
+    #     @show z
+    #     @show lcdf
+    #     @show dpdz
+    # end
     (lcdf, dpdz)
 end
 
@@ -210,14 +209,14 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     # Average time for the ensemble to reach
     # the wall
     v_orth = dot(v, w.normal)
-    dt = v_orth < 1E-5 ? 200.0 : distance / v_orth
+    dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
 
     # Variance increases with speed as before,
     # but decreases with ensemble.
     # This is because ensemble spread relates
     # to its entropy, with more entropy
     # increasing the variance over velocity direction
-    sigma = 1.0  / sqrt(get_var(obj))
+    sigma = r  / sqrt(get_var(obj))
     z = (1.0 - dt) / sigma
     # CDF up to 1 step
     pcol = Distributions.logcdf(standard_normal, z)

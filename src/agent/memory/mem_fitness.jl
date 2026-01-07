@@ -42,8 +42,9 @@ function memory_fitness(gop::MhoFitness,
     nparticles = length(state.traces)
     magv = Vector{Float64}(undef, nparticles)
     ircv = Vector{Float64}(undef, nparticles)
+    particles = sample_unweighted_traces(state, nparticles)
     @inbounds for i = 1:nparticles
-        magv[i], ircv[i] = trace_mho(attx, attp, gop, state.traces[i])
+        magv[i], ircv[i] = trace_mho(attx, attp, gop, particles[i])
     end
 
     mag = logsumexp(magv) - log(nparticles)
