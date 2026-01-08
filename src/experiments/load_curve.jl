@@ -9,6 +9,8 @@ struct LoadCurve <: Experiment
     frames::Int64
     "Gorilla appearance"
     gorilla_color::Material
+    "Number of distractors"
+    n_distractors::Int64
     "Observations for model"
     observations::Vector{ChoiceMap}
     "Query to initialize percept"
@@ -77,10 +79,16 @@ message Dataset {
 }
 ```
 """
-function LoadCurve(wm::InertiaWM, nlight::Int64, ndark::Int64,
-                   frames::Int64)
-    ws, obs = gen_trial(wm, nlight, ndark, frames)
+function LoadCurve(wm::InertiaWM, dpath::String,
+                   trial_idx::Int64, time_steps::Int64,
+                   ntarget::Int64, ndistractor::Int64)
 
+    ws, obs =  load_curve_trial(wm,
+                                dpath,
+                                trial_idx,
+                                time_steps,
+                                ntarget,
+                                ndistractor)
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
     # argdiffs: only `t` changes
@@ -89,7 +97,7 @@ function LoadCurve(wm::InertiaWM, nlight::Int64, ndark::Int64,
     init_cm = choicemap()
     init_cm[:s0 => :nsm] = 1
     q = IncrementalQuery(gm, init_cm, args, argdiffs, 1)
-    LoadCurve(frames, Dark, obs, q)
+    LoadCurve(time_steps, Dark, ndistractor, obs, q)
 end
 
 #################################################################################
@@ -116,12 +124,9 @@ returns a `Dict` containing:
 - the probability that the agent noticed the gorilla
 - The agent's expectation over the number of event counts
 """
-function step_agent!(agent::Agent, exp::LoadCurve, stepid::Int)
+function test_agent!(agent::Agent, exp::LoadCurve, stepid::Int)
     obs = get_obs(exp, stepid)
-    perceive!(agent, obs, stepid)
-    attend!(agent, stepid)
-    plan!(agent, stepid)
-    memory!(agent, stepid)
+    agent_step!(agent, stepid, obs)
     run_analyses(exp, agent)
 end
 
@@ -129,64 +134,61 @@ end
 # Helpers
 #################################################################################
 
-function gen_trial(wm::InertiaWM, nlight::Int64, ndark::Int64, nframes::Int64)
-    dgp = init_wm(nlight + ndark)
-    _, states = wm_scholl(nframes, dgp)
-    gorilla = Dict(
-        # onset time
-        :frame =>
-            uniform_discrete(round(Int64, 0.15 * nframes),
-                             round(Int64, 0.25 * nframes)),
-        # speed to move across
-        :speedx => normal(dgp.vel, 1.0),
-    )
+function load_curve_trial(wm::WorldModel,
+                          dpath::String,
+                          trial_idx::Int,
+                          time_steps::Int,
+                          ntarget::Int,
+                          ndistractor::Int,
+                          show_gorilla = false)
+    trial_length = 0
+    open(dpath, "r") do io
+        manifest = JSON3.read(io)["manifest"]
+        trial_length = manifest["frames"]
+    end
+
+    trial_length = min(trial_length, time_steps)
+    # Variables
+    local istate::InertiaState, gorilla, positions
+    observations = Vector{ChoiceMap}(undef, trial_length - 1)
+    open(dpath, "r") do io
+        # loading a vec of positions
+        data = JSON3.read(io)["trials"][trial_idx]
+        gorilla = data["gorilla"]
+        positions = data["positions"]
+    end
     # first frame gets GT
-    istate = initial_state(wm, states[1], nlight)
-    observations = Vector{ChoiceMap}(undef, nframes - 1)
-    @inbounds for j in 2:nframes
+    istate = initial_state(wm, positions[1], ntarget)
+    nobj = Int64(wm.object_rate)
+    nobj = min(ntarget + ndistractor, nobj)
+    for t = 2:trial_length
         cm = choicemap()
-        state = states[j]
-        objects = state.objects
-        no = length(objects)
-        step = Vector{S2V}(undef, no)
-        for k in 1:no
-            obj = objects[k]
-            xy = obj.pos
-            mat = k <= nlight ? Light : Dark
+        # Observations associated with each object
+        step = positions[t]
+        @inbounds for i = 1:nobj
+            xy = step[i]
+            mat = i <= ntarget ? Light : Dark
             write_obs_mask!(
-                cm, wm, j, k, xy, mat;
+                cm, wm, t, i, xy, mat;
                 prefix = (t, i) -> i,
             )
         end
-        # Gorilla observations
-        # moves right to left
-        delta_t = j - gorilla[:frame]
-        if delta_t > 0
-            x0 = 0.5 * wm.area_width
-            x = x0 - delta_t * gorilla[:speedx]
-            write_obs_mask!(
-                cm, wm, j, no+1, S2V(x, 0.0), Dark;
-                prefix = (t, i) -> i,
-            )
+        if show_gorilla
+            # Gorilla observations
+            # moves right to left
+            delta_t = t - gorilla["frame"]
+            if delta_t > 0
+                x0 = 0.5 * wm.area_width
+                x = x0 - delta_t * gorilla["speedx"]
+                write_obs_mask!(
+                    cm, wm, t, nobj+1, S2V(x, 0.0), gorilla_color;
+                    prefix = (t, i) -> i,
+                )
+            end
         end
-        observations[j-1] = cm
+        observations[t-1] = cm
     end
     (istate, observations)
-end
-
-function init_wm(n_dots::Int)
-    SchollWM(
-        ;
-        n_dots = n_dots,
-        dot_radius = 5.0,
-        area_width = 720.0,
-        area_height = 480.0,
-        vel=4.5,
-        vel_min = 3.5,
-        vel_max = 5.5,
-        vel_step = 0.20,
-        vel_prob = 0.20
-    )
 end
 
 function get_obs(exp::LoadCurve, idx::Int64)
@@ -236,13 +238,13 @@ function render_agent_state(exp::LoadCurve, agent::Agent, t::Int, path::String)
 
 
     # Attention
-    init = InitPainter(path = "$(path)/attention-$(t).png",
-                       background = "white")
+    # init = InitPainter(path = "$(path)/attention-$(t).png",
+    #                    background = "white")
 
-    _, wm, _ = exp.init_query.args
-    # setup
-    MOTCore.paint(init, wm)
-    render_attention(agent.attention)
-    finish()
+    # _, wm, _ = exp.init_query.args
+    # # setup
+    # MOTCore.paint(init, wm)
+    # render_attention(agent.attention)
+    # finish()
     return nothing
 end

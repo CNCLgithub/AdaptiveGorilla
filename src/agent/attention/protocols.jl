@@ -37,7 +37,7 @@ function attend!(chain::APChain,
 
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
-        nobj = Int64(object_count(trace))
+        nobj = representation_count(trace)
         # number of moves per object
         steps_per_obj = round(Int, protocol.moves / nobj)
         # Stage 2
@@ -54,15 +54,10 @@ function attend!(chain::APChain,
             end
         end
 
-        # # TODO: Hyperparameter
-        for _ = 1:3
-            new_trace, w = baby_ancestral_proposal(trace)
-            if log(rand()) < w
-                trace = new_trace
-                state.log_weights[i] += w
-            end
-        end
-        state.traces[i] = trace
+        # state.traces[i] = trace
+        ws = fill(1.0 / nobj, nobj)
+        state.traces[i], delta_score = baby_loop(trace, ws)
+        state.log_weights[i] += delta_score
     end
     return nothing
 end
@@ -147,15 +142,13 @@ end
 
 # TODO: revisit after `importance`
 # Can implement by storing running average
-# function load(p::AdaptiveComputation, x::AdaptiveAux)
-#     # isempty(x) && return 0
-#     # x = logsumexp(tr.trs) - log(length(tr.trs))
-#     # if isnan(x)
-#     #     display(tr.trs)
-#     # end
-#     # println("Load : $(x)")
-#     return 20
-# end
+function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
+    isempty(x) && return p.load
+    m = 1.0
+    x0 = 0.0
+    x = (logsumexp(deltas) - x0) / m
+    p.load * exp(min(x, 0.0))
+end
 
 function task_relevance(
         x::AdaptiveAux,
@@ -189,13 +182,14 @@ function module_step!(att::MentalModule{<:AdaptiveComputation},
         chain = visstate.chains[i]
         attend!(chain, att)
     end
+
     return nothing
 end
 
-function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputation}
+function attend!(chain::APChain, att::MentalModule{AdaptiveComputation})
     protocol, aux = mparse(att)
 
-    @unpack partition, base_steps, nns, itemp, load = protocol
+    @unpack partition, base_steps, nns, itemp = protocol
     @unpack state = chain
 
     np = length(state.traces)
@@ -206,13 +200,14 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
         # determine the importance of each latent
         deltas = task_relevance(aux, partition, trace, nns)
         importance = softmax(deltas, itemp)
+        tload = load(protocol, aux, deltas)
         nobj = length(deltas)
         steps_per_obj = round(Int, base_steps / nobj)
         # Stage 2
         # select latent and C_k
         for j = 1:nobj
             steps = steps_per_obj +
-                round(Int, load * importance[j])
+                round(Int, tload * importance[j])
             for _ = 1:steps
                 prop = select_prop(partition, trace, j)
                 # Apply computation, estimate dS
@@ -227,16 +222,50 @@ function attend!(chain::APChain, att::MentalModule{A}) where {A<:AdaptiveComputa
             end
         end
 
-        # # TODO: Hyperparameter
-        for _ = 1:3
-            new_trace, w = baby_ancestral_proposal(trace)
-            if log(rand()) < w
-                trace = new_trace
-                state.log_weights[i] += w
-            end
-        end
-        state.traces[i] = trace
+        state.traces[i], delta_score = baby_loop(trace, importance)
+        state.log_weights[i] += delta_score
     end
 
     return nothing
+end
+
+function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
+    delta_score = 0.0
+    for _ = 1:steps
+        # new_trace, w = baby_ancestral_proposal(trace)
+        idx = categorical(ws)
+        new_trace, w = bd_loc_transform(trace, idx)
+        # if rand() < 0.5
+        #     new_trace, w = baby_ancestral_proposal(trace)
+        # else
+        #     idx = categorical(ws)
+        #     new_trace, w = bd_loc_transform(trace, idx)
+        # end
+        # Importance driven (or uniform)
+        if log(rand()) < w
+            trace = new_trace
+            delta_score = w
+            break
+        end
+    end
+    return (trace, delta_score)
+    # trace, rw_score = baby_ancestral_mh_kernel(trace)
+    # return (trace, delta_score + rw_score)
+end
+
+function baby_ancestral_mh_kernel(trace::InertiaTrace, steps = 10)
+    t, wm, istate = get_args(trace)
+    switch_idx = trace[:kernel => t => :bd => :i]
+    switch_idx != 2 && return (trace, 0.0)
+    # A birth has just occured
+    ns = single_count(trace)
+    delta_score = 0.0
+    for _ = 1:steps
+        new_trace, w = single_ancestral_proposal(trace, ns) 
+        if log(rand()) < w
+            trace = new_trace
+            delta_score += w
+        end
+    end
+    (trace, delta_score)
 end

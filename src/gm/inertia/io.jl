@@ -1,3 +1,6 @@
+export load_wm_from_toml
+
+
 function initial_state(wm::InertiaWM, state::SchollState, target_count::Int = 4,
                        swap_colors::Bool = false)
     initial_state(wm, map(x -> x.pos, state.objects),
@@ -30,4 +33,13 @@ function write_obs_mask!(
     intensity = mat == Light ? 1.0 : 2.0
     cm[prefix(t, i)] = Detection(x, y, intensity)
     return nothing
+end
+
+function load_wm_from_toml(path::String; kwargs...)
+    toml = TOML.parsefile(path)
+    stub = toml["WorldModel"]
+    parts = Dict()
+    protocol = getfield(AdaptiveGorilla, Symbol(stub["protocol"]))
+    specified = load_inner(parts, stub["params"])
+    protocol(; merge(specified, kwargs)...)
 end

@@ -1,9 +1,10 @@
-export HyperResampling,
-        MemoryAssessments,
-        MemoryFitness,
-        memory_fitness,
-        RestructuringKernel,
-        restructure_kernel
+export MemoryModule,
+    HyperResampling,
+    MemoryAssessments,
+    MemoryFitness,
+    memory_fitness,
+    RestructuringKernel,
+    restructure_kernel
 
 ################################################################################
 # Memory Protocols
@@ -97,9 +98,34 @@ function optimize_memory!(mem::MentalModule{M},
 
     # Repopulate and potentially alter memory schemas
     memstate.objectives .-= log(memstate.steps)
+    lognormed_objectives = memstate.objectives .-
+        logsumexp(memstate.objectives)
+    ess = Gen.effective_sample_size(lognormed_objectives)
     ws = softmax(memstate.objectives, memp.tau)
     next_gen = Vector{Int}(undef, visp.h)
-    Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    if ess < 0.5 * visp.h
+        Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    else
+        next_gen[:] = 1:visp.h
+    end
+
+    println()
+    println("################################################# ")
+    println("#________________CHAIN WEIGHTS__________________# ")
+    println("#________________FRAME: $(t)    ________________# ")
+    println("################################################# ")
+    attp, attx = mparse(memp.fitness.att)
+    for i = 1:visp.h
+        print_granularity_schema(visstate.chains[i])
+        println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
+        tr = task_relevance(attx,
+                            attp.partition,
+                            retrieve_map(visstate.chains[i]),
+                            attp.nns)
+        @show tr 
+    mag = logsumexp(tr)
+    end
+    @show next_gen
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation
@@ -125,21 +151,6 @@ function optimize_memory!(mem::MentalModule{M},
     return nothing
 end
 
-
-################################################################################
-# Restructuring Kernels
-################################################################################
-
-"""
-
-    restructure_kernel(kernel, trace)
-
-Samples a choicemap that alters the granularity schema of `trace`.
-"""
-function restructure_kernel end
-
-include("restructuring_kernel.jl")
-
 ################################################################################
 # Memory Optimizers
 ################################################################################
@@ -155,18 +166,18 @@ function memory_fitness end
 
 include("mem_fitness.jl")
 
-# function print_granularity_schema(chain::APChain)
-#     tr = retrieve_map(chain)
-#     print_granularity_schema(tr)
-# end
-# function print_granularity_schema(tr::InertiaTrace)
-#     state = get_last_state(tr)
-#     ns = length(state.singles)
-#     ne = length(state.ensembles)
-#     c = object_count(tr)
-#     println("MAP Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
-#     ndark = count(x -> material(x) == Dark, state.singles)
-#     println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
-#     println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
-#     return nothing
-# end
+
+################################################################################
+# Restructuring Kernels
+################################################################################
+
+"""
+
+    restructure_kernel(kernel, trace)
+
+Samples a choicemap that alters the granularity schema of `trace`.
+"""
+function restructure_kernel end
+
+include("restructuring_kernel.jl")
+

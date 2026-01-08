@@ -1,5 +1,6 @@
 include("types.jl")
 include("math.jl")
+include("trace.jl")
 include("distributions/distributions.jl")
 include("io.jl")
 include("datastructures.jl")

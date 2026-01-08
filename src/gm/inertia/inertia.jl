@@ -23,16 +23,10 @@ $(TYPEDFIELDS)
     materials::Vector{Material} = collect(instances(Material))
     "Average number of objects in the scene"
     object_rate::Float64 = 8.0
-    "Number of individual representations"
-    irate::Float64 = 0.5
 
     # Individual obj parameters
     single_size::Float64 = 10.0
-    single_rfs_logweight::Float64 = -2500.0
-    # Ensemble parameters
-    # REVIEW: Are these used?
-    # ensemble_shape::Float64 = 2.0
-    # ensemble_scale::Float64 = 0.5
+    single_cpoisson_log_penalty::Float64 = -2500.0
 
     "Probability that a baby is born for a given step"
     birth_weight::Float64 = 0.01
@@ -58,6 +52,8 @@ $(TYPEDFIELDS)
     stability::Float64 = 0.9
     force_low::Float64 = 1.0
     force_high::Float64 = force_low * 5.0
+    ang_acc::Float64 = 0.1
+    ensemble_force::Float64 = vel
     ensemble_var_shift::Float64 = 0.2
 
     # - wall force
@@ -89,21 +85,21 @@ An individual object representation for `InertiaWM`
 
 $(TYPEDFIELDS)
 """
-@with_kw struct InertiaSingle <: InertiaObject
+struct InertiaSingle <: InertiaObject
     mat::Material
     pos::S2V
     vel::S2V
-    size::Float64 = 10.0
+    avel::Float64
 end
 
-function InertiaSingle(m::Material, p::S2V, v::S2V)
-    InertiaSingle(;mat = m,pos = p, vel = v)
+function InertiaSingle(mat::Material, pos::S2V, vel::S2V)
+    InertiaSingle(mat, pos, vel, 0.0)
 end
 
-get_pos(s::InertiaSingle) = s.pos
-get_vel(s::InertiaSingle) = s.vel
-get_size(s::InertiaSingle) = s.size
 material(s::InertiaSingle) = s.mat
+get_pos(s::InertiaSingle)  = s.pos
+get_vel(s::InertiaSingle)  = s.vel
+get_avel(s::InertiaSingle)  = s.avel
 
 """
 $(TYPEDEF)

@@ -7,38 +7,31 @@ function predict(wm::InertiaWM, st::InertiaState)
     @unpack singles, ensembles = st
     ns = length(singles)
     ne = length(ensembles)
-    # es = Vector{RandomFiniteElement{Detection}}(undef, ns + ne + 1)
+    # Return a collection of RandomFiniteElements
     es = Vector{RandomFiniteElement{Detection}}(undef, ns + ne)
+    # add the individual object representations
     @unpack single_noise, material_noise, bbmin, bbmax = wm
-    # add the single object representations
-    # REVIEW: what about all singles, but miss gorilla?
+    penalty = wm.single_cpoisson_log_penalty
+    single_var = wm.single_size * single_noise
     @inbounds for i in 1:ns
         single = singles[i]
         pos = get_pos(single)
-        args = (pos, wm.single_size * single_noise,
+        args = (pos,
+                single_var,
                 Float64(Int(single.mat)),
                 material_noise)
-        # es[i] = CPoissonElement{Detection}(detect, args)
-        es[i] = CPoissonElement{Detection}(detect, args)
-        # es[i] = LogBernElement{Detection}(wm.single_rfs_logweight, detect, args)
-        # es[i] = NegBinomElement{Detection}(2, 0.4, detect, args)
+        es[i] = CIsoElement{Detection}(detect, args, penalty)
     end
-    # the ensemble
+    # the ensembles
     @inbounds for i = 1:ne
         @unpack matws, rate, pos, var = ensembles[i]
-        # Clamped to possibly explain both materials
         light_w = clamp(matws[1], 0.0, 1.0)
-        varw = var #* single_noise
-        mix_args = (pos,
-                    varw,
-                    light_w,
-                    material_noise)
+        mix_args = (pos,            # Avg. 2D position
+                    var,            # Ensemble spread
+                    light_w,        # Proportion light
+                    material_noise) # variance for color
         es[ns + i] =
-            PoissonElement{Detection}(rate, detect_mixture, mix_args)
+            CPoissonElement{Detection}(rate, detect_mixture, mix_args, -3000.0)
     end
-    # catch all ensemble
-    # NOTE: This is needed in case of all individuals
-    # catch_all_args = (S2V([0., 0.]), 1000.0, 0.5, material_noise)
-    # es[end] = LogBernElement{Detection}(-.0001, detect_mixture, catch_all_args)
     return es
 end

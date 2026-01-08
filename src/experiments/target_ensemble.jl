@@ -122,7 +122,17 @@ end
 # API
 #################################################################################
 
+function get_map_hyper(agent::Agent)
+    memp, memstate = mparse(agent.memory)
+    visp, visstate = mparse(agent.perception)
+    
+    idx = argmax(memstate.objectives)
+    best_hp = visstate.chains[idx]
+    retrieve_map(best_hp)
+end
+
 function run_analyses(::TEnsExp, agent::Agent)
+    # gorilla_p = exp(detect_gorilla(get_map_hyper(agent)))
     gorilla_p = exp(estimate_marginal(agent.perception,
                                   detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,
@@ -143,12 +153,9 @@ returns a `Dict` containing:
 - the probability that the agent noticed the gorilla
 - The agent's expectation over the number of event counts
 """
-function step_agent!(agent::Agent, exp::TEnsExp, stepid::Int)
+function test_agent!(agent::Agent, exp::TEnsExp, stepid::Int)
     obs = get_obs(exp, stepid)
-    perceive!(agent, obs, stepid)
-    attend!(agent, stepid)
-    plan!(agent, stepid)
-    memory!(agent, stepid)
+    agent_step!(agent, stepid, obs)
     run_analyses(exp, agent)
 end
 
@@ -296,11 +303,11 @@ function render_agent_state(exp::TEnsExp, agent::Agent, t::Int, path::String)
     _, wm, _ = exp.init_query.args
     # setup
     MOTCore.paint(init, wm)
-    # observations
-    render_frame(exp, t, objp)
     # inferred states
     render_frame(agent.perception, agent.attention, agent.memory, objp)
-    render_frame(agent.planning, t)
+    # render_frame(agent.planning, t)
+    # observations
+    render_frame(exp, t, objp)
     finish()
     return nothing
 end

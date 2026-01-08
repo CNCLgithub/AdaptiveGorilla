@@ -1,0 +1,58 @@
+format = "Agent"
+version = "1.0"
+name = "Fixed Resource"
+
+
+################################################################################
+# Perception
+################################################################################
+
+[Perception]
+protocol = "HyperFilter"
+
+[Perception.params]
+dt = 12 # Time window, ~1.5s
+h  = 5  # Number of hyper particles
+
+[Perception.params.pf]
+protocol = "AdaptiveParticleFilter"
+params = {particles = 5} # Number of inner particles
+
+################################################################################
+# Planning
+################################################################################
+
+[Planning]
+protocol = "CollisionCounter"
+
+[Planning.params]
+mat = "Light"
+cooldown = 18
+tick_rate = 1
+
+################################################################################
+# Attention
+################################################################################
+
+[Attention]
+protocol = "UniformProtocol"
+
+[Attention.params]
+moves = 24
+
+################################################################################
+# Memory
+################################################################################
+
+[Memory]
+protocol = "HyperResampling"
+
+[Memory.params]
+tau = 1.0
+perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
+
+[Memory.params.fitness]
+protocol = "MLLFitness"
+
+[Memory.params.kernel]
+protocol = "StaticRKernel"

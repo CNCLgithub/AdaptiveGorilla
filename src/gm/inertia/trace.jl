@@ -34,20 +34,13 @@ Criterion:
     3. All targets (xs[1-4]) are tracked
     4. The gorilla (x = n + 1) is tracked
 """
-function detect_gorilla(trace::InertiaTrace,
-                        ntargets::Int = 4,
-                        nobj::Int = 8,
-                        temp::Float64 = 1.0)
-
+function detect_gorilla(trace::InertiaTrace)
     t, wm, _ = get_args(trace)
     nobj = Int64(wm.object_rate)
-    result = -Inf
-    t == 0 && return result
-    rfs = extract_rfs_subtrace(trace, t)
-    pt = rfs.ptensor
-    scores = rfs.pscores
-    nx,ne,np = size(pt)
+    t == 0 && return -Inf
     state = get_last_state(trace)
+    rfs = extract_rfs_subtrace(trace, t)
+    nx,ne,np = size(rfs.ptensor)
     ns = length(state.singles)
     # Cases for 0 prob
     # No gorilla
@@ -56,23 +49,25 @@ function detect_gorilla(trace::InertiaTrace,
     if (nx != nobj + 1 ) ||
         ns == 0  ||
         (object_count(state) != nobj + 1 )
-        return result
+        return -Inf
     end
+    result = -Inf
     @inbounds for p = 1:np, e = 1:ns
-        pt[nx, e, p] || continue
-        result = logsumexp(result, scores[p])
+        rfs.ptensor[nx, e, p] || continue
+        result = logsumexp(result, rfs.pscores[p])
     end
-    result -= rfs.score
-    return result
+    result - rfs.score
 end
 
-function had_birth(trace::InertiaTrace,
-                   nobj::Int = 8)
+function had_birth_bool(trace::InertiaTrace)
     _, wm, _ = get_args(trace)
     nobj = Int64(wm.object_rate)
     state = get_last_state(trace)
-    total = object_count(state)
-    total > nobj ? 0.0 : -Inf
+    object_count(state) > nobj 
+end
+
+function had_birth(trace::InertiaTrace)
+    had_birth_bool(trace) ? 0.0 : -Inf
 end
 
 function get_last_state(tr::InertiaTrace)
@@ -96,9 +91,16 @@ function ensemble_count(tr::InertiaTrace)
     length(state.ensembles)
 end
 
+# REVIEW: This is the number of objects representend.
+# This is not the number of object representations
 function object_count(tr::InertiaTrace)
     state = get_last_state(tr)
     object_count(state)
+end
+
+function representation_count(tr::InertiaTrace)
+    state = get_last_state(tr)
+    length(state.singles) + length(state.ensembles)
 end
 
 function marginal_ll(trace::InertiaTrace)

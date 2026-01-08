@@ -235,7 +235,7 @@ function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
 
 
     # Perception
-    init = InitPainter(path = "$(path)/perception-$(t).png",
+    init = InitPainter(path = "$(path)/$(t).png",
                        background = "white")
 
     _, wm, _ = exp.init_query.args

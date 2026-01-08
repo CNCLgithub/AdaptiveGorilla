@@ -18,7 +18,7 @@ function render_assigments(trace::InertiaTrace)
     while pmass < log(0.95)
         p = porder[pidx]
         pmass = logsumexp(pmass, rfs.pscores[p] - rfs.score)
-        @inbounds for e = 1:(ne-1) # last elem is catchall
+        @inbounds for e = 1:ne
             epos = get_pos(object_from_idx(state, e))
             for x = 1:nx
                 rfs.ptensor[x, e, p] || continue
@@ -41,25 +41,50 @@ function render_frame(perception::MentalModule{V},
     attp, attx = mparse(attention)
     memp, memx = mparse(memory)
 
-    # Get best hyper particle
-    chain = vs.chains[1]
-    mho = -Inf
-    for i = 1:vp.h
-        _chain = vs.chains[i]
-        _mho = granularity_objective(memory, attention, _chain)
-        if _mho > mho
-            chain = _chain
-        end
-    end
-
-    trace = retrieve_map(chain)
+    # # Get best hyper particle
+    # chain = vs.chains[1]
+    # mho = memory_fitness(memp.fitness, chain)
+    # for i = 2:vp.h
+    #     _chain = vs.chains[i]
+    #     _mho = memory_fitness(memp.fitness, _chain)
+    #     if _mho > mho
+    #         chain = _chain
+    #     end
+    # end
+    # trace = retrieve_map(chain)
+    # tr = task_relevance(attx,
+    #                     attp.partition,
+    #                     trace,
+    #                     attp.nns)
+    # importance = softmax(tr, attp.itemp)
+    # # render_attention(attention)
+    # l = load(attp, attx, tr) / attp.load
+    # MOTCore.paint(objp, trace, l .* importance)
+    # render_assigments(trace)
+    
+    # random chain
+    trace = retrieve_map(rand(vs.chains))
     tr = task_relevance(attx,
                         attp.partition,
                         trace,
                         attp.nns)
     importance = softmax(tr, attp.itemp)
-    MOTCore.paint(objp, trace, importance)
-    # render_assigments(trace)
+    render_attention(attention)
+    render_assigments(trace)
+    l = load(attp, attx, tr) / attp.load
+    MOTCore.paint(objp, trace, l .* importance)
+
+    # render_attention(attention)
+    # for i = 1:vp.h
+    #     trace = retrieve_map(vs.chains[i])
+    #     tr = task_relevance(attx,
+    #                         attp.partition,
+    #                         trace,
+    #                         attp.nns)
+    #     importance = softmax(tr, attp.itemp)
+    #     MOTCore.paint(objp, trace, importance)
+    #     render_assigments(trace)
+    # end
     return nothing
 end
 
@@ -79,14 +104,14 @@ function render_frame(perception::MentalModule{V},
     mho = -Inf
     for i = 1:vp.h
         _chain = vs.chains[i]
-        _mho = granularity_objective(memory, attention, _chain)
+        _mho = memory_fitness(memp.fitness, _chain)
         if _mho > mho
             chain = _chain
         end
     end
 
     trace = retrieve_map(chain)
-    n = Int64(object_count(trace))
+    n = representation_count(trace)
     importance = fill(1.0 / n, n)
     MOTCore.paint(objp, trace, importance)
     # render_assigments(trace)

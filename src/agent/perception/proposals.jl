@@ -1,71 +1,17 @@
-struct ReweightBlock
-    proposal
-    steps::Int32
-end
 
-function (b::ReweightBlock)(state::Gen.ParticleFilterState,
-                            pidx::Int,
-                            args...)
-    @unpack proposal, steps = b
-    s = state.traces[pidx]
-    c = 0
-    for _ = 1:steps
-        s_prime, w = proposal(s, args...)
-        if log(rand()) < w # MH acceptance ratio
-            s = s_prime
-            # mh reweighting
-            state.log_weights[pidx] += w
-            c += 1
-        end
-    end
-    # println("Acceptance ratio: $(c / steps)")
-    state.traces[pidx] = s
-    return nothing
-end
+################################################################################
+# Ancestral Proposals
+################################################################################
 
 function single_ancestral_proposal(trace::InertiaTrace,
                                    single::Int)
-    # println("single ancestral proposal")
-    # need to see if idx corresponds to:
-    # 1. gorilla
-    # 2. normal individual
     t, wm = get_args(trace)
     addr = :kernel => t => :forces => single
-    # addr = if single <= wm.object_rate
-    #     :kernel => t => :forces => single
-    # else
-    #     :kernel => t => :birth => :birth
-    # end
     new_trace, w, _ = regenerate(trace, select(addr))
 
-    if isnan(w)
-        state = trace[:kernel => t]
-        new_state = new_trace[:kernel => t]
-        @show (length(state.singles), length(state.ensembles))
-        @show (length(new_state.singles), length(new_state.ensembles))
-        @show single
-        @show addr
-        @show get_score(trace)
-        @show project(trace, select(:init_state => :n))
-        @show project(trace, select(addr))
-        @show project(trace, select(:kernel => t => :forces))
-        @show project(trace, select(:kernel => t => :eshifts))
-        @show project(trace, select(:kernel => t => :merge => :mergers))
-        @show project(trace, select(:kernel => t => :split => :splits => :splits))
-        @show project(trace, select(:kernel => t => :birth))
-        @show project(trace, select(:kernel => t => :xs))
-        # @show get_score(new_trace)
-        # @show project(trace, select(addr))
-        # @show project(new_trace, select(addr))
-        # @show project(trace, select(:xs))
-        # @show project(new_trace, select(:xs))
-        prev = get_submap(get_choices(trace), addr)
-        new = get_submap(get_choices(new_trace), addr)
-        # prev = get_choices(trace)
-        # new = get_choices(new_trace)
-        println("prev : $(sprint(show, "text/plain", prev))")
-        println("new : $(sprint(show, "text/plain", new))")
-        error("NaN proposal weight")
+    if isinf(w) || isnan(w)
+        find_inf_scores(new_trace)
+        error("Invalid score from ancestral proposal")
     end
     (new_trace, w)
 end
@@ -77,29 +23,77 @@ function ensemble_ancestral_proposal(trace::InertiaTrace,
         :kernel => t => :eshifts => idx => :force,
         :kernel => t => :eshifts => idx => :spread,
     ))
+    if isinf(w) || isnan(w)
+        find_inf_scores(new_trace)
+        error("Invalid score from ancestral proposal")
+    end
     (new_trace, w)
 end
 
 function baby_ancestral_proposal(trace::InertiaTrace)
     t = first(get_args(trace))
-    new_trace, w, discard = regenerate(trace, select(
+    selection = select(
         :kernel => t => :bd => :i,
         :kernel => t => :bd => :switch,
-    ))
+    )
+    new_trace, w, discard = regenerate(trace, selection)
+    if isinf(w) || isnan(w)
+        find_inf_scores(new_trace)
+        error("Invalid score from ancestral proposal")
+    end
+    # orig_choices = get_selected(get_choices(trace), selection)
+    # new_choices = get_selected(get_choices(new_trace), selection)
+    # if new_choices[:kernel => t => :bd => :i] == 2
+    #     @show w
+    #     display(orig_choices)
+    #     display(new_choices)
+    # end
     (new_trace, w)
+end
+
+
+################################################################################
+# Involutive Proposals
+################################################################################
+
+@gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64,
+                            sigma = 100.0)
+    xb, yb = object_bounds(wm)
+    x ~ trunc_norm(px, sigma, xb[1], xb[2])
+    y ~ trunc_norm(py, sigma, yb[1], yb[2])
+    ms = materials(wm)
+    nm = length(ms)
+    mws = Fill(1.0 / nm, nm)
+    material ~ categorical(mws)
+    ang ~ uniform(0.0 , 2.0 * pi)
+    mag ~ normal(wm.vel, 1.0)
+    loc = S2V(x, y)
+    vel = S2V(mag*cos(ang), mag*sin(ang))
+    result::InertiaSingle = InertiaSingle(ms[material], loc, vel)
+    return result
 end
 
 """
 Proposes new objects near location
 """
-@gen function bd_loc_proposal(trace::InertiaTrace, posx::Float64, posy::Float64)
+@gen function bd_loc_proposal(trace::InertiaTrace,
+                              posx::Float64,
+                              posy::Float64,
+                              sigma::Float64)
     t, wm = get_args(trace)
-    # 50% unless death occurred (then 0)
-    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
+    sc = single_count(trace)
+    # 50% unless:
+    # 1. death occurred
+    # w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
+    w = had_birth_bool(trace) ||
+        trace[:kernel => t => :bd => :i] == 3 ?
+        0.0 : 1.0
+
+    # println("BD proposal birth weight: $(w)")
     birth ~ bernoulli(w)
     if birth
         # make proposal around posx, posy
-        baby ~ nearby_single(wm, posx, posy)
+        baby ~ nearby_single(wm, posx, posy, sigma)
         force ~ inertia_force(wm, baby)
     end
     return single_count(trace)
@@ -164,138 +158,32 @@ end
     end
 end
 
+function bd_loc_args(trace::InertiaTrace, idx::Int64)
+    t, wm, _ = get_args(trace)
+    object = object_from_idx(trace, idx)
+    posx, posy = get_pos(object)
+    sigma = if typeof(object) <: InertiaSingle
+        5.0 * wm.single_size
+    else
+        5.0 * get_var(object)
+    end
+    (posx, posy, sigma)
+end
+
 function bd_loc_transform(trace::InertiaTrace, idx::Int64)
-    posx, posy = get_pos(object_from_idx(trace, idx))
     trans = SymmetricTraceTranslator(bd_loc_proposal,
-                                     (posx, posy),
+                                     bd_loc_args(trace, idx),
                                      bd_loc_involution)
     new_trace, w = apply_translator(trans, trace)
+    if isinf(w) || isnan(w)
+        msg = "Birth-death localized proposal encountered invalid weight\n"
+        error(msg)
+    end
+    (new_trace, w)
 end
 
+function apply_translator(translator, prev_model_trace, check = false)
 
-@gen function nearby_single(wm::InertiaWM, px::Float64, py::Float64)
-    x ~ normal(px, 0.1 * wm.area_width)
-    y ~ normal(py, 0.1 * wm.area_width)
-    ms = materials(wm)
-    nm = length(ms)
-    mws = Fill(1.0 / nm, nm)
-    material ~ categorical(mws)
-    ang ~ uniform(0.0 , 2.0 * pi)
-    std ~ normal(wm.vel, 1.0)
-    loc = S2V(x, y)
-    vel = S2V(std*cos(ang), std*sin(ang))
-    result::InertiaSingle = InertiaSingle(ms[material], loc, vel)
-    return result
-end
-
-"""
-Proposes new objects near poorly explained detections
-"""
-@gen function birth_death_ddp(trace::InertiaTrace)
-    t, wm = get_args(trace)
-    # negative marginal log likelihood
-    # NOTE: required outside of if statement
-    # to statisfy involution; otherwise
-    # cannot recover u''
-    nmls = marginal_ll(trace)
-    lmul!(-1.0, nmls)
-    # @show nmls
-    # if length(nmls) == 9
-    #     error()
-    # end
-    # sample from worst explained detections
-    didx ~ categorical(softmax(nmls))
-    # birth ~ bernoulli(birth_weight(wm, state))
-    # 50% unless death occurred (then 0)
-    w = trace[:kernel => t => :bd => :i] == 3 ? 0.0 : 0.5
-    birth ~ bernoulli(w)
-    if birth
-        # make proposal around detection
-        detection = trace[:kernel => t => :xs => didx]
-        px, py = position(detection)
-        baby ~ nearby_single(wm, px, py)
-        force ~ inertia_force(wm, baby)
-    end
-
-    return single_count(trace)
-end
-
-@transform birth_death_involution (tr, u) to (tprime, uprime) begin
-
-    t = first(get_args(tr))
-
-    ubirth = @read(u[:birth], :discrete)
-    # 1 => no change | 2 => birth | 3 => death
-    tbd = @read(tr[:kernel => t => :bd => :i],
-                :discrete)
-    nsingles = @read(u[], :discrete)
-    # Adding or removing birth
-    if tbd == 1 && ubirth # U + T -> T', U'
-        obj_idx = nsingles + 1
-        # T' (3)
-        @write(tprime[:kernel => t => :bd => :i], 2, :discrete)
-        @copy(u[:baby], tprime[:kernel => t => :bd => :switch => :birth])
-        @copy(u[:force], tprime[:kernel => t => :forces => obj_idx])
-        # U' (2)
-        @write(uprime[:birth], false, :discrete)
-        @copy(u[:didx], uprime[:didx])
-
-    elseif tbd == 2 && !ubirth  # T' + U' -> T, U
-        obj_idx = nsingles
-        # T' (1)
-        @write(tprime[:kernel => t => :bd => :i], 1, :discrete)
-        # U' (4)
-        @write(uprime[:birth], true, :discrete)
-        @copy(tr[:kernel => t => :bd => :switch => :birth],
-              uprime[:baby])
-        @copy(tr[:kernel => t => :forces => obj_idx], uprime[:force])
-        @copy(u[:didx], uprime[:didx])
-        # @copy(u[:baby], uprime[:baby])
-        # @copy(u[:force], uprime[:force])
-    end
-
-    # Swapping births
-    if tbd == 2  && ubirth
-        obj_idx = nsingles
-        @copy(u[:baby], tprime[:kernel => t => :bd => :switch => :birth])
-        @copy(u[:force], tprime[:kernel => t => :forces => obj_idx])
-        @copy(tr[:kernel => t => :bd => :switch => :birth], uprime[:baby])
-        @copy(tr[:kernel => t => :forces => obj_idx], uprime[:force])
-        @copy(u[:didx], uprime[:didx])
-        @copy(u[:birth], uprime[:birth])
-    end
-
-    # No births
-    if tbd == 1 && !ubirth
-        # Do nothing =)
-        @copy(tr[:kernel => t => :bd => :i],
-              tprime[:kernel => t => :bd => :i])
-        @copy(u[:didx], uprime[:didx])
-        @copy(u[:birth], uprime[:birth])
-    end
-
-
-    # Deaths
-    # In case of death, proposal does not sample
-    if tbd == 3
-        # Do nothing =)
-        @copy(tr[:kernel => t => :bd],
-              tprime[:kernel => t => :bd])
-        @copy(u[:didx], uprime[:didx])
-        @copy(u[:birth], uprime[:birth])
-    end
-end
-
-function birth_death_transform(trace::Gen.Trace)
-    trans = SymmetricTraceTranslator(birth_death_ddp,
-                                     (),
-                                     birth_death_involution)
-    new_trace, w = apply_translator(trans, trace)
-    # new_trace, w = trans(trace, check = true)
-end
-
-function apply_translator(translator, prev_model_trace)
-    check = false
     # simulate from auxiliary program
     forward_proposal_trace =
         simulate(translator.q, (prev_model_trace, translator.q_args...,))
@@ -312,7 +200,7 @@ function apply_translator(translator, prev_model_trace)
     log_weight = new_model_score - prev_model_score +
         backward_proposal_score - forward_proposal_score + log_abs_determinant
 
-    if check
+    if isinf(log_weight) || isnan(log_weight) || check
         t = first(get_args(prev_model_trace))
         Gen.check_observations(get_choices(new_model_trace), EmptyChoiceMap())
         (prev_model_trace_rt, forward_proposal_trace_rt, _) =
@@ -325,8 +213,10 @@ function apply_translator(translator, prev_model_trace)
         println("t'")
         display(get_submap(get_choices(new_model_trace),
                            :kernel => t))
+        find_inf_scores(new_model_trace)
         println("u'")
         display(get_choices(backward_proposal_trace))
+        find_inf_scores(backward_proposal_trace)
         println("t''")
         display(get_submap(get_choices(prev_model_trace_rt),
                            :kernel => t))
@@ -340,6 +230,7 @@ function apply_translator(translator, prev_model_trace)
         @show forward_proposal_score
         @show log_abs_determinant
         @show log_weight
+        error("Invalid log weight")
     end
 
     return (new_model_trace, log_weight)
