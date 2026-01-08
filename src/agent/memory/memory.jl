@@ -109,23 +109,23 @@ function optimize_memory!(mem::MentalModule{M},
         next_gen[:] = 1:visp.h
     end
 
-    # println()
-    # println("################################################# ")
-    # println("#________________CHAIN WEIGHTS__________________# ")
-    # println("#________________FRAME: $(t)    ________________# ")
-    # println("################################################# ")
-    # attp, attx = mparse(memp.fitness.att)
-    # for i = 1:visp.h
-    #     print_granularity_schema(visstate.chains[i])
-    #     println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
-    #     tr = task_relevance(attx,
-    #                         attp.partition,
-    #                         retrieve_map(visstate.chains[i]),
-    #                         attp.nns)
-    #     @show tr 
-    # mag = logsumexp(tr)
-    # end
-    # @show next_gen
+    println()
+    println("################################################# ")
+    println("#________________CHAIN WEIGHTS__________________# ")
+    println("#________________FRAME: $(t)    ________________# ")
+    println("################################################# ")
+    attp, attx = mparse(memp.fitness.att)
+    for i = 1:visp.h
+        print_granularity_schema(visstate.chains[i])
+        println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
+        tr = task_relevance(attx,
+                            attp.partition,
+                            retrieve_map(visstate.chains[i]),
+                            attp.nns)
+        @show tr 
+    mag = logsumexp(tr)
+    end
+    @show next_gen
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation

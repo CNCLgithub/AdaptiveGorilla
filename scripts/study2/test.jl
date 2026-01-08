@@ -21,7 +21,7 @@ using UnicodePlots: Plot, lineplot!, hline!, histogram
 using AdaptiveGorilla: count_collisions
 
 using Random
-Random.seed!(123)
+# Random.seed!(123)
 
 ################################################################################
 # Command Line Interface
@@ -99,8 +99,8 @@ end
 # Analysis Parameters
 ################################################################################
 
-# RENDER = true
-RENDER = false
+RENDER = true
+# RENDER = false
 
 # Number of model runs per condition
 CHAINS = RENDER ? 1 : 32
@@ -157,18 +157,21 @@ function main()
                 xlabel = "t",
                 ylabel = "Pr(Notice)",
                 xlim = (1, FRAMES-1),
+                ylim = (0, 1),
                 width = 60, height=20,
                 )
     hline!(plot,
            NOTICE_P_THRESH,
            name = "Threshold")
     ndetected = Vector{Int64}(undef, CHAINS)
+    experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
+    gt_count = count_collisions(experiment)
+    collision_counts = Vector{Float64}(undef, CHAINS)
     Threads.@threads for c = 1:CHAINS
-        experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
-        gt_count = count_collisions(experiment)
         results = run_model!(pbar, experiment, RENDER)
         # RENDER && show(results; allrows=true)
         # println()
+        collision_counts[c] = last(results[!, :collision_p])
         ndetected[c] = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
         lineplot!(plot,
                   results[!, :frame],
@@ -177,10 +180,14 @@ function main()
     finish!(pbar)
     display(plot)
     RENDER || display(
-        histogram(ndetected, nbins=10, vertical=true,
+        histogram(ndetected, nbins=10,
                   title = "Frames noticed",
                   xlim = (0, 48))
     )
+    RENDER ?
+        println("Collision counts: $(collision_counts)") :
+        histogram(collision_counts, nbins=10,
+                  title = "Collision counts")
     return nothing
 end;
 

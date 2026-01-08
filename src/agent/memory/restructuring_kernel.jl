@@ -128,7 +128,7 @@ function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
     mag = logsumexp(tr) # REVIEW: needed elsewhere? 
     x = exp(mag / k.restructure_prob_slope)
     w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    # println("Restructure prob: $(w)")
+    println("Restructure prob: $(w)")
     return w
 end
 
@@ -225,7 +225,7 @@ function merge_weights(k::MhoSplitMerge,
         # pair_ws[i] = .75*(1.0 - importance[a])^75 * .75*(1.0 - importance[b])^75
         # pair_ws[i] = 0.5((1.0 - importance[a])^100 * (1.0 - importance[b])^100)
         pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
-            dissimilarity(t, attp.map_metric, a, b)
+            2*dissimilarity(t, attp.map_metric, a, b)
         # pair_ws[i] = logsumexp(
         #     logsumexp(deltas[a], deltas[b]),
         #     -dissimilarity(t, a, b))
@@ -237,7 +237,7 @@ function merge_weights(k::MhoSplitMerge,
     if ncandidates > 2
         # Normalize
         # rmul!(pair_ws, 1.0 / sum(pair_ws))
-        pair_ws = inv_softmax(pair_ws, k.merge_tau)
+        pair_ws = inv_softmax(pair_ws, k.merge_tau, -1E5)
     else
         pair_ws[1] = 1.0
     end

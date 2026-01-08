@@ -18,7 +18,7 @@ using Statistics: mean
 using UnicodePlots: Plot, lineplot!, histogram
 
 using Random
-Random.seed!(123)
+# Random.seed!(123)
 
 ################################################################################
 # Command Line Interface
