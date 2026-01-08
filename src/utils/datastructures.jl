@@ -38,9 +38,8 @@ function fit_map!(m::HashMap, metric)
     if isempty(m.new_coords) || isempty(m.new_samples)
         m.map = nothing
     else
-        # TODO: Implement Base.copyto!
-        m.coords = deepcopy(m.new_coords)
-        m.samples = deepcopy(m.new_samples)
+        copyto!(m.coords, m.new_coords)
+        copyto!(m.samples, m.new_samples)
         m.map = KDTree(m.coords, metric)
     end
     return nothing
@@ -63,4 +62,28 @@ function integrate!(idxs::Vector{Int32},
     end
     x - log(k)
     return x
+end
+
+function Base.copyto!(dst::CircularBuffer{K},
+                      src::CircularBuffer{K}) where {K}
+    # Copy buffer data
+    ldst = length(dst.buffer)
+    lsrc = length(src.buffer)
+    if ldst !== lsrc
+        dst.buffer = Vector{K}(undef, lsrc)
+    end
+    copyto!(dst.buffer, src.buffer)
+
+    # Copy meta data
+    dst.capacity = src.capacity
+    dst.first = src.first
+    dst.length = src.length
+
+    return nothing
+end
+
+
+@with_kw struct HashRegistry
+    registry::Dict{UInt, Float64}
+    decay::Float64 = 1.0
 end
