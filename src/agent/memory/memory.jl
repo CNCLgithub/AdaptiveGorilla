@@ -35,21 +35,27 @@ struct HyperResampling <: MemoryProtocol
     kernel::RestructuringKernel
     "Temperature for chain resampling"
     tau::Float64
+    schema_log_decay_rate::Float64
 
 end
 
 function HyperResampling(; perception::MentalModule{<:HyperFilter},
-                         fitness, kernel, tau = 1.0)
+                         fitness, kernel, tau = 1.0,
+                         schema_log_decay_rate = -Inf)
     prot, _ = mparse(perception)
-    HyperResampling(prot.h, fitness, kernel, tau)
+    HyperResampling(prot.h, fitness, kernel, tau, schema_log_decay_rate)
 end
+
 mutable struct MemoryAssessments <: MentalState{HyperResampling}
-    objectives::Vector{Float64}
+    chain_objectives::Vector{Float64}
+    schema_map::Vector{Int}
+    schema_objectives::Dict{Int, Float64}
     steps::Int
 end
 
 function MemoryAssessments(size::Int)
-    MemoryAssessments(zeros(size), 0)
+    # REVIEW: init of `schema_map` may be dangerous
+    MemoryAssessments(zeros(size), zeros(UInt, size), Dict{UInt, Float64}(), 0)
 end
 
 # TODO: document
@@ -63,24 +69,72 @@ function module_step!(
     vis::MentalModule{V}
     ) where {M<:HyperResampling,
              V<:HyperFilter}
-    assess_memory!(mem, t, vis)
+    assess_memory_step!(mem, t, vis)
     optimize_memory!(mem, t, vis)
     return nothing
 end
 
-function assess_memory!(
-    mem::MentalModule{M},
-    t::Int,
-    vis::MentalModule{V}
-    ) where {M<:HyperResampling,
-             V<:HyperFilter}
+function assess_memory_step!(mem::MentalModule{M},
+                        t::Int,
+                        vis::MentalModule{V}
+                        ) where {M<:HyperResampling,
+                                 V<:HyperFilter}
     mp, mstate = mparse(mem)
     hf, vstate = mparse(vis)
     for i = 1:hf.h
-        increment = memory_fitness(mp.fitness, vstate.chains[i])
-        mstate.objectives[i] = logsumexp(mstate.objectives[i], increment)
+        chain = vstate.chains[i]
+        increment = memory_fitness(mp.fitness, chain)
+        mstate.chain_objectives[i] = logsumexp(prev, increment)
     end
     mstate.steps += 1
+    return nothing
+end
+
+function assess_memory_epoch!(mem::MentalModule{M},
+                              t::Int,
+                              vis::MentalModule{V}
+                              ) where {M<:HyperResampling,
+                                       V<:HyperFilter}
+    mp, mstate = mparse(mem)
+    hf, vstate = mparse(vis)
+
+    # Decay schema objectives
+    map!(v -> v+(mp.schema_log_decay_rate),
+         values(mstate.schema_objectives))
+
+
+    schema_chain_counts = Dict{Int, Int}()
+    schema_acc = Dict{Int, Float64}()
+    
+    for i = 1:hf.h
+        chain = vstate.chains[i]
+        obj = mstate.chain_objectives[i] -= m.steps
+
+        schema = mstate.schema_map[i]
+        # REVIEW: What if there is a birth at `t`?
+        chain_map = retrieve_map(chain)
+        if !is_valid_schema(chain_map, schema)
+            mstate.schema_map[i] = schema =
+                ammend_schema(chain_map, schema)
+        end
+
+        # store time integrated objective for the chain
+        mstate.objectives[i] =
+            logsumexp(obj, get(mstate.schema_objectives, schema, -Inf))
+
+        # accumulate for time integral
+        schema_acc[schema] = logsumexp(get(schema_acc, schema, -Inf), obj)
+        schema_chain_counts[schema] = get(schema_chain_count, schema, 0) + 1
+    end
+
+    # Normalize schema time integrals
+    for (k, c) = schema_chain_counts
+        schema_acc[k] -= log(c)
+    end
+
+    # Merge and update schema record
+    mergewith!(logsumexp, mstate.schema_objectives, new_schema_objectives)
+
     return nothing
 end
 
@@ -91,16 +145,18 @@ function optimize_memory!(mem::MentalModule{M},
              V<:HyperFilter}
 
     visp, visstate = mparse(vis)
-    # not time yet
+    memp, memstate = mparse(mem)
+     
+    # Not time yet for reframing
     (t > 0 && t % visp.dt != 0) && return nothing
 
-    memp, memstate = mparse(mem)
+    assess_memory_epoch!(mem, t, vis)
 
-    # Repopulate and potentially alter memory schemas
-    memstate.objectives .-= log(memstate.steps)
-    lognormed_objectives = memstate.objectives .-
-        logsumexp(memstate.objectives)
+    # Estimated sample size
+    lognormed_objectives = mstate.objectives .- logsumexp(mstate.objectives)
     ess = Gen.effective_sample_size(lognormed_objectives)
+
+    # Maybe resample
     ws = softmax(memstate.objectives, memp.tau)
     next_gen = Vector{Int}(undef, visp.h)
     if ess < 0.5 * visp.h
@@ -132,23 +188,30 @@ function optimize_memory!(mem::MentalModule{M},
     # 2. sample a change in memory structure (optional)
     # 3. Re-initialized hyper particle chain from seed.
     for i = 1:visp.h
-        parent = visstate.chains[next_gen[i]] # PFChain
-        template = retrieve_map(parent) # InertiaTrace
+        # Step 1
+        parent = next_gen[i]
+        chain = visstate.chains[i]
+        template = retrieve_map(chain) # InertiaTrace
+        # Step 2 (optional)
         cm = restructure_kernel(memp.kernel, template)
+        # Step 3
+        # REVIEW: copy over parent schema score? 
+        mstate.schema_map[i] = transform_schema(schema, cm) # TODO: implement `transform_schema`
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
     end
 
     # Set perception fields
-    visstate.age = 1
-    temp_chains = visstate.chains
-    visstate.chains = visstate.new_chains
-    visstate.new_chains = temp_chains
-
+    reset_state!(visstate, visp)
     # Reset optimizer state
+    reset_state!(memstate, memp)
+    
+    return nothing
+end
+
+# TODO: integrate changes
+function reset_state!(memstate::MemoryAssessments, memp::HyperResampling)
     fill!(memstate.objectives, -Inf)
     memstate.steps = 0
-
-    return nothing
 end
 
 ################################################################################

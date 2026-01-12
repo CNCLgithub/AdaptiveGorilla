@@ -150,11 +150,11 @@ function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
     p.load * exp(min(x, 0.0))
 end
 
-function task_relevance(
-        x::AdaptiveAux,
-        partition::TracePartition{T},
-        trace::T,
-        k::Int = 25) where {T<:Gen.Trace}
+function task_relevance(x::AdaptiveAux,
+                        partition::TracePartition{T},
+                        trace::T,
+                        k::Int = 25
+                        ) where {T<:Gen.Trace}
     @unpack dPi, dS = x
     n = latent_size(partition, trace)
     # NOTE: case with empty estimate?
@@ -253,6 +253,7 @@ function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
     # return (trace, delta_score + rw_score)
 end
 
+# REVIEW: remove?
 function baby_ancestral_mh_kernel(trace::InertiaTrace, steps = 10)
     t, wm, istate = get_args(trace)
     switch_idx = trace[:kernel => t => :bd => :i]

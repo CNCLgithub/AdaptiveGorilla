@@ -109,12 +109,11 @@ function TEnsExp(dpath::String, wm::InertiaWM, trial_idx::Int64,
 
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
-    # argdiffs: only `t` changes
-    argdiffs = (Gen.UnknownChange(), Gen.NoChange(), Gen.NoChange())
     # uniform initial granularity
     init_cm = choicemap()
     init_cm[:s0 => :nsm] = 1
-    q = IncrementalQuery(gm, init_cm, args, argdiffs, 1)
+    # argdiffs: only `t` changes
+    q = IncrementalQuery(gm, init_cm, args, INERTIA_ARG_DIFFS, 1)
     TEnsExp(frames, lone_parent, swap_color, obs, q)
 end
 

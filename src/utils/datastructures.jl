@@ -69,7 +69,9 @@ function Base.copyto!(dst::CircularBuffer{K},
     # Copy buffer data
     ldst = length(dst.buffer)
     lsrc = length(src.buffer)
-    if ldst !== lsrc
+    # NOTE: if ldst > lsrc, `first` and `length` should
+    # handle overflow.
+    if ldst < lsrc
         dst.buffer = Vector{K}(undef, lsrc)
     end
     copyto!(dst.buffer, src.buffer)
@@ -83,7 +85,8 @@ function Base.copyto!(dst::CircularBuffer{K},
 end
 
 
-@with_kw struct HashRegistry
-    registry::Dict{UInt, Float64}
+@with_kw struct HashRegistry{C, I}
+    coords::Dict{UInt, C}
+    integral::Dict{UInt, I}
     decay::Float64 = 1.0
 end

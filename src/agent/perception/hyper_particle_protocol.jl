@@ -72,6 +72,14 @@ function module_step!(perception::MentalModule{T},
     return nothing
 end
 
+function reset_state!(visstate::HyperState, visp::HyperFilter)
+    visstate.age = 1
+    temp_chains = visstate.chains
+    visstate.chains = visstate.new_chains
+    visstate.new_chains = temp_chains
+    return nothing
+end
+
 function estimate_marginal(perception::MentalModule{T},
                            func::Function,
                            args::Tuple
