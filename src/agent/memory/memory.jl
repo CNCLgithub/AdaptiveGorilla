@@ -6,6 +6,8 @@ export MemoryModule,
     RestructuringKernel,
     restructure_kernel
 
+include("schema.jl")
+
 ################################################################################
 # Memory Protocols
 ################################################################################
@@ -29,6 +31,8 @@ $(TYPEDFIELDS)
 struct HyperResampling <: MemoryProtocol
     "Number of hyper chains in perception"
     chains::Int64
+    "Initial Schema"
+    schema::GranularitySchema
     "Optimization fitness criteria"
     fitness::MemoryFitness
     "Restructuring Kernel"
@@ -43,32 +47,35 @@ function HyperResampling(; perception::MentalModule{<:HyperFilter},
                          fitness, kernel, tau = 1.0,
                          schema_log_decay_rate = -Inf)
     prot, _ = mparse(perception)
-    HyperResampling(prot.h, fitness, kernel, tau, schema_log_decay_rate)
+    schema = memory_schema(perception)
+    HyperResampling(prot.h, schema, fitness, kernel, tau, schema_log_decay_rate)
 end
 
 mutable struct MemoryAssessments <: MentalState{HyperResampling}
     chain_objectives::Vector{Float64}
-    schema_map::Vector{Int}
-    schema_objectives::Dict{Int, Float64}
+    schema_map::Vector{GranularitySchema}
+    schema_objectives::Dict{GranularitySchema, Float64}
     steps::Int
 end
 
-function MemoryAssessments(size::Int)
-    # REVIEW: init of `schema_map` may be dangerous
-    MemoryAssessments(zeros(size), zeros(UInt, size), Dict{UInt, Float64}(), 0)
+function MemoryAssessments(chains::Int, schema::GranularitySchema)
+    schemas = fill(schema, chains)
+    MemoryAssessments(zeros(chains),
+                      schemas,
+                      Dict{GranularitySchema, Float64}(),
+                      0)
 end
 
 # TODO: document
 function MemoryModule(p::HyperResampling)
-    MentalModule(p, MemoryAssessments(p.chains))
+    MentalModule(p, MemoryAssessments(p.chains, p.schema))
 end
 
-function module_step!(
-    mem::MentalModule{M},
-    t::Int,
-    vis::MentalModule{V}
-    ) where {M<:HyperResampling,
-             V<:HyperFilter}
+function module_step!(mem::MentalModule{M},
+                      t::Int,
+                      vis::MentalModule{V}
+                      ) where {M<:HyperResampling,
+                               V<:HyperFilter}
     assess_memory_step!(mem, t, vis)
     optimize_memory!(mem, t, vis)
     return nothing
@@ -84,6 +91,7 @@ function assess_memory_step!(mem::MentalModule{M},
     for i = 1:hf.h
         chain = vstate.chains[i]
         increment = memory_fitness(mp.fitness, chain)
+        prev = mstate.chain_objectives[i]
         mstate.chain_objectives[i] = logsumexp(prev, increment)
     end
     mstate.steps += 1
@@ -108,7 +116,7 @@ function assess_memory_epoch!(mem::MentalModule{M},
     
     for i = 1:hf.h
         chain = vstate.chains[i]
-        obj = mstate.chain_objectives[i] -= m.steps
+        obj = mstate.chain_objectives[i] -= mstate.steps
 
         schema = mstate.schema_map[i]
         # REVIEW: What if there is a birth at `t`?
@@ -119,7 +127,7 @@ function assess_memory_epoch!(mem::MentalModule{M},
         end
 
         # store time integrated objective for the chain
-        mstate.objectives[i] =
+        mstate.chain_objectives[i] =
             logsumexp(obj, get(mstate.schema_objectives, schema, -Inf))
 
         # accumulate for time integral
@@ -133,7 +141,7 @@ function assess_memory_epoch!(mem::MentalModule{M},
     end
 
     # Merge and update schema record
-    mergewith!(logsumexp, mstate.schema_objectives, new_schema_objectives)
+    mergewith!(logsumexp, mstate.schema_objectives, schema_acc)
 
     return nothing
 end
@@ -196,7 +204,7 @@ function optimize_memory!(mem::MentalModule{M},
         cm = restructure_kernel(memp.kernel, template)
         # Step 3
         # REVIEW: copy over parent schema score? 
-        mstate.schema_map[i] = transform_schema(schema, cm) # TODO: implement `transform_schema`
+        mstate.schema_map[i] = transform_schema(template, schema, cm) # TODO: implement `transform_schema`
         visstate.new_chains[i] = reinit_chain(parent, template, cm)
     end
 

@@ -53,6 +53,7 @@ protocol = "HyperResampling"
 
 [Memory.params]
 tau = 2.0   # Temperature for resampling hyper chains
+schema_log_decay_rate = -0.1
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
@@ -70,7 +71,7 @@ protocol = "MhoSplitMerge"
 [Memory.params.kernel.params]
 merge_tau = 1.0
 merge_max_elems = 4
-restructure_prob_min = 0.99
-restructure_prob_max = 1.0 
+restructure_prob_min = 0.5
+restructure_prob_max = 0.51
 restructure_prob_slope = 80
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }

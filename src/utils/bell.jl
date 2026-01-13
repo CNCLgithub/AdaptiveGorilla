@@ -6,18 +6,40 @@
 
 export bell_idx_to_gstring, growthstring_to_uint, uint_to_growthstring
 
-# Function to compute the Bell number for n elements
-function bell_number(n::Int)::Int
+function bell_number(n::Int)
     if n == 0
         return 1
     end
-    bell = zeros(Int, n + 1)
-    bell[1] = 1  # B_0 = 1
-    for i = 1:n
-        bell[i + 1] = sum(binomial(i, k) * bell[k + 1] for k = 0:i-1)
+    
+    # Create Bell triangle
+    bell = zeros(Int, n + 1, n + 1)
+    bell[1, 1] = 1
+    
+    for i in 2:n+1
+        # First element in each row is the last element of previous row
+        bell[i, 1] = bell[i-1, i-1]
+        
+        # Fill the rest of the row
+        for j in 2:i
+            bell[i, j] = bell[i, j-1] + bell[i-1, j-1]
+        end
     end
-    return bell[n + 1]
+    
+    return bell[n+1, 1]
 end
+
+# # Function to compute the Bell number for n elements
+# function bell_number(n::Int)::Int
+#     if n == 0
+#         return 1
+#     end
+#     bell = zeros(Int, n + 1)
+#     bell[1] = 1  # B_0 = 1
+#     for i = 1:n
+#         bell[i + 1] = sum(binomial(i, k) * bell[k + 1] for k = 0:i-1)
+#     end
+#     return bell[n + 1]
+# end
 
 # Helper function to build a binary merge tree from a sorted list of elements
 function build_tree(elems::Vector{Int})::Any

@@ -35,11 +35,14 @@ function push_sample!(m::HashMap{K, V}, coord::K, sample::V) where {K, V}
 end
 
 function fit_map!(m::HashMap, metric)
-    if isempty(m.new_coords) || isempty(m.new_samples)
-        m.map = nothing
-    else
+    if !isempty(m.new_coords) && !isempty(m.new_samples)
+        # Copy over new data
         copyto!(m.coords, m.new_coords)
         copyto!(m.samples, m.new_samples)
+        # Flush new data buffers
+        empty!(m.new_coords)
+        empty!(m.new_samples)
+        # Update KD tree
         m.map = KDTree(m.coords, metric)
     end
     return nothing
@@ -66,27 +69,17 @@ end
 
 function Base.copyto!(dst::CircularBuffer{K},
                       src::CircularBuffer{K}) where {K}
-    # Copy buffer data
-    ldst = length(dst.buffer)
-    lsrc = length(src.buffer)
-    # NOTE: if ldst > lsrc, `first` and `length` should
-    # handle overflow.
-    if ldst < lsrc
-        dst.buffer = Vector{K}(undef, lsrc)
+    lsrc = length(src)
+    @inbounds for i = 1:lsrc
+        # `CircularBuffer` does not reallocate =)
+        push!(dst, src[i])
     end
-    copyto!(dst.buffer, src.buffer)
-
-    # Copy meta data
-    dst.capacity = src.capacity
-    dst.first = src.first
-    dst.length = src.length
-
     return nothing
 end
 
 
-@with_kw struct HashRegistry{C, I}
-    coords::Dict{UInt, C}
-    integral::Dict{UInt, I}
-    decay::Float64 = 1.0
-end
+# @with_kw struct HashRegistry{C, I}
+#     coords::Dict{UInt, C}
+#     integral::Dict{UInt, I}
+#     decay::Float64 = 1.0
+# end

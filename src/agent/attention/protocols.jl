@@ -140,8 +140,6 @@ function update_task_relevance!(att::MentalModule{A}
     return nothing
 end
 
-# TODO: revisit after `importance`
-# Can implement by storing running average
 function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
     isempty(x) && return p.load
     m = 1.0
@@ -165,9 +163,8 @@ function task_relevance(x::AdaptiveAux,
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
     for i = 1:n
         coord = get_coord(partition, trace, i)
-        _dpi = integrate!(idxs, dists, coord, dPi)
-        # tr[i] = _dpi
-        _ds  = integrate!(idxs, dists, coord, dS )
+        _dpi  = integrate!(idxs, dists, coord, dPi)
+        _ds   = integrate!(idxs, dists, coord, dS )
         tr[i] = _dpi + _ds
     end
     return tr
