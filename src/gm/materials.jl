@@ -9,10 +9,7 @@ export Material,
     Dark  = 2
 end
 
-# REVIEW: needed?
-# const materials = collect(instances(Material))
-
-NMAT = length(instances(Material))
+const NMAT = length(instances(Material))
 
 function Base.convert(::Type{Material}, mat::String)
     Material(mat)

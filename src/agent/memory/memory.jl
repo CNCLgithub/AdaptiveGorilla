@@ -111,8 +111,8 @@ function assess_memory_epoch!(mem::MentalModule{M},
          values(mstate.schema_objectives))
 
 
-    schema_chain_counts = Dict{Int, Int}()
-    schema_acc = Dict{Int, Float64}()
+    schema_chain_counts = Dict{GranularitySchema, Int}()
+    schema_acc = Dict{GranularitySchema, Float64}()
     
     for i = 1:hf.h
         chain = vstate.chains[i]
@@ -132,7 +132,7 @@ function assess_memory_epoch!(mem::MentalModule{M},
 
         # accumulate for time integral
         schema_acc[schema] = logsumexp(get(schema_acc, schema, -Inf), obj)
-        schema_chain_counts[schema] = get(schema_chain_count, schema, 0) + 1
+        schema_chain_counts[schema] = get(schema_chain_counts, schema, 0) + 1
     end
 
     # Normalize schema time integrals
@@ -161,11 +161,12 @@ function optimize_memory!(mem::MentalModule{M},
     assess_memory_epoch!(mem, t, vis)
 
     # Estimated sample size
-    lognormed_objectives = mstate.objectives .- logsumexp(mstate.objectives)
+    lognormed_objectives = memstate.chain_objectives .-
+        logsumexp(memstate.chain_objectives)
     ess = Gen.effective_sample_size(lognormed_objectives)
 
     # Maybe resample
-    ws = softmax(memstate.objectives, memp.tau)
+    ws = softmax(memstate.chain_objectives, memp.tau)
     next_gen = Vector{Int}(undef, visp.h)
     if ess < 0.5 * visp.h
         Distributions.rand!(Distributions.Categorical(ws), next_gen)
@@ -181,7 +182,7 @@ function optimize_memory!(mem::MentalModule{M},
     attp, attx = mparse(memp.fitness.att)
     for i = 1:visp.h
         print_granularity_schema(visstate.chains[i])
-        println("OBJ: $(memstate.objectives[i]) \n W: $(ws[i])")
+        println("OBJ: $(memstate.chain_objectives[i]) \n W: $(ws[i])")
         tr = task_relevance(attx,
                             attp.partition,
                             retrieve_map(visstate.chains[i]),
@@ -203,9 +204,10 @@ function optimize_memory!(mem::MentalModule{M},
         # Step 2 (optional)
         cm = restructure_kernel(memp.kernel, template)
         # Step 3
-        # REVIEW: copy over parent schema score? 
-        mstate.schema_map[i] = transform_schema(template, schema, cm) # TODO: implement `transform_schema`
-        visstate.new_chains[i] = reinit_chain(parent, template, cm)
+        # REVIEW: copy over parent schema score?
+        schema = memstate.schema_map[i]
+        memstate.schema_map[i] = transform_schema(template, schema, cm)
+        visstate.new_chains[i] = reinit_chain(chain, template, cm)
     end
 
     # Set perception fields
@@ -216,9 +218,8 @@ function optimize_memory!(mem::MentalModule{M},
     return nothing
 end
 
-# TODO: integrate changes
 function reset_state!(memstate::MemoryAssessments, memp::HyperResampling)
-    fill!(memstate.objectives, -Inf)
+    fill!(memstate.chain_objectives, -Inf)
     memstate.steps = 0
 end
 

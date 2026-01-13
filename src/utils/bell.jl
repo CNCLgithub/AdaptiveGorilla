@@ -106,7 +106,7 @@ end
 function bell_idx_to_gstring(n::Int, idx::Int)::Vector{Int}
     Bn = bell_number(n)
     if idx < 1 || idx > Bn
-        error("Index out of range: must be between 1 and $Bn")
+        error("Index $(idx) for S($(n)) must be [1,  $Bn]")
     end
     # Initialize to the first partition: all zeros (all elements in one block)
     a = zeros(Int, n)
@@ -285,7 +285,10 @@ function growth_to_index(a::Vector{Int}, n::Int)::Int
         end
         cm = max(cm, av)
     end
-    return rank + 1
+    rank += 1
+    bn = bell_number(n)
+    rank > bn  && error("Index $rank > Bn($bn) for S($(n)), gs = $(a)")
+    return rank
 end
 
 # Convert a partition representation (vector of merge trees) to its canonical restricted growth string

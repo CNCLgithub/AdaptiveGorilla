@@ -5,7 +5,6 @@ function object_bounds(wm::InertiaWM)
     (xs, ys)
 end
 
-# TODO: death weight for extra color.
 """
 Uniform probability of Pr(Obj | Death = true)
 """

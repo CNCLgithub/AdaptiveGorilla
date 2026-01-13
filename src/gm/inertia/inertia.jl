@@ -1,8 +1,5 @@
 export InertiaWM, InertiaState
 
-#REVIEW: why override this method?
-# import MOTCore: get_pos
-
 ################################################################################
 # Model definition
 ################################################################################
