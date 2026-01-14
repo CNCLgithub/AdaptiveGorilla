@@ -128,7 +128,7 @@ function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
     mag = logsumexp(tr) # REVIEW: needed elsewhere? 
     x = exp(mag / k.restructure_prob_slope)
     w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    println("Restructure prob: $(w)")
+    # println("Restructure prob: $(w)")
     return w
 end
 
@@ -152,7 +152,7 @@ function split_prob(kappa::MhoSplitMerge,
     argmax(deltas) > ns && return 0.9
      
     # 50/50
-    return 0.5
+    return 0.25
 end
 
 function sample_split_move!(cm::ChoiceMap,

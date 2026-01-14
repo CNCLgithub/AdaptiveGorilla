@@ -31,8 +31,8 @@ $(TYPEDFIELDS)
 struct HyperResampling <: MemoryProtocol
     "Number of hyper chains in perception"
     chains::Int64
-    "Initial Schema"
-    schema::GranularitySchema
+    "Initial Schema Set"
+    schema::Int64
     "Optimization fitness criteria"
     fitness::MemoryFitness
     "Restructuring Kernel"
@@ -47,22 +47,25 @@ function HyperResampling(; perception::MentalModule{<:HyperFilter},
                          fitness, kernel, tau = 1.0,
                          schema_log_decay_rate = -Inf)
     prot, _ = mparse(perception)
-    schema = memory_schema(perception)
+    schema = memory_schema_set(perception)
     HyperResampling(prot.h, schema, fitness, kernel, tau, schema_log_decay_rate)
 end
 
 mutable struct MemoryAssessments <: MentalState{HyperResampling}
     chain_objectives::Vector{Float64}
-    schema_map::Vector{GranularitySchema}
-    schema_objectives::Dict{GranularitySchema, Float64}
+    schema_registry::SchemaRegistry
+    schema_map::Vector{UInt64}
+    schema_objectives::Dict{UInt64, Float64}
     steps::Int
 end
 
-function MemoryAssessments(chains::Int, schema::GranularitySchema)
-    schemas = fill(schema, chains)
-    MemoryAssessments(zeros(chains),
-                      schemas,
-                      Dict{GranularitySchema, Float64}(),
+function MemoryAssessments(chains::Int, schema_set::Int64)
+    registry = SchemaRegistry(schema_set)
+    ischema = init_schema(registry)
+    MemoryAssessments(fill(-Inf, chains),
+                      registry,
+                      fill(ischema, chains),
+                      Dict{UInt64, Float64}(ischema => -Inf),
                       0)
 end
 
@@ -111,28 +114,29 @@ function assess_memory_epoch!(mem::MentalModule{M},
          values(mstate.schema_objectives))
 
 
-    schema_chain_counts = Dict{GranularitySchema, Int}()
-    schema_acc = Dict{GranularitySchema, Float64}()
+    schema_chain_counts = Dict{UInt64, Int}()
+    schema_acc = Dict{UInt64, Float64}()
     
     for i = 1:hf.h
         chain = vstate.chains[i]
         obj = mstate.chain_objectives[i] -= mstate.steps
 
-        schema = mstate.schema_map[i]
+        schema_id = mstate.schema_map[i]
         # REVIEW: What if there is a birth at `t`?
         chain_map = retrieve_map(chain)
-        if !is_valid_schema(chain_map, schema)
-            mstate.schema_map[i] = schema =
-                ammend_schema(chain_map, schema)
+        if !is_valid_schema(mstate.schema_registry, chain_map, schema_id)
+            mstate.schema_map[i] = schema_id =
+                ammend_schema!(mstate.schema_registry, chain_map, schema_id)
         end
 
         # store time integrated objective for the chain
         mstate.chain_objectives[i] =
-            logsumexp(obj, get(mstate.schema_objectives, schema, -Inf))
+            logsumexp(obj, get(mstate.schema_objectives, schema_id, -Inf))
 
         # accumulate for time integral
-        schema_acc[schema] = logsumexp(get(schema_acc, schema, -Inf), obj)
-        schema_chain_counts[schema] = get(schema_chain_counts, schema, 0) + 1
+        schema_acc[schema_id] = logsumexp(get(schema_acc, schema_id, -Inf), obj)
+        schema_chain_counts[schema_id] =
+            get(schema_chain_counts, schema_id, 0) + 1
     end
 
     # Normalize schema time integrals
@@ -203,10 +207,14 @@ function optimize_memory!(mem::MentalModule{M},
         template = retrieve_map(chain) # InertiaTrace
         # Step 2 (optional)
         cm = restructure_kernel(memp.kernel, template)
+        # println("Reframing hyper particle $(i) to:")
+        # display(cm)
         # Step 3
         # REVIEW: copy over parent schema score?
-        schema = memstate.schema_map[i]
-        memstate.schema_map[i] = transform_schema(template, schema, cm)
+        schema_idx = memstate.schema_map[i]
+        memstate.schema_map[i] =
+            transform_schema!(memstate.schema_registry, schema_idx, t,
+                              template, cm)
         visstate.new_chains[i] = reinit_chain(chain, template, cm)
     end
 

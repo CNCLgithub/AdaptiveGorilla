@@ -1,314 +1,578 @@
+using SHA
+using UUIDs
 
-"A set of moves that map ALPHA to NOW"
-struct RepSpec
-    "Steps applied in order from 1->k"
-    steps::Vector{GranularityMove}
+"""
+    LogEntry
+
+Keeps track of transformations in the registry.
+"""
+struct LogEntry
+    prev_schema_id::UInt64
+    next_schema_id::UInt64
+    time::Int
+    operation::Symbol
 end
 
 """
-    $(TYPEDSIGNATURES)
+    GranularitySpec
+    
+A representation in your domain. Each has a unique identity.
+Can be either:
+- Atomic: an original individual element
+- Ensemble: result of merging other representations
+"""
+abstract type GranularitySpec end
 
-A granularity schema for the space of `N` individuals.
+struct AtomicRep <: GranularitySpec
+    id::UUID
+    index::Int  # Original position in the system
 
-$(TYPEDFIELDS)
+    function AtomicRep(index::Int)
+        new(uuid4(), index)
+    end
+end
+
+struct EnsembleRep <: GranularitySpec
+    id::UUID
+    size::Int
+    components::Set{UUID}  # IDs of representations that were merged to create this
+    function EnsembleRep(components::Set{UUID})
+        n = length(components)
+        n < 2 && error("Ensemble must have at least 2 components")
+        new(uuid4(), n, components)
+    end
+    function EnsembleRep(n::Int)
+        n < 2 && error("Ensemble must have at least 2 components")
+        new(uuid4(), n, Set{UUID}())
+    end
+    function EnsembleRep(n::Int, components::Set{UUID})
+        lc = length(components)
+        if lc !== n && !isempty(components)
+            error("Number of components must either match `n` or be empty")
+        end
+        new(uuid4(), n, components)
+    end
+end
+
+Base.hash(r::AtomicRep) = hash(r.id)
+Base.hash(r::EnsembleRep) = hash(r.id)
+Base.:(==)(r1::AtomicRep, r2::AtomicRep) = r1.id == r2.id
+Base.:(==)(r1::EnsembleRep, r2::EnsembleRep) = r1.id == r2.id
+Base.:(==)(r1::GranularitySpec, r2::GranularitySpec) = false
+
+is_ambiguous(r::EnsembleRep) = isempty(r.components)
+
+function merge_reps(a::AtomicRep, b::AtomicRep)
+    EnsembleRep(Set{UUID}((a.id, b.id)))
+end
+
+function merge_reps(a::AtomicRep, b::EnsembleRep)
+    components = is_ambiguous(b) ? b.components :
+        union(Set{UUID}([a.id]), b.components)
+    EnsembleRep(b.size + 1, components)
+end
+
+merge_reps(a::EnsembleRep, b::AtomicRep) = merge_reps(b, a)
+
+function merge_reps(a::EnsembleRep, b::EnsembleRep)
+    is_ambiguous(a) || is_ambiguous(b) ?
+        EnsembleRep(a.size + b.size, Set{UUID}()) :
+        EnsembleRep(union(a.components, b.components))
+end
+
+"""
+    GranularitySchema
+    
+A schema is a specific set of representations that collectively describe the system.
+Each schema has a unique identity based on the exact set of representation IDs.
 """
 struct GranularitySchema
-    "Number of "
-    nrep::Int
-    "Graphical location of schema in `N`"
-    node_id::Int
-end
-
-function growth_string(g::GranularitySchema)
-    bell_idx_to_gstring(g.nrep, g.node_id)
-end
-
-function alpha_schema(nrep::Int)
-    GranularitySchema(nrep, bell_number(nrep))
-end
-
-function omega_schema(nrep::Int)
-    GranularitySchema(nrep, 1)
-end
-
-# TODO: implement following
-# - retrieve growth string
-# - check whether it matches nsignles and nensembles
-function is_valid_schema(t::InertiaTrace, g::GranularitySchema)
-    Int(object_count(t)) == g.nrep
-end
-
-function ammend_schema(t::InertiaTrace, g::GranularitySchema)
-    gs = growth_string(g)
-    rc = representation_count(t)
-    if g.nrep < rc
-        # Death - one less single
-        death_idx = find_death_idx(t)
-        popat!(gs, death_idx)
-    else
-        # Birth - one more single
-        birth_idx = single_count(t)
-        gs = shift_growth_indices(gs, birth_idx)
+    id::UInt64
+    representations::Vector{UUID}  # Ordered list of representation IDs
+    n::Int  # Number of original atomic elements
+    natomic::Int
+    function GranularitySchema(reps::Vector{UUID}, n::Int, natomic::Int)
+        id = _gschema_hash(reps, n)
+        new(id, reps, n, natomic)
     end
-    new_bell_idx = growth_to_index(gs, rc)
-    GranularitySchema(rc, new_bell_idx)
+end
+
+function _gschema_hash(uuids::Vector{UUID}, n::Int)
+    nr = length(uuids)
+    id = hash(n)
+    @inbounds for i = 1:nr
+        id = hash(uuids[i], id)
+    end
+    return id
+end
+
+natomic(gs::GranularitySchema) = gs.natomic
+nrep(gs::GranularitySchema) = length(gs.representations)
+nensemble(gs::GranularitySchema) = nrep(gs) - natomic(gs)
+
+"""
+    SchemaRegistry
+    
+Tracks schemas (which are sets of representations) and their evolution.
+"""
+mutable struct SchemaRegistry 
+    "Storage of representation formats"
+    reps::Dict{UUID, GranularitySpec}
+    "Hashed storage of schemas"
+    schemas::Dict{UInt64, GranularitySchema}
+    "GranularitySpec lineage"
+    parents::Dict{UUID, UUID}
+    "Log of operations in registry"
+    transitions::Vector{LogEntry}
+    
+    "Initialize a registry with `n` atomic representations"
+    function SchemaRegistry(n::Int)
+        reps = Dict{UUID, GranularitySpec}()
+        repv = Vector{UUID}(undef, n)
+        for i = 1:n
+            rep = AtomicRep(i)
+            repv[i] = rep.id
+            reps[rep.id] = rep
+        end
+        schema = GranularitySchema(repv, n, n)
+        new(reps,
+            Dict{UInt64, GranularitySchema}(schema.id => schema),
+            Dict{UUID, UUID}(),
+            LogEntry[])
+    end
+end
+
+function is_atomic(registry::SchemaRegistry, rep_id::UUID)
+    rep = registry.reps[rep_id]
+    isa(rep, AtomicRep)
+end
+
+function count_atomic(registry::SchemaRegistry, schema_id::UInt64)
+    count_atomic(registry, registry.schemas[schema_id].representations)
+end
+
+function count_atomic(registry::SchemaRegistry, reps::Vector{UUID})
+    c = 0
+    for rep_uuid = reps
+        rep = registry.reps[rep_uuid]
+        if isa(rep, AtomicRep)
+            c += 1
+        end
+    end
+    return c
+end
+
+function register_schema!(registry::SchemaRegistry, schema::GranularitySchema)
+    for rep_id = schema.representations
+        if !haskey(registry.reps, rep_id)
+            error("Attempted to register schema $(schema.id) with orphan rep $(rep_id)")
+        end
+    end
+    registry.schemas[schema.id] = schema
+    return nothing
+end
+
+
+function merge_in_schema!(registry::SchemaRegistry, 
+                          current_schema_id::UInt64,
+                          pair_idx::Int,
+                          time::Int)
+
+    schema = registry.schemas[current_schema_id]
+    nr = length(schema.representations)
+    a, b = combination(nr, 2, pair_idx)
+    merge_in_schema!(registry, current_schema_id, a, b, time)
+end
+"""
+Merge representations within a schema to create a new schema.
+"""
+function merge_in_schema!(registry::SchemaRegistry, 
+                          current_schema_id::UInt64,
+                          a_idx::Int,
+                          b_idx::Int,
+                          time::Int)
+
+    a_idx, b_idx = minmax(a_idx, b_idx)
+    # Get representation IDs to merge
+    g = registry.schemas[current_schema_id]
+    a_uuid = g.representations[a_idx]
+    b_uuid = g.representations[b_idx]
+    
+    local ensemble_id::UUID
+    if (haskey(registry.parents, a_uuid) &&
+        haskey(registry.parents, b_uuid) &&
+        registry.parents[a_uuid] == registry.parents[b_uuid])
+        # Check if representations share a parent in the registry
+        ensemble_id = registry.parents[a_uuid]
+    else
+        # Create and register merged ensemble
+        a = registry.reps[a_uuid]
+        b = registry.reps[b_uuid]
+        ensemble = merge_reps(a, b)
+        registry.reps[ensemble.id] = ensemble 
+        ensemble_id = ensemble.id
+    end
+    
+    # Create new schema with merged representation
+    g = registry.schemas[current_schema_id]
+    nr = nrep(g)
+    new_reps = Vector{UUID}(undef, nr - 1)
+    c = 1
+    for i = 1:nr
+        if i == a_idx || i == b_idx
+            continue
+        else
+            new_reps[c] = g.representations[i]
+            c += 1
+        end
+    end
+    new_reps[end] = ensemble_id
+
+    new_schema =
+        GranularitySchema(new_reps, g.n, count_atomic(registry, new_reps))
+    register_schema!(registry, new_schema)
+    
+    # Record transition
+    push!(registry.transitions,
+          LogEntry(current_schema_id,
+                   new_schema.id,
+                   time, :merge))
+    
+    return new_schema.id
+end
+
+"""
+Split an ensemble in a schema to create a new schema.
+This is STOCHASTIC and creates new representations.
+"""
+function split_in_schema!(registry::SchemaRegistry,
+                          current_schema_id::UInt64,
+                          index_to_split::Int,
+                          time::Int)
+    current_schema = registry.schemas[current_schema_id]
+    ensemble_id = current_schema.representations[index_to_split]
+    
+    # Verify it's an ensemble
+    if !(registry.reps[ensemble_id] isa EnsembleRep)
+        describe_schema(registry, current_schema_id)
+        msg = "Attempting to split Atomic at $(index_to_split), id: $(ensemble_id)"
+        msg *= "\n === REGISTRY TRANSACTIONS === \n"
+        msg *= format_registry_transitions(registry)
+        error(msg)
+    end
+    
+    # Perform split, registering new reps
+    individual_id, remaining_id, reduced =
+        split_ensemble!(registry, ensemble_id)
+    
+    # Create new schema with split representations
+    nr = nrep(current_schema)
+    ns = natomic(current_schema)
+    new_reps = Vector{UUID}(undef, nr + 1)
+
+    # copy over atomics
+    for i = 1:ns
+        new_reps[i] = current_schema.representations[i]
+    end
+
+    # copy over ensembles
+    ensemble_shift = ifelse(reduced, 2, 1)
+    c = ns + ensemble_shift + 1
+    for i = (ns + 1):nr
+        if reduced && i == index_to_split
+            c -= 1
+        else
+            new_reps[c] = current_schema.representations[i]
+        end
+        c += 1
+    end
+    # new reps
+    new_reps[ns + 1] = individual_id
+    remaining_index = reduced ? ns + 2 : index_to_split + 1
+    new_reps[remaining_index] = remaining_id
+
+    new_schema =
+        GranularitySchema(new_reps, current_schema.n, ns + ensemble_shift)
+    register_schema!(registry, new_schema)
+
+    # Record transition
+    push!(registry.transitions,
+          LogEntry(current_schema_id, new_schema.id, time, :split))
+    
+    return new_schema.id
+end
+
+
+"""
+Split an ensemble representation.
+Returns: (individual_id, remaining_ensemble_id)
+
+The only guarantee: merging the results recovers the original ensemble.
+"""
+function split_ensemble!(registry::SchemaRegistry, 
+                         ensemble_id::UUID)
+
+    ensemble = registry.reps[ensemble_id]
+    if !(ensemble isa EnsembleRep)
+        error("Cannot split Atomic with ID $(ensemble_id)")
+    end
+
+    # Create two NEW representations with fresh identities
+    # These are NOT any of the original components
+    individual = AtomicRep(-1)  # -1 indicates derived, not original
+    registry.reps[individual.id] = individual
+
+    reduced = ensemble.size <= 2 # splitting ensemble into two atomics
+    local remaining_id::UUID
+    # Create and register the other representation
+    if reduced
+        other = AtomicRep(-1)  # -1 indicates derived, not original
+        registry.reps[other.id] = other
+        remaining_id = other.id
+    else
+        e =  EnsembleRep(ensemble.size - 1) # Will have empty components
+        registry.reps[e.id] = e
+        remaining_id = e.id
+    end
+
+    # Record lineage
+    registry.parents[individual.id] = ensemble_id
+    registry.parents[remaining_id] = ensemble_id
+    
+    (individual.id, remaining_id, reduced)
+end
+
+"""
+Get representation details for a schema.
+"""
+function describe_schema(registry::SchemaRegistry, schema_id::UInt64)
+    schema = registry.schemas[schema_id]
+    println("=== Schema $(schema_id) ===")
+    println("Meta data:")
+    println("  n: $(schema.n)")
+    println("  natomic: $(schema.natomic)")
+    println("  natomic (registry): $(count_atomic(registry, schema.representations))")
+    println("  n rep: $(length(schema.representations))")
+    
+    println("Representation IDs:")
+    for (i, rep_id) in enumerate(schema.representations)
+        rep = registry.reps[rep_id]
+        if rep isa AtomicRep
+            if rep.index >= 0
+                println("  [$i] Atomic (original #$(rep.index)) | $(rep_id)")
+            else
+                parent = registry.parents[rep_id]
+                println("  [$i] Atomic (derived from split $(parent)) | $(rep_id)")
+            end
+        else
+            println("  [$i] Ensemble of $(rep.size) components | $(rep_id)")
+        end
+    end
+end
+
+function get_initial_schema(registry::SchemaRegistry)
+     first(keys(registry.schemas))
+end
+
+function format_registry_transitions(registry::SchemaRegistry)
+    msg = ""
+    for entry in registry.transitions
+        msg *= "Time $(entry.time): $(string(entry.prev_schema_id)[1:8]) "
+        msg *= "=> $(entry.operation) => $(string(entry.next_schema_id)[1:8])\n"
+    end
+    return msg
+end
+
+# Example usage demonstrating the path-dependent nature
+function example_usage()
+    println("=== Path-Dependent GranularitySpec Tracking ===\n")
+    
+    registry = SchemaRegistry(5)
+    
+    # Get initial schema [a, b, c]
+    schema1 = get_initial_schema(registry)
+    println("Schema 1: Initial state")
+    describe_schema(registry, schema1)
+    
+    # Merge all to create ensemble [d]
+    schema2 = merge_in_schema!(registry, schema1, 1, 2, 1)
+    println("\nSchema 2: After merging all elements")
+    describe_schema(registry, schema2)
+    
+    # Split to get [f, g] - these are NEW representations, not a,b,c
+    schema3 = split_in_schema!(registry, schema2, 4, 2)
+    println("\nSchema 3: After stochastic split")
+    describe_schema(registry, schema3)
+    
+    # Merge back - recovers the ensemble involutively
+    schema4 = merge_in_schema!(registry, schema3, 4, 5, 3)
+    println("\nSchema 4: After merging split results")
+    describe_schema(registry, schema4)
+    
+    println("\n=== Hashes (for timeseries indexing) ===")
+    for (i, sid) in enumerate([schema1, schema2, schema3, schema4])
+        println("Schema $i: $(sid)")
+    end
+    
+    # println("\n=== Timeseries Data ===")
+    # for (schema_id, data_points) in registry.timeseries
+    #     if !isempty(data_points)
+    #         println("Schema $(string(schema_id)[1:8])...: $(length(data_points)) data points")
+    #     end
+    # end
+
+    println("\n=== Log Data ===")
+    println(format_registry_transitions(registry))
+
+    return registry
+end
+
+# registry = example_usage()
+
+# Exended API
+
+function init_schema(registry::SchemaRegistry)
+    if length(registry.schemas) !== 1
+        error("Registry already diverged")
+    end
+    first(collect(keys(registry.schemas)))
+end
+
+function is_valid_schema(registry::SchemaRegistry,
+                         t::InertiaTrace,
+                         schema_id::UInt64)
+    g = registry.schemas[schema_id]
+    check = Int(object_count(t)) == g.n &&
+        natomic(g) == single_count(t) == count_atomic(registry, schema_id)
+
+    return check
+end
+
+function ammend_schema!(registry::SchemaRegistry,
+                        t::InertiaTrace,
+                        schema_id::UInt64)
+    g = registry.schemas[schema_id]
+    oc = Int(object_count(t))
+    new_schema_id = if g.n == oc - 1
+        # Birth - one more single
+        schema_birth_at!(registry, t, schema_id)
+    elseif g.n == oc + 1
+        # Death - one less single
+        schema_death_at!(registry, t, schema_id)
+    end
+
+    if !is_valid_schema(registry, t, new_schema_id)
+        print_granularity_schema(t)
+        describe_schema(registry, schema_id)
+        describe_schema(registry, new_schema_id)
+        error("Schema ammendment failed")
+    end
+    
+    return new_schema_id
+end
+
+
+function schema_death_at!(registry::SchemaRegistry,
+                          t::InertiaTrace,
+                          schema_id::UInt64)
+    death_idx = find_death_idx(t)
+    g = registry.schemas[schema_id]
+    nreps = length(g.representations)
+    reps = Vector{UUID}(undef, nreps - 1)
+    natomic = single_count(t)
+    for i = 1:nreps
+        rep_id = g.representations[i]
+        if i < death_idx
+            reps[i] = rep_id
+        elseif i > death_idx
+            reps[i-1] = rep_id
+        end
+    end
+    new_schema = GranularitySchema(reps, g.n - 1, natomic)
+    register_schema!(registry, new_schema)
+
+    return new_schema.id
 end
 
 function find_death_idx(trace::InertiaTrace)
     t, wm, istate = get_args(trace)
     death_idx = 0
-    for k = 1:t
+    for k = t:-1:1
         # death occured here
         if trace[:kernel => k => :bd => :i] == 3
             death_idx = trace[:kernel => k => :bd => :switch => :dead]
+            break
         end
     end
-    death_idx === 0 && error("No death found in $(get_choices(trace))")
+    if death_idx === 0
+        print_granularity_schema(trace)
+        error("No death found in trace")
+    end
     return death_idx
 end
 
-function shift_growth_indices(gs::Vector{Int}, idx::Int)
-    n = length(gs)
+function schema_birth_at!(registry::SchemaRegistry,
+                          t::InertiaTrace,
+                          schema_id::UInt64)
 
-    (idx < 0 || n < (idx + 1)) && error("Shift index must be between 1 and n")
-    
-    new_gs = Vector{Int}(undef, n+1)
-
-    max_so_far = -1
-    for i = 1:n
-        x = gs[i]
-        if i < idx
-            max_so_far = max(max_so_far, x)
-            new_gs[i] = x
-        else
-            new_gs[i + 1] = x <= max_so_far ? x : x + 1
-        end
+    birth_idx = single_count(t)
+    g = registry.schemas[schema_id]
+    nreps = length(g.representations)
+    reps = Vector{UUID}(undef, nreps + 1)
+    for i = 1:nreps
+        rep_id = g.representations[i]
+        shift = ifelse(i < birth_idx, 0, 1)
+        reps[i + shift] = rep_id
     end
-    new_gs[idx] = max_so_far + 1
-    return new_gs
+    # Generate and register new atomic
+    birthed = AtomicRep(g.n + 1)
+    reps[birth_idx] = birthed.id
+    registry.reps[birthed.id] = birthed
+    
+    # Initialize and register new schema
+    new_schema =
+        GranularitySchema(reps, Int(object_count(t)), birth_idx)
+    register_schema!(registry, new_schema) 
+
+    return new_schema.id
 end
 
-function guess_schema(tr::InertiaTrace)
+function transform_schema!(registry::SchemaRegistry,
+                           schema_id::UInt64,
+                           time::Int,
+                           tr::InertiaTrace,
+                           cm::ChoiceMap)
+
+    local new_schema_id::UInt64
+
+    # No change
+    new_schema_id =
+        if cm[:s0 => :nsm] == 1
+            schema_id
+        elseif cm[:s0 => :nsm] == 2
+            # Split k'th ensemble
+            split_idx = single_count(tr) + cm[:s0 => :state => :idx]
+            split_in_schema!(registry, schema_id, split_idx, time)
+        else
+            # Merge a and b
+            pair_idx = cm[:s0 => :state => :pair]
+            merge_in_schema!(registry, schema_id, pair_idx, time)
+        end
+
+    return new_schema_id
+end
+
+function guess_schema_set(tr::InertiaTrace)
     sc = single_count(tr)
     sc != representation_count(tr) &&
         error("Could not guess schema from InertiaTrace")
-
-    alpha_schema(sc)
+    return sc
 end
 
 
-function memory_schema(perception::MentalModule{<:HyperFilter})
+function memory_schema_set(perception::MentalModule{<:HyperFilter})
     visp, visstate = mparse(perception)
     chain = visstate.chains[1]
     trace = retrieve_map(chain)
-    guess_schema(trace)
+    guess_schema_set(trace)
 end
-
-function transform_schema(tr::InertiaTrace, g::GranularitySchema, cm::ChoiceMap)
-
-    display(cm)
-    print_granularity_schema(tr)
-    # No change
-    cm[:s0 => :nsm] == 1 &&  return g
-
-    # Split k'th ensemble
-    cm[:s0 => :nsm] == 2 &&
-        return split_schema(g, cm[:s0 => :state => :idx])
-
-    # Merge a and b
-    ns = single_count(tr)
-    nr = representation_count(tr)
-    merge_schema(g, cm[:s0 => :state => :pair], ns, nr)
-end
-
-function split_schema(g::GranularitySchema, k::Int)
-    gs = growth_string(g)
-    gidx = find_k_block(gs, k)
-    println("Before split; $(gs)")
-    gs = split_growth_string(gs, gidx)
-    println("After split; $(gs)")
-    GranularitySchema(g.nrep, growth_to_index(gs, g.nrep))
-end
-
-function merge_schema(g::GranularitySchema,
-                      pair_idx::Int,
-                      ns::Int, nr::Int)
-    gs = growth_string(g)
-    # In rep space
-    a, b = combination(nr, 2, pair_idx)
-    @show (a,b)
-    println("Before merge: $(gs)")
-    a_idx = rep_to_partition_head(ns, gs, a)
-    b_idx = rep_to_partition_head(ns, gs, b)
-    anchor = min(a_idx, b_idx)
-    mast = max(a_idx, b_idx)
-    gs = merge_growth_string(gs, anchor, mast)
-    println("After merge: $(gs)")
-    GranularitySchema(g.nrep, growth_to_index(gs, g.nrep))
-end
-
-function rep_to_partition_head(ns::Int, gs::Vector{Int}, x::Int)
-    if x <= ns
-        # Find the x'th individual rep
-        find_k_singleton(gs, x)
-    else
-        # Find the x'th ensemble rep
-        find_k_block(gs, x - ns)
-    end 
-end
-
-# Parition set 35: [0, 1, 1, 2, 3]
-# Repr indices:    {1, 4, 5, {2,3}}
-# + Merge(2, 4)
-#
-# 1. find `2` -> 
-# Expected result: [0, 1, 1, 1, 2]
-#   {1, 5, {2,3,4}}
-#   
-# TRG [0, 1, 2, 0, 1]
-# IDX [1, 2, 3, 4, 5]
-#
-# TRG [0, 0, 1, 2, 1]
-# IDX [1, 2, 3, 4, 5]
-"""
-    find_k_singleton(gs::Vector{Int}, k::Int)
-
-Finds the index in the growth string of the k'th singleton block.
-A singleton block is a block (label) that appears exactly once in the growth string.
-The singletons are ordered by their position in the string.
-For example, gs = [0, 1, 2, 1, 3] and k = 2 should return 3.
-This implementation allocates O(max(gs)) space for frequency counts.
-"""
-function find_k_singleton(gs::Vector{Int}, k::Int)
-    n = length(gs)
-    if n == 0 || k < 1
-        error("Invalid input")
-    end
-    m = maximum(gs)
-    freq = zeros(Int, m + 1)
-    for a in gs
-        freq[a + 1] += 1
-    end
-    count = 0
-    for i = 1:n
-        if freq[gs[i] + 1] == 1
-            count += 1
-            count == k && return i
-        end
-    end
-    error("Less than $(k) singletons in $(gs)")
-end
-
-"""
-    find_k_block(gs::Vector{Int}, k::Int)
-
-Finds the index in the growth string of the first element of the k'th multi-element block.
-A multi-element block is a block (label) that appears more than once in the growth string.
-The blocks are ordered by the position of their first appearance in the string.
-For example, gs = [0, 1, 2, 1, 1] and k = 1 should return 2.
-This implementation allocates O(max(gs)) space for frequency counts and seen flags.
-"""
-function find_k_block(gs::Vector{Int}, k::Int)
-    n = length(gs)
-    if n == 0 || k < 1
-        error("Invalid input")
-    end
-    m = maximum(gs)
-    freq = zeros(Int, m + 1)
-    for a in gs
-        freq[a + 1] += 1
-    end
-    count = 0
-    seen = falses(m + 1)
-    for i = 1:n
-        lbl = gs[i] + 1
-        if !seen[lbl] && freq[lbl] > 1
-            seen[lbl] = true
-            count += 1
-            if count == k
-                return i
-            end
-        end
-    end
-    error("Less thank $(k) multi-element blocks in: $(gs)")
-end
-"""
-    merge_growth_string(gs::Vector{Int}, a::Int, b::Int)
-
-Given the first indices of two blocks (of any length), produce a new growth string that merges them (they share the same integer label).
-Modifies a copy of gs and returns it.
-Assumes a and b are the minimal indices (first occurrences) of two different blocks.
-Merges by assigning the smaller label to the larger label's positions, then decrementing all higher labels to fill the gap.
-For example, gs=[0, 1, 1, 2, 3], a=2, b=4, yields [0, 1, 1, 1, 2].
-This implementation allocates O(n) space for the new vector but avoids additional allocations inside.
-"""
-function merge_growth_string(gs::Vector{Int}, a::Int, b::Int)
-    n = length(gs)
-    if !(1 ≤ a ≤ n && 1 ≤ b ≤ n && a ≠ b)
-        error("Invalid indices")
-    end
-    lab1 = gs[a]
-    lab2 = gs[b]
-    if lab1 == lab2
-        error("Indices must point to different blocks")
-    end
-    keep = min(lab1, lab2)
-    replace = max(lab1, lab2)
-    new_gs = copy(gs)
-    for i = 1:n
-        if new_gs[i] == replace
-            new_gs[i] = keep
-        elseif new_gs[i] > replace
-            new_gs[i] -= 1
-        end
-    end
-    return new_gs
-end
-
-"""
-    split_growth_string(gs::Vector{Int}, x::Int)
-
-Given the first index of a block (of length >= 2), produce a new growth string that splits the block.
-Assumes that the block is split such that the element at x remains in the original block (as a singleton if necessary),
-and all subsequent elements in the same block are moved to a new block with label original+1, shifting higher labels up.
-For example, gs=[0, 1, 1, 1, 2], x=2, yields [0, 1, 2, 2, 3].
-This implementation allocates O(n) space for the new vector but avoids additional allocations inside.
-Throws an error if the block at x has length < 2.
-"""
-function split_growth_string(gs::Vector{Int}, x::Int)
-    n = length(gs)
-    if !(1 ≤ x ≤ n)
-        error("Invalid index")
-    end
-    u = l = gs[x]
-    next = 0
-    for i = x+1:n
-        if gs[i] == l
-            next = i
-            break
-        end
-        u = max(u, gs[i])
-    end
-    next === 0 && error("Size of block at $(x) for $(gs) is 1")
-
-    shift = next == (x+1) ? 1 : u - l
-    new_gs = copy(gs)
-    for i = next:n
-        if new_gs[i] == l
-            new_gs[i] = u + 1
-        elseif u < new_gs[i]
-            new_gs[i] += shift
-        end
-        # Don't do anything if z <= u
-    end
-    return new_gs
-end
-
-# Q: [0, 1, 2, 3, 4, 5, 4, 4]
-# A: [0, 1, 2, 3, 4, 5, 6, 6]
-
-# Q: [0, 1, 2, 3, 4, 5, 4, 6]
-# A: [0, 1, 2, 3, 4, 5, 6, 7]
-
-# Q: [0, 1, 2, 1, 1, 3, 4, 4]
-# A: [0, 1, 2, 3, 3, 4, 5, 5]
