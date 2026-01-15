@@ -55,7 +55,7 @@ mutable struct MemoryAssessments <: MentalState{HyperResampling}
     chain_objectives::Vector{Float64}
     schema_registry::SchemaRegistry
     schema_map::Vector{UInt64}
-    schema_objectives::Dict{UInt64, Float64}
+    rep_objectives::Dict{UUID, Float64}
     steps::Int
 end
 
@@ -65,7 +65,7 @@ function MemoryAssessments(chains::Int, schema_set::Int64)
     MemoryAssessments(fill(-Inf, chains),
                       registry,
                       fill(ischema, chains),
-                      Dict{UInt64, Float64}(ischema => -Inf),
+                      Dict{UUID, Float64}(),
                       0)
 end
 
@@ -111,41 +111,44 @@ function assess_memory_epoch!(mem::MentalModule{M},
 
     # Decay schema objectives
     map!(v -> v+(mp.schema_log_decay_rate),
-         values(mstate.schema_objectives))
+         values(mstate.rep_objectives))
 
-
-    schema_chain_counts = Dict{UInt64, Int}()
-    schema_acc = Dict{UInt64, Float64}()
+    # Init integral step
+    rep_counts = Dict{UUID, Int}()
+    rep_acc = Dict{UUID, Float64}()
     
     for i = 1:hf.h
         chain = vstate.chains[i]
-        obj = mstate.chain_objectives[i] -= mstate.steps
+        schema_score = mstate.chain_objectives[i] -= mstate.steps
 
         schema_id = mstate.schema_map[i]
-        # REVIEW: What if there is a birth at `t`?
+        # Verify that the trace has not diverged from the schema
+        # This could be due to birth/death moves.
         chain_map = retrieve_map(chain)
         if !is_valid_schema(mstate.schema_registry, chain_map, schema_id)
             mstate.schema_map[i] = schema_id =
                 ammend_schema!(mstate.schema_registry, chain_map, schema_id)
         end
 
-        # store time integrated objective for the chain
-        mstate.chain_objectives[i] =
-            logsumexp(obj, get(mstate.schema_objectives, schema_id, -Inf))
+        time_integral = aggregate_scores(mstate.rep_objectives,
+                                         mstate.schema_registry,
+                                         schema_id)
 
-        # accumulate for time integral
-        schema_acc[schema_id] = logsumexp(get(schema_acc, schema_id, -Inf), obj)
-        schema_chain_counts[schema_id] =
-            get(schema_chain_counts, schema_id, 0) + 1
+        # store time integrated objective for the chain
+        mstate.chain_objectives[i] = logsumexp(schema_score, time_integral)
+
+        # accumulate current score for next time integral
+        distribute_scores!(rep_acc, rep_counts, mstate.schema_registry,
+                           schema_id, schema_score)
     end
 
     # Normalize schema time integrals
-    for (k, c) = schema_chain_counts
-        schema_acc[k] -= log(c)
+    for (k, c) = rep_counts
+        rep_acc[k] -= log(c)
     end
 
     # Merge and update schema record
-    mergewith!(logsumexp, mstate.schema_objectives, schema_acc)
+    mergewith!(logsumexp, mstate.rep_objectives, rep_acc)
 
     return nothing
 end
@@ -179,22 +182,19 @@ function optimize_memory!(mem::MentalModule{M},
     end
 
     println()
-    println("################################################# ")
-    println("#________________CHAIN WEIGHTS__________________# ")
-    println("#________________FRAME: $(t)    ________________# ")
-    println("################################################# ")
-    attp, attx = mparse(memp.fitness.att)
+    println("\t################################################# ")
+    println("\t#              | CHAIN WEIGHTS |                # ")
+    println("\t#              |  FRAME: $(t)  |                # ")
+    println("\t################################################# ")
+    plot_rep_weights(memstate.schema_registry, memstate.rep_objectives)
     for i = 1:visp.h
         print_granularity_schema(visstate.chains[i])
-        println("OBJ: $(memstate.chain_objectives[i]) \n W: $(ws[i])")
-        tr = task_relevance(attx,
-                            attp.partition,
-                            retrieve_map(visstate.chains[i]),
-                            attp.nns)
-        @show tr 
-    mag = logsumexp(tr)
+        println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
     end
     @show next_gen
+    println("\t === Top Schema ===")
+    describe_schema(memstate.schema_registry, memstate.schema_map[argmax(ws)])
+
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation

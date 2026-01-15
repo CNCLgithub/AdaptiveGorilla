@@ -75,7 +75,7 @@ WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 200
+FRAMES  = 120
 
 LONE_PARENT = true
 # LONE_PARENT = false
@@ -167,7 +167,8 @@ function main()
     experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
     gt_count = count_collisions(experiment)
     collision_counts = Vector{Float64}(undef, CHAINS)
-    Threads.@threads for c = 1:CHAINS
+    # Threads.@threads for c = 1:CHAINS
+    for c = 1:CHAINS
         results = run_model!(pbar, experiment, RENDER)
         # RENDER && show(results; allrows=true)
         # println()

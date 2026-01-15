@@ -1,5 +1,7 @@
 using SHA
 using UUIDs
+using Printf: @sprintf
+using UnicodePlots: barplot
 
 """
     LogEntry
@@ -348,25 +350,16 @@ Get representation details for a schema.
 function describe_schema(registry::SchemaRegistry, schema_id::UInt64)
     schema = registry.schemas[schema_id]
     println("=== Schema $(schema_id) ===")
-    println("Meta data:")
-    println("  n: $(schema.n)")
-    println("  natomic: $(schema.natomic)")
-    println("  natomic (registry): $(count_atomic(registry, schema.representations))")
-    println("  n rep: $(length(schema.representations))")
+    print("[Meta data: n => $(schema.n) | natomic => $(natomic(schema)) |")
+    print(" natomic (registry) => ")
+    print(count_atomic(registry, schema.representations))
+    println(" ]")
+
     
-    println("Representation IDs:")
+    println("[Representation IDs]:")
     for (i, rep_id) in enumerate(schema.representations)
-        rep = registry.reps[rep_id]
-        if rep isa AtomicRep
-            if rep.index >= 0
-                println("  [$i] Atomic (original #$(rep.index)) | $(rep_id)")
-            else
-                parent = registry.parents[rep_id]
-                println("  [$i] Atomic (derived from split $(parent)) | $(rep_id)")
-            end
-        else
-            println("  [$i] Ensemble of $(rep.size) components | $(rep_id)")
-        end
+
+        println("  <$(i)>: " * pretty_rep(registry, rep_id))
     end
 end
 
@@ -575,4 +568,71 @@ function memory_schema_set(perception::MentalModule{<:HyperFilter})
     chain = visstate.chains[1]
     trace = retrieve_map(chain)
     guess_schema_set(trace)
+end
+
+function aggregate_scores(rep_scores::Dict{UUID, Float64},
+                          registry::SchemaRegistry,
+                          schema_id::UInt64)
+    schema = registry.schemas[schema_id]
+    acc = -Inf
+    for rep_id = schema.representations
+        score = get(rep_scores, rep_id, -Inf)
+        acc = logsumexp(score, acc)
+    end
+    return acc
+end
+
+function distribute_scores!(rep_scores::Dict{UUID, Float64},
+                            rep_counts::Dict{UUID, Int64},
+                            registry::SchemaRegistry,
+                            schema_id::UInt64,
+                            schema_score::Float64)
+    schema = registry.schemas[schema_id]
+    for rep_id = schema.representations
+        rep_scores[rep_id] =
+            logsumexp(schema_score, get(rep_scores, rep_id, -Inf))
+        rep_counts[rep_id] = get(rep_counts, rep_id, 0) + 1
+    end
+    return nothing
+end
+
+function pretty_rep(registry::SchemaRegistry, rep_id::UUID)
+    rep = registry.reps[rep_id]
+    short_id = string(rep_id)[1:8]
+    name = if rep isa AtomicRep
+        if rep.index >= 0
+            @sprintf "⚛ (#%2d) | %s" rep.index short_id
+        else
+            parent = string(registry.parents[rep_id])[1:8]
+            @sprintf "⚛ (#%2d) | %s | 🔗 %s" rep.index short_id parent
+        end
+    else
+        @sprintf "𝛌 ( %2d) | %s" rep.size short_id
+    end
+end
+
+function plot_rep_weights(registry::SchemaRegistry,
+                          rep_scores::Dict{UUID, Float64},
+                          k = 5)
+
+    names = collect(keys(rep_scores))
+    xs = map(x -> -1*x, values(rep_scores))
+    if length(rep_scores) > k
+        inds = partialsortperm(xs, 1:k)
+        names = names[inds]
+        xs = xs[inds]
+    end
+    names = map(names) do rep_id
+        pretty_rep(registry, rep_id)
+    end
+    display(barplot(names, xs, xlabel = "- ℧",
+                    title = "=== Rep Scores ==="))
+    return nothing
+end
+
+function plot_schema_scores(schema_map::Vector{UInt64},
+                            schema_scores::Vector{Float64})
+    display(barplot(schema_map, -1 .* schema_scores, xlabel = "- ℧",
+                    title = "=== Schema Scores ==="))
+    return nothing
 end
