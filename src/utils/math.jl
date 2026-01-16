@@ -2,6 +2,7 @@ export softmax,
     softmax!,
     inv_softmax
 
+using Printf: @sprintf
 
 isbetween(x::Real, low::Real, high::Real) = (x >= low) && (x <= high)
 
@@ -130,7 +131,10 @@ end
 function combination(n::Int, p::Int, x::Int)
     r = k = 0
     c = Vector{Int}(undef, p)
-    @assert x <= ncr(n, p) "$(x)th lexical index DNE!"
+    if x > ncr(n, p)
+        msg = @sprintf "Invalid lexical index (%d) for system %d" x n
+        error(msg)
+    end
     for i = 0:(p-2)
         c[i+1] = (i != 0) ? c[i] : 0
         while true # do-while in julia

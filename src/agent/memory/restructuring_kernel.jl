@@ -128,7 +128,7 @@ function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
     mag = logsumexp(tr) # REVIEW: needed elsewhere? 
     x = exp(mag / k.restructure_prob_slope)
     w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    # println("Restructure prob: $(w)")
+    # println("Restructure prob: $(w); |Δ|= $(mag)")
     return w
 end
 
@@ -152,7 +152,7 @@ function split_prob(kappa::MhoSplitMerge,
     argmax(deltas) > ns && return 0.9
      
     # 50/50
-    return 0.25
+    return 0.5
 end
 
 function sample_split_move!(cm::ChoiceMap,
@@ -209,6 +209,9 @@ function merge_weights(k::MhoSplitMerge,
     # @show importance
     # The weight of each merge pair is simply the sum of their importance values
     ntotal = length(deltas)
+    if ntotal < 2
+        error("Attempting to merge in trace with only 1 representation")
+    end
     # Only consider the `k` least important elements
     # (to reduce combinatoric explosions)
     ncandidates = min(ntotal, k.merge_max_elems)
@@ -225,7 +228,7 @@ function merge_weights(k::MhoSplitMerge,
         # pair_ws[i] = .75*(1.0 - importance[a])^75 * .75*(1.0 - importance[b])^75
         # pair_ws[i] = 0.5((1.0 - importance[a])^100 * (1.0 - importance[b])^100)
         pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
-            2*dissimilarity(t, attp.map_metric, a, b)
+            dissimilarity(t, attp.map_metric, a, b)
         # pair_ws[i] = logsumexp(
         #     logsumexp(deltas[a], deltas[b]),
         #     -dissimilarity(t, a, b))

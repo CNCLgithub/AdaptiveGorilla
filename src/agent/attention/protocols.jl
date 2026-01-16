@@ -140,10 +140,11 @@ function update_task_relevance!(att::MentalModule{A}
     return nothing
 end
 
+# TODO: record parameters for load
 function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
     isempty(x) && return p.load
-    m = 1.0
-    x0 = 0.0
+    m = 20.0
+    x0 = 5.0
     x = (logsumexp(deltas) - x0) / m
     p.load * exp(min(x, 0.0))
 end
@@ -230,14 +231,14 @@ function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
     delta_score = 0.0
     for _ = 1:steps
         # new_trace, w = baby_ancestral_proposal(trace)
-        idx = categorical(ws)
-        new_trace, w = bd_loc_transform(trace, idx)
-        # if rand() < 0.5
-        #     new_trace, w = baby_ancestral_proposal(trace)
-        # else
-        #     idx = categorical(ws)
-        #     new_trace, w = bd_loc_transform(trace, idx)
-        # end
+        # idx = categorical(ws)
+        # new_trace, w = bd_loc_transform(trace, idx)
+        if rand() < 0.5
+            new_trace, w = baby_ancestral_proposal(trace)
+        else
+            idx = categorical(ws)
+            new_trace, w = bd_loc_transform(trace, idx)
+        end
         # Importance driven (or uniform)
         if log(rand()) < w
             trace = new_trace

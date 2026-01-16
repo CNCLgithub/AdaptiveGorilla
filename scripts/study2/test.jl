@@ -19,6 +19,7 @@ using ProgressMeter
 using AdaptiveGorilla
 using UnicodePlots: Plot, lineplot!, hline!, histogram
 using AdaptiveGorilla: count_collisions
+import AdaptiveGorilla as AG
 
 using Random
 # Random.seed!(123)
@@ -75,10 +76,10 @@ WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 DATASET = "target_ensemble/2025-06-09_W96KtK"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 120
+FRAMES  = 200
 
-LONE_PARENT = true
-# LONE_PARENT = false
+# LONE_PARENT = true
+LONE_PARENT = false
 
 SWAP_COLORS = false
 
@@ -99,8 +100,8 @@ end
 # Analysis Parameters
 ################################################################################
 
-RENDER = true
-# RENDER = false
+# RENDER = true
+RENDER = false
 
 # Number of model runs per condition
 CHAINS = RENDER ? 1 : 32
@@ -110,7 +111,7 @@ CHAINS = RENDER ? 1 : 32
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.20
 
 ################################################################################
 # Methods
@@ -167,8 +168,9 @@ function main()
     experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
     gt_count = count_collisions(experiment)
     collision_counts = Vector{Float64}(undef, CHAINS)
-    # Threads.@threads for c = 1:CHAINS
-    for c = 1:CHAINS
+
+    Threads.@threads for c = 1:CHAINS
+    # for c = 1:CHAINS
         results = run_model!(pbar, experiment, RENDER)
         # RENDER && show(results; allrows=true)
         # println()
@@ -183,7 +185,7 @@ function main()
     RENDER || display(
         histogram(ndetected, nbins=10,
                   title = "Frames noticed",
-                  xlim = (0, 48))
+                  vertical = true)
     )
     RENDER ?
         println("Collision counts: $(collision_counts)") :

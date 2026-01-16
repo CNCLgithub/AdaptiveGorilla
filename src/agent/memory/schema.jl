@@ -174,17 +174,16 @@ function register_schema!(registry::SchemaRegistry, schema::GranularitySchema)
     return nothing
 end
 
-
 function merge_in_schema!(registry::SchemaRegistry, 
                           current_schema_id::UInt64,
                           pair_idx::Int,
                           time::Int)
-
     schema = registry.schemas[current_schema_id]
     nr = length(schema.representations)
     a, b = combination(nr, 2, pair_idx)
     merge_in_schema!(registry, current_schema_id, a, b, time)
 end
+
 """
 Merge representations within a schema to create a new schema.
 """
@@ -452,6 +451,10 @@ function ammend_schema!(registry::SchemaRegistry,
     elseif g.n == oc + 1
         # Death - one less single
         schema_death_at!(registry, t, schema_id)
+    else
+        print_granularity_schema(t)
+        describe_schema(registry, schema_id)
+        error("Unrecognized schema divergence")
     end
 
     if !is_valid_schema(registry, t, new_schema_id)
@@ -518,7 +521,7 @@ function schema_birth_at!(registry::SchemaRegistry,
         reps[i + shift] = rep_id
     end
     # Generate and register new atomic
-    birthed = AtomicRep(g.n + 1)
+    birthed = AtomicRep(g.n + 1) # REVIEW: could be ambiguous
     reps[birth_idx] = birthed.id
     registry.reps[birthed.id] = birthed
     
@@ -572,12 +575,13 @@ end
 
 function aggregate_scores(rep_scores::Dict{UUID, Float64},
                           registry::SchemaRegistry,
-                          schema_id::UInt64)
+                          schema_id::UInt64,
+                          floor_val::Float64)
     schema = registry.schemas[schema_id]
-    acc = -Inf
+    acc = 0.0
     for rep_id = schema.representations
-        score = get(rep_scores, rep_id, -Inf)
-        acc = logsumexp(score, acc)
+        score = get(rep_scores, rep_id, floor_val)
+        acc += score
     end
     return acc
 end
@@ -588,9 +592,10 @@ function distribute_scores!(rep_scores::Dict{UUID, Float64},
                             schema_id::UInt64,
                             schema_score::Float64)
     schema = registry.schemas[schema_id]
+    scaled_score = schema_score / nrep(schema)
     for rep_id = schema.representations
         rep_scores[rep_id] =
-            logsumexp(schema_score, get(rep_scores, rep_id, -Inf))
+            logsumexp(scaled_score, get(rep_scores, rep_id, -Inf))
         rep_counts[rep_id] = get(rep_counts, rep_id, 0) + 1
     end
     return nothing
@@ -604,7 +609,7 @@ function pretty_rep(registry::SchemaRegistry, rep_id::UUID)
             @sprintf "⚛ (#%2d) | %s" rep.index short_id
         else
             parent = string(registry.parents[rep_id])[1:8]
-            @sprintf "⚛ (#%2d) | %s | 🔗 %s" rep.index short_id parent
+            @sprintf "⚛ (  ?) | %s | 🔗 %s" short_id parent
         end
     else
         @sprintf "𝛌 ( %2d) | %s" rep.size short_id
@@ -613,7 +618,7 @@ end
 
 function plot_rep_weights(registry::SchemaRegistry,
                           rep_scores::Dict{UUID, Float64},
-                          k = 5)
+                          k = 8)
 
     names = collect(keys(rep_scores))
     xs = map(x -> -1*x, values(rep_scores))

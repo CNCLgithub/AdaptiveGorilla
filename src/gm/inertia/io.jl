@@ -42,3 +42,31 @@ function load_wm_from_toml(path::String; kwargs...)
     specified = load_inner(parts, stub["params"])
     protocol(; merge(specified, kwargs)...)
 end
+
+function print_granularity_schema(state::InertiaState)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
+    c = object_count(state)
+    println("Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
+    ndark = count(x -> material(x) == Dark, state.singles)
+    println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
+    println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
+    return nothing
+end
+
+
+function pretty_state(state::InertiaState)
+    print_granularity_schema(state)
+    ns = length(state.singles)
+    ne = length(state.ensembles)
+    c = object_count(state)
+    for i = 1:ns
+        o = state.singles[i]
+        println("  Single $(i): $(material(o)), p=$(get_pos(o)), v=$(get_vel(o))")
+    end
+    for i = 1:ne
+        o = state.ensembles[i]
+        println("  Ensemble $(i): $(rate(o)), p=$(get_pos(o)), v=$(get_vel(o))")
+    end
+    return nothing
+end

@@ -79,6 +79,8 @@ function trace_mho(attx::AdaptiveAux,
     # @show importance
     # state = get_last_state(trace)
     # obj = object_from_idx(state, argmax(mag))
+    # println(obj)
+    # print_granularity_schema(trace)
     # println("type: $(typeof(obj))\n pos: $(get_pos(obj)) \n vel: $(get_vel(obj))")
     c = irr_complexity(importance,
                        gop.complexity_factor,
@@ -104,15 +106,7 @@ function print_granularity_schema(chain::APChain)
 end
 
 function print_granularity_schema(tr::InertiaTrace)
-    state = get_last_state(tr)
-    ns = length(state.singles)
-    ne = length(state.ensembles)
-    c = object_count(tr)
-    println("Granularity: $(ns) singles; $(ne) ensembles; $(c) total")
-    ndark = count(x -> material(x) == Dark, state.singles)
-    println("\tSingles: $(ndark) Dark | $(ns-ndark) Light")
-    println("\tEnsembles: $(map(e -> (rate(e), e.matws[1]), state.ensembles))")
-    return nothing
+    print_granularity_schema(get_last_state(tr))
 end
 
 ################################################################################

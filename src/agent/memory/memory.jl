@@ -55,6 +55,7 @@ mutable struct MemoryAssessments <: MentalState{HyperResampling}
     chain_objectives::Vector{Float64}
     schema_registry::SchemaRegistry
     schema_map::Vector{UInt64}
+    new_schema_map::Vector{UInt64}
     rep_objectives::Dict{UUID, Float64}
     steps::Int
 end
@@ -65,6 +66,7 @@ function MemoryAssessments(chains::Int, schema_set::Int64)
     MemoryAssessments(fill(-Inf, chains),
                       registry,
                       fill(ischema, chains),
+                      Vector{UInt64}(undef, chains),
                       Dict{UUID, Float64}(),
                       0)
 end
@@ -118,8 +120,11 @@ function assess_memory_epoch!(mem::MentalModule{M},
     rep_acc = Dict{UUID, Float64}()
     
     for i = 1:hf.h
+        # obtain schema score for t
         chain = vstate.chains[i]
-        schema_score = mstate.chain_objectives[i] -= mstate.steps
+        schema_score = mstate.chain_objectives[i] -= log(mstate.steps)
+
+        # println(@sprintf "Schema %d score: %4f.1" i schema_score)
 
         schema_id = mstate.schema_map[i]
         # Verify that the trace has not diverged from the schema
@@ -130,9 +135,11 @@ function assess_memory_epoch!(mem::MentalModule{M},
                 ammend_schema!(mstate.schema_registry, chain_map, schema_id)
         end
 
+        # integral from 0 to t-1
         time_integral = aggregate_scores(mstate.rep_objectives,
                                          mstate.schema_registry,
-                                         schema_id)
+                                         schema_id,
+                                         schema_score)
 
         # store time integrated objective for the chain
         mstate.chain_objectives[i] = logsumexp(schema_score, time_integral)
@@ -144,7 +151,7 @@ function assess_memory_epoch!(mem::MentalModule{M},
 
     # Normalize schema time integrals
     for (k, c) = rep_counts
-        rep_acc[k] -= log(c)
+        rep_acc[k] -= log(hf.h)
     end
 
     # Merge and update schema record
@@ -175,26 +182,26 @@ function optimize_memory!(mem::MentalModule{M},
     # Maybe resample
     ws = softmax(memstate.chain_objectives, memp.tau)
     next_gen = Vector{Int}(undef, visp.h)
-    if ess < 0.5 * visp.h
-        Distributions.rand!(Distributions.Categorical(ws), next_gen)
-    else
-        next_gen[:] = 1:visp.h
-    end
+    residual_resample!(next_gen, ws)
+    # if ess <= 0.5 * visp.h
+    #     Distributions.rand!(Distributions.Categorical(ws), next_gen)
+    # else
+    #     next_gen[:] = 1:visp.h
+    # end
 
-    println()
-    println("\t################################################# ")
-    println("\t#              | CHAIN WEIGHTS |                # ")
-    println("\t#              |  FRAME: $(t)  |                # ")
-    println("\t################################################# ")
-    plot_rep_weights(memstate.schema_registry, memstate.rep_objectives)
-    for i = 1:visp.h
-        print_granularity_schema(visstate.chains[i])
-        println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
-    end
-    @show next_gen
-    println("\t === Top Schema ===")
-    describe_schema(memstate.schema_registry, memstate.schema_map[argmax(ws)])
-
+    # println()
+    # println("\t################################################# ")
+    # println("\t#              | CHAIN WEIGHTS |                # ")
+    # println("\t#              |  FRAME: $(t)  |                # ")
+    # println("\t################################################# ")
+    # plot_rep_weights(memstate.schema_registry, memstate.rep_objectives)
+    # for i = 1:visp.h
+    #     print_granularity_schema(visstate.chains[i])
+    #     println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
+    # end
+    # @show next_gen
+    # println("\t === Top Schema ===")
+    # describe_schema(memstate.schema_registry, memstate.schema_map[argmax(ws)])
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation
@@ -203,7 +210,7 @@ function optimize_memory!(mem::MentalModule{M},
     for i = 1:visp.h
         # Step 1
         parent = next_gen[i]
-        chain = visstate.chains[i]
+        chain = visstate.chains[parent]
         template = retrieve_map(chain) # InertiaTrace
         # Step 2 (optional)
         cm = restructure_kernel(memp.kernel, template)
@@ -211,8 +218,8 @@ function optimize_memory!(mem::MentalModule{M},
         # display(cm)
         # Step 3
         # REVIEW: copy over parent schema score?
-        schema_idx = memstate.schema_map[i]
-        memstate.schema_map[i] =
+        schema_idx = memstate.schema_map[parent]
+        memstate.new_schema_map[i] =
             transform_schema!(memstate.schema_registry, schema_idx, t,
                               template, cm)
         visstate.new_chains[i] = reinit_chain(chain, template, cm)
@@ -227,8 +234,28 @@ function optimize_memory!(mem::MentalModule{M},
 end
 
 function reset_state!(memstate::MemoryAssessments, memp::HyperResampling)
+    # clear instantaneous objectives
     fill!(memstate.chain_objectives, -Inf)
     memstate.steps = 0
+    # swap references
+    temp = memstate.schema_map
+    memstate.schema_map = memstate.new_schema_map
+    memstate.new_schema_map = temp
+    return nothing
+end
+
+function residual_resample!(next::Vector{Int64},
+                            ws::Vector{Float64},
+                            thresh_factor::Float64 = 0.5)
+    n = length(next)
+    thresh = thresh_factor / n
+    to_resample = ws .< thresh
+    ws[to_resample] .= 0.0
+    rmul!(ws, 1.0 / sum(ws))
+    for i = 1:n
+        next[i] = to_resample[i] ? categorical(ws) : i
+    end
+    nothing
 end
 
 ################################################################################

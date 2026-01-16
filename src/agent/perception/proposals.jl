@@ -162,11 +162,8 @@ function bd_loc_args(trace::InertiaTrace, idx::Int64)
     t, wm, _ = get_args(trace)
     object = object_from_idx(trace, idx)
     posx, posy = get_pos(object)
-    sigma = if typeof(object) <: InertiaSingle
-        5.0 * wm.single_size
-    else
-        5.0 * get_var(object)
-    end
+    sigma = isa(object, InertiaSingle) ? wm.single_size : get_var(object)
+    sigma *= 3
     (posx, posy, sigma)
 end
 
