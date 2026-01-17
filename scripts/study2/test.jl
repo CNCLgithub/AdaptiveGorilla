@@ -111,7 +111,7 @@ CHAINS = RENDER ? 1 : 32
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.20
+NOTICE_P_THRESH = 0.50
 
 ################################################################################
 # Methods
@@ -171,7 +171,7 @@ function main()
 
     Threads.@threads for c = 1:CHAINS
     # for c = 1:CHAINS
-        results = run_model!(pbar, experiment, RENDER)
+        results = run_model!(pbar, experiment, c == 1)
         # RENDER && show(results; allrows=true)
         # println()
         collision_counts[c] = last(results[!, :collision_p])
@@ -189,8 +189,8 @@ function main()
     )
     RENDER ?
         println("Collision counts: $(collision_counts)") :
-        histogram(collision_counts, nbins=10,
-                  title = "Collision counts")
+        display(histogram(collision_counts, nbins=10,
+                  title = "Collision counts"))
     return nothing
 end;
 

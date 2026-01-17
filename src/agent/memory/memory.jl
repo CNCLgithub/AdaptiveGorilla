@@ -124,7 +124,6 @@ function assess_memory_epoch!(mem::MentalModule{M},
         chain = vstate.chains[i]
         schema_score = mstate.chain_objectives[i] -= log(mstate.steps)
 
-        # println(@sprintf "Schema %d score: %4f.1" i schema_score)
 
         schema_id = mstate.schema_map[i]
         # Verify that the trace has not diverged from the schema
@@ -140,6 +139,8 @@ function assess_memory_epoch!(mem::MentalModule{M},
                                          mstate.schema_registry,
                                          schema_id,
                                          schema_score)
+
+        # println(@sprintf "Schema %d score: %4f.1, ⨍ %4f.1" i schema_score time_integral)
 
         # store time integrated objective for the chain
         mstate.chain_objectives[i] = logsumexp(schema_score, time_integral)

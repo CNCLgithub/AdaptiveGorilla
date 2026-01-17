@@ -20,5 +20,7 @@ user.conf
 *.png
 *.gif
 *.blend1
+*.tar
+*.gz
 
 .vscode

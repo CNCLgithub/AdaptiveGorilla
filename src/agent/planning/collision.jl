@@ -216,7 +216,7 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     # This is because ensemble spread relates
     # to its entropy, with more entropy
     # increasing the variance over velocity direction
-    sigma = 1.0  / sqrt(get_var(obj))
+    sigma = 1.0  / get_var(obj)
     z = (1.0 - dt) / sigma
     # CDF up to 1 step
     pcol = Distributions.logcdf(standard_normal, z)
