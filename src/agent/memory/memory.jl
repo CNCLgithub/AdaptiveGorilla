@@ -190,19 +190,19 @@ function optimize_memory!(mem::MentalModule{M},
     #     next_gen[:] = 1:visp.h
     # end
 
-    # println()
-    # println("\t################################################# ")
-    # println("\t#              | CHAIN WEIGHTS |                # ")
-    # println("\t#              |  FRAME: $(t)  |                # ")
-    # println("\t################################################# ")
-    # plot_rep_weights(memstate.schema_registry, memstate.rep_objectives)
-    # for i = 1:visp.h
-    #     print_granularity_schema(visstate.chains[i])
-    #     println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
-    # end
-    # @show next_gen
-    # println("\t === Top Schema ===")
-    # describe_schema(memstate.schema_registry, memstate.schema_map[argmax(ws)])
+    println("\n\t################################################# ")
+    println("\t#              | CHAIN WEIGHTS |                # ")
+    println("\t#              |  FRAME: $(t)  |                # ")
+    println("\t################################################# ")
+    # @show memstate.rep_objectives
+    plot_rep_weights(memstate.schema_registry, memstate.rep_objectives)
+    for i = 1:visp.h
+        print_granularity_schema(visstate.chains[i])
+        println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
+    end
+    @show next_gen
+    println("\t === Top Schema ===")
+    describe_schema(memstate.schema_registry, memstate.schema_map[argmax(ws)])
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation
@@ -247,7 +247,7 @@ end
 
 function residual_resample!(next::Vector{Int64},
                             ws::Vector{Float64},
-                            thresh_factor::Float64 = 0.5)
+                            thresh_factor::Float64 = 0.25)
     n = length(next)
     thresh = thresh_factor / n
     to_resample = ws .< thresh

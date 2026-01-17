@@ -227,19 +227,10 @@ function attend!(chain::APChain, att::MentalModule{AdaptiveComputation})
     return nothing
 end
 
-function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 5)
+function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
     delta_score = 0.0
     for _ = 1:steps
         new_trace, w = baby_ancestral_proposal(trace)
-        # idx = categorical(ws)
-        # new_trace, w = bd_loc_transform(trace, idx)
-        # if rand() < 0.5
-        #     new_trace, w = baby_ancestral_proposal(trace)
-        # else
-        #     idx = categorical(ws)
-        #     new_trace, w = bd_loc_transform(trace, idx)
-        # end
-        # Importance driven (or uniform)
         if log(rand()) < w
             trace = new_trace
             delta_score = w
@@ -247,24 +238,4 @@ function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 5)
         end
     end
     return (trace, delta_score)
-    # trace, rw_score = baby_ancestral_mh_kernel(trace)
-    # return (trace, delta_score + rw_score)
-end
-
-# REVIEW: remove?
-function baby_ancestral_mh_kernel(trace::InertiaTrace, steps = 10)
-    t, wm, istate = get_args(trace)
-    switch_idx = trace[:kernel => t => :bd => :i]
-    switch_idx != 2 && return (trace, 0.0)
-    # A birth has just occured
-    ns = single_count(trace)
-    delta_score = 0.0
-    for _ = 1:steps
-        new_trace, w = single_ancestral_proposal(trace, ns) 
-        if log(rand()) < w
-            trace = new_trace
-            delta_score += w
-        end
-    end
-    (trace, delta_score)
 end

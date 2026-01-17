@@ -70,3 +70,32 @@ function pretty_state(state::InertiaState)
     end
     return nothing
 end
+
+import Printf
+
+import Base.show
+
+function Base.show(io::IO, ::MIME"text/plain", s::InertiaSingle)
+    m = material(s)
+    px, py = get_pos(s)
+    vx, vy = get_vel(s)
+    a = get_avel(s)
+    fmt = Printf.Format(
+        raw"⚛ {m = %s, p=[%3.1f,%3.1f], v=[%3.1f,%3.1f], θ=%3.1f}"
+    )
+    s = Printf.format(fmt, m, px, py, vx, vy, a)
+    println(io, s)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", e::InertiaEnsemble)
+    r = rate(e)
+    m = materials(e)[1]
+    px, py = get_pos(e)
+    vx, vy = get_vel(e)
+    v = get_var(e)
+    fmt = Printf.Format(
+        raw"𝛌[%d]:{m=%3.1f, p=[%3.1f,%3.1f], v=[%3.1f,%3.1f], σ=%3.1f}"
+    )
+    s = Printf.format(fmt, r, m, px, py, vx, vy, v)
+    println(io, s)
+end

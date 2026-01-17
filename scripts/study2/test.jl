@@ -100,11 +100,11 @@ end
 # Analysis Parameters
 ################################################################################
 
-# RENDER = true
-RENDER = false
+RENDER = true
+# RENDER = false
 
 # Number of model runs per condition
-CHAINS = RENDER ? 1 : 32
+CHAINS = RENDER ? 1 : 16
 
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
@@ -183,13 +183,13 @@ function main()
     finish!(pbar)
     display(plot)
     RENDER || display(
-        histogram(ndetected, nbins=10,
+        histogram(ndetected, nbins=15,
                   title = "Frames noticed",
                   vertical = true)
     )
     RENDER ?
         println("Collision counts: $(collision_counts)") :
-        display(histogram(collision_counts, nbins=10,
+        display(histogram(collision_counts, nbins=5,
                   title = "Collision counts"))
     return nothing
 end;

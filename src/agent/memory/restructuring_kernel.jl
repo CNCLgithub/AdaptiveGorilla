@@ -128,7 +128,7 @@ function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
     mag = logsumexp(tr) # REVIEW: needed elsewhere? 
     x = exp(mag / k.restructure_prob_slope)
     w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    # println("Restructure prob: $(w); |Δ|= $(mag)")
+    println("Restructure prob: $(w); |Δ|= $(mag)")
     return w
 end
 
@@ -223,25 +223,19 @@ function merge_weights(k::MhoSplitMerge,
         (x, y) = combination(ncandidates, 2, i)
         a = cand_indices[x]
         b = cand_indices[y]
-        # Pr(Merge) inv. prop. importance
         pair_id[i] = combination_rank(ntotal, 2, [a, b])
-        # pair_ws[i] = .75*(1.0 - importance[a])^75 * .75*(1.0 - importance[b])^75
-        # pair_ws[i] = 0.5((1.0 - importance[a])^100 * (1.0 - importance[b])^100)
-        pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
-            dissimilarity(t, attp.map_metric, a, b)
-        # pair_ws[i] = logsumexp(
-        #     logsumexp(deltas[a], deltas[b]),
-        #     -dissimilarity(t, a, b))
+        pair_ws[i] = logsumexp(deltas[a], deltas[b])
+        # pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
+        #     dissimilarity(t, attp.map_metric, a, b)
         # println("W: $(a),$(b) => $(pair_ws[i])")
         # println("ID: $(a),$(b) => $(pair_id[i]) =>"*
         #     " $(combination(ntotal, 2, pair_id[i]))")
     end
-    # deterministic if only 1 pair | categorical
     if ncandidates > 2
         # Normalize
-        # rmul!(pair_ws, 1.0 / sum(pair_ws))
         pair_ws = inv_softmax(pair_ws, k.merge_tau, -1E5)
     else
+        # deterministic if only 1 pair | categorical
         pair_ws[1] = 1.0
     end
     
