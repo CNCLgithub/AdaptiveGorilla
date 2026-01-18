@@ -32,23 +32,21 @@ struct HyperResampling <: MemoryProtocol
     "Number of hyper chains in perception"
     chains::Int64
     "Initial Schema Set"
-    schema::Int64
+    schema::Int64 # HACK: this is passed to init fitness_state
     "Optimization fitness criteria"
     fitness::MemoryFitness
     "Restructuring Kernel"
     kernel::RestructuringKernel
     "Temperature for chain resampling"
     tau::Float64
-    schema_log_decay_rate::Float64
 
 end
 
 function HyperResampling(; perception::MentalModule{<:HyperFilter},
-                         fitness, kernel, tau = 1.0,
-                         schema_log_decay_rate = -Inf)
+                         fitness, kernel, tau = 1.0)
     prot, _ = mparse(perception)
     schema = memory_schema_set(perception)
-    HyperResampling(prot.h, schema, fitness, kernel, tau, schema_log_decay_rate)
+    HyperResampling(prot.h, schema, fitness, kernel, tau)
 end
 
 mutable struct MemoryAssessments{T} <: MentalState{HyperResampling}
@@ -58,7 +56,7 @@ end
 
 function MemoryAssessments(fitness::MemoryFitness, chains::Int, schema_set::Int64)
     state = init_fitness_state(fitness, chains, schema_set)
-    MemoryAssessments(state, fill(-Inf, chains), 0)
+    MemoryAssessments(state, fill(-Inf, chains))
 end
 
 # TODO: document
@@ -84,8 +82,9 @@ function assess_memory_epoch!(mem::MentalModule{M},
     mp, ms = mparse(mem)
     hf, vstate = mparse(vis)
     for i = 1:hf.h
+        chain = vstate.chains[i]
         ms.chain_objectives[i] =
-            memory_fitness_epoch!(ms.fitness_state, ms.fitness, chain, i)
+            memory_fitness_epoch!(ms.fitness_state, mp.fitness, chain, i)
     end
     return nothing
 end
@@ -124,14 +123,14 @@ function optimize_memory!(mem::MentalModule{M},
     println("\t#              |  FRAME: $(t)  |                # ")
     println("\t################################################# ")
     # @show memstate.rep_objectives
-    plot_fitness(memstate.fit_state)
+    plot_fitness(memstate.fitness_state)
     for i = 1:visp.h
         print_granularity_schema(visstate.chains[i])
         println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
     end
     @show next_gen
     println("\t === Top Schema ===")
-    describe_chain_fitness(memstate.fitness, argmax(ws))
+    describe_chain_fitness(memstate.fitness_state, argmax(ws))
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation
@@ -149,8 +148,8 @@ function optimize_memory!(mem::MentalModule{M},
         # display(cm)
          
         # Step 3
-        update_fitness_reframe!(memstate.fit_state, memstate.fitness, t, i,
-                                parent, cm)
+        update_fitness_reframe!(memstate.fitness_state, memp.fitness, t,
+                                template, i, parent, cm)
         visstate.new_chains[i] = reinit_chain(chain, template, cm)
     end
 
@@ -165,7 +164,6 @@ end
 function reset_state!(memstate::MemoryAssessments, memp::HyperResampling)
     # clear instantaneous objectives
     fill!(memstate.chain_objectives, -Inf)
-    memstate.steps = 0
 
     reset_state!(memstate.fitness_state)
     return nothing

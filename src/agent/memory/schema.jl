@@ -581,7 +581,7 @@ function reconstitute_deltas(delta_integral::Dict{UUID, Float64},
     n = nrep(schema)
     v = Vector{Float64}(undef, n)
     for (i, rep_id) = enumerate(schema.representations)
-        v[i] = get(rep_scores, rep_id, -Inf)
+        v[i] = get(delta_integral, rep_id, -Inf)
     end
     return v
 end
@@ -620,7 +620,7 @@ function plot_rep_weights(registry::SchemaRegistry,
                           k = 8)
 
     names = collect(keys(rep_scores))
-    xs = map(x -> -1*x, values(rep_scores))
+    xs = map(exp, values(rep_scores))
     if length(rep_scores) > k
         inds = partialsortperm(xs, 1:k)
         names = names[inds]
@@ -629,7 +629,7 @@ function plot_rep_weights(registry::SchemaRegistry,
     names = map(names) do rep_id
         pretty_rep(registry, rep_id)
     end
-    display(barplot(names, xs, xlabel = "- ℧",
+    display(barplot(names, xs, xlabel = "- ℧", xscale = :log10,
                     title = "=== Rep Scores ==="))
     return nothing
 end

@@ -30,6 +30,8 @@ Defines the granularity mapping for a current trace format
     complexity_mass::Float64 = 10.0
     "How sensitive cost is to a particular representation"
     complexity_factor::Float64 = 2.0
+    "Rate of decay for delta time integral"
+    log_decay_rate::Float64 = 0.0
 end
 
 mutable struct MhoScores
@@ -45,37 +47,19 @@ function init_fitness_state(f::MhoFitness, chains::Int, schema_set_size::Int)
     ischema = init_schema(registry)
     MhoScores(
         fill(ischema, chains),
-        fill(-Inf, chains),
         Vector{UInt64}(undef, chains),
         registry,
         Dict{UUID, Float64}()
     )
 end
 
-function assess_memory_step!(mem::MentalModule{M},
-                             t::Int,
-                             vis::MentalModule{V}
-                             ) where {M<:HyperResampling,
-                                      V<:HyperFilter}
-    mp, mstate = mparse(mem)
-    hf, vstate = mparse(vis)
-    for i = 1:hf.h
-        chain = vstate.chains[i]
-        increment = memory_fitness(mp.fitness, chain)
-        prev = mstate.chain_objectives[i]
-        mstate.chain_objectives[i] = logsumexp(prev, increment)
-    end
-    mstate.steps += 1
-    return nothing
-end
-
-function assess_memory_step!(mem::MentalModule{M},
-                             t::Int,
-                             vis::MentalModule{V}
-                             ) where {M<:HyperResampling,
-                                      V<:HyperFilter}
-    mp, mstate = mparse(mem)
-    memory_fitness_step!(mp.fitness_state, mp.fitness, vis)
+function memory_fitness_step!(mem::MentalModule{M},
+                              t::Int,
+                              vis::MentalModule{V}
+                              ) where {M<:HyperResampling,
+                                       V<:HyperFilter}
+    mp, ms = mparse(mem)
+    memory_fitness_step!(ms.fitness_state, mp.fitness, vis)
 end
 
 function memory_fitness_step!(mho::MhoScores,
@@ -85,24 +69,24 @@ function memory_fitness_step!(mho::MhoScores,
     hf, vstate = mparse(vis)
     attp, attx = mparse(gop.att)
 
-    map!(v -> v+(mho.log_decay_rate),
+    map!(v -> v+(gop.log_decay_rate),
          values(mho.rep_deltas))
 
     increment = Dict{UUID, Float64}()
 
     for i = 1:hf.h
         chain = vstate.chains[i]
+        schema_id = mho.schema_map[i]
         # Verify that the trace has not diverged from the schema
         # This could be due to birth/death moves.
         chain_map = retrieve_map(chain)
-        if !is_valid_schema(mstate.schema_registry, chain_map, schema_id)
+        if !is_valid_schema(mho.schema_registry, chain_map, schema_id)
             mho.schema_map[i] = schema_id =
                 ammend_schema!(mho.schema_registry, chain_map, schema_id)
         end
 
         deltas = task_relevance(attx, attp.partition, chain_map, attp.nns)
-
-        accumulate_deltas!(increment, mho.schema_registry, schema_id)
+        accumulate_deltas!(increment, mho.schema_registry, schema_id, deltas)
     end
 
 
@@ -150,7 +134,7 @@ function trace_mho(deltas::Vector{Float64},
                    mass::Float64,
                    slope::Float64)
 
-    mag = logsumexp(temp)
+    mag = logsumexp(deltas)
     importance = softmax(deltas, temp)
     c = irr_complexity(importance, mass, slope)
     (mag, c)
@@ -186,12 +170,12 @@ function describe_chain_fitness(m::MhoScores, chain_idx::Int)
     describe_schema(m.schema_registry, m.schema_map[chain_idx])
 end
 
-function update_fitness_reframe!(mos::MhoScores, mof::MhoFitness,
-                                 t::Int, i::Int, parent::Int,
+function update_fitness_reframe!(mos::MhoScores, mof::MhoFitness, t::Int,
+                                 template::InertiaTrace, i::Int, parent::Int,
                                  cm::ChoiceMap)
     schema_idx = mos.schema_map[parent]
     mos.new_schema_map[i] =
-        transform_schema!(ms.schema_registry, schema_idx, t, template, cm)
+        transform_schema!(mos.schema_registry, schema_idx, t, template, cm)
     return nothing
 end
 

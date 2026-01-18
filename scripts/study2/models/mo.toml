@@ -53,7 +53,6 @@ protocol = "HyperResampling"
 
 [Memory.params]
 tau = 1.0   # Temperature for resampling hyper chains
-schema_log_decay_rate = -0.1
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
@@ -63,6 +62,7 @@ protocol = "MhoFitness"
 beta = 250            # Log-regularization constant for MLL component
 complexity_mass = 10    # Slope of exponential irrelevant complexity curve
 complexity_factor = 35  # irrelevant representations
+log_decay_rate = -0.1
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
