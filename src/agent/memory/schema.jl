@@ -573,30 +573,28 @@ function memory_schema_set(perception::MentalModule{<:HyperFilter})
     guess_schema_set(trace)
 end
 
-function aggregate_scores(rep_scores::Dict{UUID, Float64},
-                          registry::SchemaRegistry,
-                          schema_id::UInt64,
-                          floor_val::Float64)
+function reconstitute_deltas(delta_integral::Dict{UUID, Float64},
+                             registry::SchemaRegistry,
+                             schema_id::UInt64)
+
     schema = registry.schemas[schema_id]
-    acc = 0.0
-    for rep_id = schema.representations
-        score = get(rep_scores, rep_id, floor_val)
-        acc += score
+    n = nrep(schema)
+    v = Vector{Float64}(undef, n)
+    for (i, rep_id) = enumerate(schema.representations)
+        v[i] = get(rep_scores, rep_id, -Inf)
     end
-    return acc
+    return v
 end
 
-function distribute_scores!(rep_scores::Dict{UUID, Float64},
-                            rep_counts::Dict{UUID, Int64},
+function accumulate_deltas!(rep_scores::Dict{UUID, Float64},
                             registry::SchemaRegistry,
                             schema_id::UInt64,
-                            schema_score::Float64)
+                            deltas::Vector{Float64})
     schema = registry.schemas[schema_id]
-    scaled_score = schema_score / nrep(schema)
-    for rep_id = schema.representations
+    for (i, rep_id) = enumerate(schema.representations)
+        delta = deltas[i]
         rep_scores[rep_id] =
-            logsumexp(scaled_score, get(rep_scores, rep_id, -Inf))
-        rep_counts[rep_id] = get(rep_counts, rep_id, 0) + 1
+            logsumexp(delta, get(rep_scores, rep_id, -Inf))
     end
     return nothing
 end
@@ -615,6 +613,7 @@ function pretty_rep(registry::SchemaRegistry, rep_id::UUID)
         @sprintf "𝛌 ( %2d) | %s" rep.size short_id
     end
 end
+
 
 function plot_rep_weights(registry::SchemaRegistry,
                           rep_scores::Dict{UUID, Float64},
