@@ -73,9 +73,9 @@ PARAMS = parse_args(ARGS, s)
 
 # which model variant to run (uncomment 1 of the lines below)
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
+WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
 ################################################################################
 # ANALYSES

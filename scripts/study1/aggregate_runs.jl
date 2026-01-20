@@ -3,9 +3,9 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 24
+NOTICE_MIN_FRAMES = 18
 
-DATASET = "most"
+DATASET = "study1"
 
 MODELS = [:mo, :ja, :ta, :fr]
 
