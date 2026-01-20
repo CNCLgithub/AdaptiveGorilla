@@ -10,7 +10,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 12  # Time window, 500ms
+dt = 18  # Time window, 500ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -37,7 +37,7 @@ tick_rate = 1  # How often to evaluate counting (same as perception)
 protocol = "AdaptiveComputation"
 
 [Attention.params]
-itemp = 50.0                          # importance temperature
+itemp = 20.0                          # importance temperature
 base_steps = 8                       # Minimum load
 load = 16                            # Maximum load
 buffer_size = 1000                   # Size of task-relevance heatmap
@@ -53,16 +53,16 @@ protocol = "HyperResampling"
 
 [Memory.params]
 tau = 1.0   # Temperature for resampling hyper chains
-schema_log_decay_rate = -0.1
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 250            # Log-regularization constant for MLL component
-complexity_mass = 10    # Slope of exponential irrelevant complexity curve
-complexity_factor = 35  # irrelevant representations
+beta = 500            # Log-regularization constant for MLL component
+complexity_mass = 5    # Slope of exponential irrelevant complexity curve
+complexity_factor = 50  # irrelevant representations
+log_decay_rate = -0.1
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
@@ -70,8 +70,8 @@ protocol = "MhoSplitMerge"
 
 [Memory.params.kernel.params]
 merge_tau = 1.0
-merge_max_elems = 5
-restructure_prob_min = 0.35
-restructure_prob_max = 0.5
-restructure_prob_slope = 50
+merge_max_elems = 4
+restructure_prob_min = 0.50
+restructure_prob_max = 0.51
+restructure_prob_slope = 4
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }

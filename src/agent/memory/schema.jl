@@ -471,11 +471,20 @@ end
 function schema_death_at!(registry::SchemaRegistry,
                           t::InertiaTrace,
                           schema_id::UInt64)
+    nsingle = single_count(t)
     death_idx = find_death_idx(t)
     g = registry.schemas[schema_id]
+    if death_idx === 0
+        # Sometimes, the MAP changes and never had a birth
+        # In this case, we can remove the last atomic rep.
+        death_idx = natomic(g)
+        # print_granularity_schema(t)
+        # describe_schema(registry, schema_id)
+        # display(get_choices(t))
+        # error("No death found in trace")
+    end
     nreps = length(g.representations)
     reps = Vector{UUID}(undef, nreps - 1)
-    natomic = single_count(t)
     for i = 1:nreps
         rep_id = g.representations[i]
         if i < death_idx
@@ -484,7 +493,7 @@ function schema_death_at!(registry::SchemaRegistry,
             reps[i-1] = rep_id
         end
     end
-    new_schema = GranularitySchema(reps, g.n - 1, natomic)
+    new_schema = GranularitySchema(reps, g.n - 1, nsingle)
     register_schema!(registry, new_schema)
 
     return new_schema.id
@@ -499,10 +508,6 @@ function find_death_idx(trace::InertiaTrace)
             death_idx = trace[:kernel => k => :bd => :switch => :dead]
             break
         end
-    end
-    if death_idx === 0
-        print_granularity_schema(trace)
-        error("No death found in trace")
     end
     return death_idx
 end
@@ -619,18 +624,22 @@ function plot_rep_weights(registry::SchemaRegistry,
                           rep_scores::Dict{UUID, Float64},
                           k = 8)
 
+    rep_scores = filter(x -> !isinf(x.second), rep_scores)
     names = collect(keys(rep_scores))
-    xs = map(exp, values(rep_scores))
+    xs = collect(values(rep_scores))
+    cap = maximum(xs)
     if length(rep_scores) > k
-        inds = partialsortperm(xs, 1:k)
+        inds = partialsortperm(xs, 1:k; rev = true)
         names = names[inds]
         xs = xs[inds]
     end
+    xs .-= cap
+    xs .*= -1
+    clamp!(xs, 0.0, 1E4)
     names = map(names) do rep_id
         pretty_rep(registry, rep_id)
     end
-    display(barplot(names, xs, xlabel = "- ℧", xscale = :log10,
-                    title = "=== Rep Scores ==="))
+    display(barplot(names, xs, xlabel = "- ℧", title = "=== Rep Scores ==="))
     return nothing
 end
 

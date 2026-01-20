@@ -77,7 +77,7 @@ WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 ################################################################################
 
 # which dataset to run
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "study2"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
@@ -114,7 +114,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.2
 
 ################################################################################
 # Methods
@@ -218,16 +218,16 @@ function main()
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-    count_f = x -> count(>(12), x) / CHAINS
+    count_f = x -> count(>=(18), x) / CHAINS
 
     by_cond = groupby(df, [:color, :parent])
     display(combine(by_cond, :ndetected => count_f))
     for k = keys(by_cond)
         g = by_cond[k]
         display(
-            histogram(g[!, :ndetected], nbins=30, vertical=true,
+            histogram(g[!, :ndetected], nbins=10, vertical=true,
                       title = repr(NamedTuple(k)),
-                      xlim = (0, 48))
+                      xlim = (0, 36))
         )
     end
 

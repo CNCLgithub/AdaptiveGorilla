@@ -118,19 +118,18 @@ function optimize_memory!(mem::MentalModule{M},
     #     next_gen[:] = 1:visp.h
     # end
 
-    println("\n\t################################################# ")
-    println("\t#              | CHAIN WEIGHTS |                # ")
-    println("\t#              |  FRAME: $(t)  |                # ")
-    println("\t################################################# ")
-    # @show memstate.rep_objectives
-    plot_fitness(memstate.fitness_state)
-    for i = 1:visp.h
-        print_granularity_schema(visstate.chains[i])
-        println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
-    end
-    @show next_gen
-    println("\t === Top Schema ===")
-    describe_chain_fitness(memstate.fitness_state, argmax(ws))
+    # println("\n\t################################################# ")
+    # println("\t#              | CHAIN WEIGHTS |                # ")
+    # println("\t#              |  FRAME: $(t)  |                # ")
+    # println("\t################################################# ")
+    # plot_fitness(memstate.fitness_state)
+    # for i = 1:visp.h
+    #     print_granularity_schema(visstate.chains[i])
+    #     println("\t OBJ: $(memstate.chain_objectives[i]) \n\t W: $(ws[i])")
+    # end
+    # @show next_gen
+    # println("\t === Top Schema ===")
+    # describe_chain_fitness(memstate.fitness_state, argmax(ws))
 
     # For each hyper particle:
     # 1. extract the MAP as a seed trace for the next generation
@@ -142,7 +141,8 @@ function optimize_memory!(mem::MentalModule{M},
         chain = visstate.chains[parent]
         template = retrieve_map(chain) # InertiaTrace
         # Step 2 (optional)
-        cm = restructure_kernel(memp.kernel, template)
+        cm = restructure_kernel(memp.kernel, memp.fitness,
+                                memstate.fitness_state, template, parent)
 
         # println("Reframing hyper particle $(i) to:")
         # display(cm)
@@ -171,7 +171,7 @@ end
 
 function residual_resample!(next::Vector{Int64},
                             ws::Vector{Float64},
-                            thresh_factor::Float64 = 0.25)
+                            thresh_factor::Float64 = 0.5)
     n = length(next)
     thresh = thresh_factor / n
     to_resample = ws .< thresh

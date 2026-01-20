@@ -116,17 +116,17 @@ function memory_fitness_epoch!(fit_state::MhoScores,
 
     mho = mag - irc
 
-    lml = log_ml_estimate(chain.state) / fit_proc.beta
+    # lml = log_ml_estimate(chain.state) / fit_proc.beta
 
-    print_granularity_schema(chain)
-    println(time_integral)
-    println("mho = $(round(mag; digits=2))(mag) - " *
-        " $(round(irc;digits=2))(irc) = $(mho)")
-    @show lml
-    @show mho + lml
-    println("--------------")
+    # print_granularity_schema(chain)
+    # println(time_integral)
+    # println("mho = $(round(mag; digits=2))(mag) - " *
+    #     " $(round(irc;digits=2))(irc) = $(mho)")
+    # @show lml
+    # @show mho + lml
+    # println("--------------")
     
-    mho + lml
+    mho #+ lml
 end
 
 function trace_mho(deltas::Vector{Float64},

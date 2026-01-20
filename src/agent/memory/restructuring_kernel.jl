@@ -99,24 +99,25 @@ end
 end
 
 function restructure_kernel(kappa::MhoSplitMerge,
-                            t::InertiaTrace)
+                            fitness::MhoFitness,
+                            state::MhoScores,
+                            t::InertiaTrace,
+                            chain_idx::Int)
     # Task-relevance will inform the kernel at several points
-    attp, attx = mparse(kappa.att)
-    tr = task_relevance(attx,
-                        attp.partition,
-                        t,
-                        attp.nns)
-
+    schema_id = state.schema_map[chain_idx]
+    time_integral = reconstitute_deltas(state.rep_deltas,
+                                        state.schema_registry,
+                                        schema_id)
     cm = choicemap()
-    if rand() < restructure_prob(kappa, tr)
-        smw = split_prob(kappa, t, tr)
+    if rand() < restructure_prob(kappa, time_integral)
+        smw = split_prob(kappa, t, time_integral)
         # SPLIT | MERGE
-        # if rand() < split_prob(kappa, t, tr)
+        # if rand() < split_prob(kappa, t, time_integral)
         # println("Pr(Split) = $(smw)")
         if rand() < smw
-            sample_split_move!(cm, kappa, t, tr)
+            sample_split_move!(cm, kappa, t, time_integral)
         else
-            sample_merge_move!(cm, kappa, t, tr)
+            sample_merge_move!(cm, kappa, t, time_integral)
         end
     else
         cm[:s0 => :nsm] = 1 # no change
@@ -128,7 +129,7 @@ function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
     mag = logsumexp(tr) # REVIEW: needed elsewhere? 
     x = exp(mag / k.restructure_prob_slope)
     w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    println("Restructure prob: $(w); |Δ|= $(mag)")
+    # println("Restructure prob: $(w); |Δ|= $(mag)")
     return w
 end
 
@@ -195,19 +196,6 @@ end
 function merge_weights(k::MhoSplitMerge,
                        t::InertiaTrace,
                        deltas::Vector{Float64})
-
-    # Determine importance: Less importance -> higher merge weight
-    # NOTE: importance temperature scales with |tr|
-    #   - at low |tr|, differences don't matter as much
-    # temp = 10*attp.itemp - logsumexp(tr)
-    # temp = max(temp, 1.0)
-    # importance = softmax(tr, temp)
-    # importance = softmax(tr, attp.itemp)
-
-    attp, attx = mparse(k.att)
-    # @show tr
-    # @show importance
-    # The weight of each merge pair is simply the sum of their importance values
     ntotal = length(deltas)
     if ntotal < 2
         error("Attempting to merge in trace with only 1 representation")
@@ -225,25 +213,16 @@ function merge_weights(k::MhoSplitMerge,
         b = cand_indices[y]
         pair_id[i] = combination_rank(ntotal, 2, [a, b])
         pair_ws[i] = logsumexp(deltas[a], deltas[b])
-        # pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
-        #     dissimilarity(t, attp.map_metric, a, b)
-        # println("W: $(a),$(b) => $(pair_ws[i])")
-        # println("ID: $(a),$(b) => $(pair_id[i]) =>"*
-        #     " $(combination(ntotal, 2, pair_id[i]))")
     end
-    if ncandidates > 2
-        # Normalize
-        pair_ws = inv_softmax(pair_ws, k.merge_tau, -1E5)
-    else
-        # deterministic if only 1 pair | categorical
-        pair_ws[1] = 1.0
+    if ncandidates > 2 
+        pair_ws = inv_softmax(pair_ws, k.merge_tau, -1E5) # Normalize
+    else 
+        pair_ws[1] = 1.0 # deterministic if only 1 pair | categorical
     end
-    
     # Store merge-weights in a sparse vector
-    total_pairs = ncr(ntotal, 2)
-    ws = sparsevec(pair_id, pair_ws, total_pairs)
-
     # NOTE: to retrieve members use:
     # selected = combination(total_pairs, 2, pair_idx)
+    total_pairs = ncr(ntotal, 2)
+    ws = sparsevec(pair_id, pair_ws, total_pairs)
     return ws
 end

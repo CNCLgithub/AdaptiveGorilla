@@ -100,8 +100,8 @@ end
 # Analysis Parameters
 ################################################################################
 
-RENDER = true
-# RENDER = false
+# RENDER = true
+RENDER = false
 
 # Number of model runs per condition
 CHAINS = RENDER ? 1 : 16
@@ -111,7 +111,7 @@ CHAINS = RENDER ? 1 : 16
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.50
+NOTICE_P_THRESH = 0.20
 
 ################################################################################
 # Methods
