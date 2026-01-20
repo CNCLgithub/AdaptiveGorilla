@@ -37,7 +37,7 @@ tick_rate = 1  # How often to evaluate counting (same as perception)
 protocol = "AdaptiveComputation"
 
 [Attention.params]
-itemp = 20.0                          # importance temperature
+itemp = 20.0                         # Importance temperature
 base_steps = 8                       # Minimum load
 load = 16                            # Maximum load
 buffer_size = 1000                   # Size of task-relevance heatmap
@@ -59,10 +59,9 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-beta = 500            # Log-regularization constant for MLL component
 complexity_mass = 5    # Slope of exponential irrelevant complexity curve
-complexity_factor = 50  # irrelevant representations
-log_decay_rate = -0.1
+complexity_factor = 50 # irrelevant representations
+log_decay_rate = -0.1  # decay rate of time integral over task-relevance
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
@@ -71,7 +70,5 @@ protocol = "MhoSplitMerge"
 [Memory.params.kernel.params]
 merge_tau = 1.0
 merge_max_elems = 4
-restructure_prob_min = 0.50
-restructure_prob_max = 0.51
-restructure_prob_slope = 4
+restructure_prob = 0.50
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }

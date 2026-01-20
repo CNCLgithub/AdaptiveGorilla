@@ -11,7 +11,7 @@ name = "Just Attention"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 12 # Time window, ~1.5s
+dt = 18 # Time window, ~1.5s
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown = 12   # Cooldown between hits (prevents overcounting)
+cooldown =  6  # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
 
 ################################################################################
@@ -38,11 +38,11 @@ tick_rate = 1  # How often to evaluate counting (same as perception)
 protocol = "AdaptiveComputation"
 
 [Attention.params]
-itemp = 8.0                          # importance temperature
-base_steps = 8                        # Minimum load
-load = 16                             # Maximum load
-buffer_size = 2000                    # Size of task-relevance heatmap
-map_metric_weights = [0.1, 0.1, 0.8]  # Distance function for task-relevance
+itemp = 20.0                         # Importance temperature
+base_steps = 8                       # Minimum load
+load = 16                            # Maximum load
+buffer_size = 1000                   # Size of task-relevance heatmap
+map_metric_weights = [0.1, 0.1, 0.8] # Distance function for task-relevance
 nns = 20
 
 ################################################################################

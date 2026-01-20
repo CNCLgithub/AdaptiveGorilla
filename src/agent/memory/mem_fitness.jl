@@ -9,8 +9,21 @@ Optimizes marginal log-likelihood across hyper particles
 """
 struct MLLFitness <: MemoryFitness end
 
-function memory_fitness(optim::MLLFitness,
-                        chain::APChain)
+function init_fitness_state(::MLLFitness, chains, set_size)
+    nothing
+end
+
+function memory_fitness_step!(::Nothing,
+                              ::MLLFitness,
+                              vis::MentalModule{V}
+                              ) where {V<:HyperFilter}
+    nothing
+end
+
+function memory_fitness_epoch!(::Nothing,
+                               ::MLLFitness,
+                               chain::APChain,
+                               chain_idx::Int)
     log_ml_estimate(chain.state)
 end
 
@@ -24,8 +37,6 @@ Defines the granularity mapping for a current trace format
 @with_kw struct MhoFitness <: MemoryFitness
     "Attention required for task-relevance"
     att::MentalModule{<:AdaptiveComputation}
-    "Log-scaling factor for MLL"
-    beta::Float64 = 5.0
     "Overall exponential slope of complexity cost"
     complexity_mass::Float64 = 10.0
     "How sensitive cost is to a particular representation"
@@ -51,15 +62,6 @@ function init_fitness_state(f::MhoFitness, chains::Int, schema_set_size::Int)
         registry,
         Dict{UUID, Float64}()
     )
-end
-
-function memory_fitness_step!(mem::MentalModule{M},
-                              t::Int,
-                              vis::MentalModule{V}
-                              ) where {M<:HyperResampling,
-                                       V<:HyperFilter}
-    mp, ms = mparse(mem)
-    memory_fitness_step!(ms.fitness_state, mp.fitness, vis)
 end
 
 function memory_fitness_step!(mho::MhoScores,
@@ -102,9 +104,7 @@ function memory_fitness_epoch!(fit_state::MhoScores,
                                fit_proc::MhoFitness,
                                chain::APChain,
                                chain_idx::Int)
-
     attp, attx = mparse(fit_proc.att)
-
     # integral from 0 to t
     schema_id = fit_state.schema_map[chain_idx]
     time_integral = reconstitute_deltas(fit_state.rep_deltas,
@@ -113,27 +113,17 @@ function memory_fitness_epoch!(fit_state::MhoScores,
     (mag, irc) = trace_mho(time_integral, attp.itemp,
                            fit_proc.complexity_mass,
                            fit_proc.complexity_factor)
-
     mho = mag - irc
-
-    # lml = log_ml_estimate(chain.state) / fit_proc.beta
-
     # print_granularity_schema(chain)
     # println(time_integral)
     # println("mho = $(round(mag; digits=2))(mag) - " *
     #     " $(round(irc;digits=2))(irc) = $(mho)")
-    # @show lml
-    # @show mho + lml
     # println("--------------")
-    
-    mho #+ lml
+    mho
 end
 
-function trace_mho(deltas::Vector{Float64},
-                   temp::Float64,
-                   mass::Float64,
+function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
                    slope::Float64)
-
     mag = logsumexp(deltas)
     importance = softmax(deltas, temp)
     c = irr_complexity(importance, mass, slope)
@@ -144,12 +134,9 @@ function irr_complexity(imp::Vector{Float64}, mass::Float64, slope::Float64)
     n = length(imp)
     waste = 0.0
     @inbounds for i = 1:n
-        # w = mass * (1 - imp[i])^(factor)
         w = mass * exp(-slope * imp[i])
-        # println("i $(imp[i]) -> w $(w)")
         waste += w
     end
-    # pad, will be denominator
     waste + 1E-4
 end
 
@@ -192,29 +179,30 @@ end
 ################################################################################
 
 @with_kw struct CompFitness <: MemoryFitness
-    "Log-scaling factor for MLL"
-    beta::Float64 = 5.0
     "Overall exponential slope of complexity cost"
     complexity_mass::Float64 = 0.5
-end
-
-function memory_fitness(gop::CompFitness,
-                        chain::APChain)
-    @unpack state = chain
-    lml = log_ml_estimate(state) / gop.beta
-    # average across particles
-    nparticles = length(state.traces)
-    compv = Vector{Float64}(undef, nparticles)
-    ircv = Vector{Float64}(undef, nparticles)
-    @inbounds for i = 1:nparticles
-        compv[i] = comp_complexity(state.traces[i], gop.complexity_mass)
-    end
-
-    mag = logsumexp(compv) - log(nparticles)
-    mag + lml
 end
 
 function comp_complexity(trace::InertiaTrace,
                          mass::Float64)
     -Float64(representation_count(trace) / mass)
+end
+
+function init_fitness_state(::CompFitness, chains, set_size)
+    nothing
+end
+
+function memory_fitness_step!(::Nothing,
+                              ::CompFitness,
+                              vis::MentalModule{V}
+                              ) where {V<:HyperFilter}
+    nothing
+end
+
+function memory_fitness_epoch!(::Nothing,
+                               fit::CompFitness,
+                               chain::APChain,
+                               chain_idx::Int)
+    chain_map = retrieve_map(chain)
+    comp_complexity(chain_map, fit.complexity_mass)
 end

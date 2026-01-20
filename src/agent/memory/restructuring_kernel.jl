@@ -51,12 +51,13 @@ function restructure_kernel(kappa::UniformSplitMerge,
 end
 
 function split_prob(::UniformSplitMerge, tr::InertiaTrace)
-    # Only one ensemble -> can't merge
-    representation_count(tr) == 1 && return 1.0
-    # No ensemble -> can't split
-    ensemble_count(tr) == 0 && return 0.0
-    # 50/50 split/merge
-    return 0.5
+    ne = ensemble_count(tr)
+    re = representation_count(tr)
+    # Edge cases:
+    #   (1) No ensemble -> can't split
+    #   (2) Only one ensemble -> can't merge
+    ne == 0 && return 0.0
+    re == 1 && return 1.0
 end
 
 function sample_split_move!(cm::ChoiceMap,
@@ -85,11 +86,7 @@ end
     "Reference to and AdaptiveComputation module"
     att::MentalModule{<:AdaptiveComputation}
     # Restructure
-    restructure_prob_min::Float64 = 0.25
-    restructure_prob_max::Float64 = 0.75
-    restructure_prob_delta::Float64 = (restructure_prob_max -
-        restructure_prob_min)
-    restructure_prob_slope::Float64 = 10.0
+    restructure_prob::Float64 = 0.5
     # Split
     split_tau::Float64 = 1.0
     # Merge
@@ -109,7 +106,7 @@ function restructure_kernel(kappa::MhoSplitMerge,
                                         state.schema_registry,
                                         schema_id)
     cm = choicemap()
-    if rand() < restructure_prob(kappa, time_integral)
+    if rand() < kappa.restructure_prob
         smw = split_prob(kappa, t, time_integral)
         # SPLIT | MERGE
         # if rand() < split_prob(kappa, t, time_integral)
@@ -123,14 +120,6 @@ function restructure_kernel(kappa::MhoSplitMerge,
         cm[:s0 => :nsm] = 1 # no change
     end
     return cm
-end
-
-function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
-    mag = logsumexp(tr) # REVIEW: needed elsewhere? 
-    x = exp(mag / k.restructure_prob_slope)
-    w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    # println("Restructure prob: $(w); |Δ|= $(mag)")
-    return w
 end
 
 function split_prob(kappa::MhoSplitMerge,

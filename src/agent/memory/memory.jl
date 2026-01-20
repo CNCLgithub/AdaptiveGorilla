@@ -64,6 +64,8 @@ function MemoryModule(p::HyperResampling)
     MentalModule(p, MemoryAssessments(p.fitness, p.chains, p.schema))
 end
 
+
+
 function module_step!(mem::MentalModule{M},
                       t::Int,
                       vis::MentalModule{V}
@@ -73,6 +75,16 @@ function module_step!(mem::MentalModule{M},
     optimize_memory!(mem, t, vis)
     return nothing
 end
+
+function memory_fitness_step!(mem::MentalModule{M},
+                              t::Int,
+                              vis::MentalModule{V}
+                              ) where {M<:MemoryProtocol,
+                                       V<:PerceptionProtocol}
+    mp, ms = mparse(mem)
+    memory_fitness_step!(ms.fitness_state, mp.fitness, vis)
+end
+
 
 function assess_memory_epoch!(mem::MentalModule{M},
                               t::Int,
@@ -195,6 +207,28 @@ Returns the fitness of a hyper particle.
 """
 function memory_fitness end
 
+
+""""
+    init_fitness_state(fit, chains, schema_set_size)
+
+Initializes the auxillary state (if any) used in approximating fitness.
+"""
+function init_fitness_state end
+
+"""
+    memory_fitness_step!(mem, t, vis)
+
+Increments fitness calculations every time step.
+"""
+function memory_fitness_step! end
+
+
+"""
+    memory_fitness_epoch!(fit_state, fit_proc, chain, chain_idx)
+
+Determines the objectives for each chain. Will be used for resampling.
+"""
+function memory_fitness_epoch! end
 
 include("mem_fitness.jl")
 
