@@ -10,7 +10,7 @@ using SparseArrays: sparsevec
 "No restructuring"
 struct StaticRKernel <: RestructuringKernel end
 
-function restructure_kernel(::StaticRKernel, t::InertiaTrace)
+function restructure_kernel(::StaticRKernel, ::Any, ::Any, t::InertiaTrace, i::Int)
     cm = choicemap()
     cm[:s0 => :nsm] = 1 # no change
     return cm

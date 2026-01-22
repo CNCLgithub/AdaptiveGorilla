@@ -27,6 +27,16 @@ function memory_fitness_epoch!(::Nothing,
     log_ml_estimate(chain.state)
 end
 
+function update_fitness_reframe!(::Nothing, ::MLLFitness, t::Int,
+                                 template::InertiaTrace, i::Int, parent::Int,
+                                 cm::ChoiceMap)
+    return nothing
+end
+
+function reset_state!(::Nothing)
+    nothing
+end
+
 ################################################################################
 # Granularity Optimization
 ################################################################################
