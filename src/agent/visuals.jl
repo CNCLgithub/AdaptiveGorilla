@@ -104,17 +104,8 @@ function render_frame(perception::MentalModule{V},
     memp, memx = mparse(memory)
 
     # Get best hyper particle
-    chain = vs.chains[1]
-    mho = -Inf
-    for i = 1:vp.h
-        _chain = vs.chains[i]
-        _mho = memory_fitness(memp.fitness, _chain)
-        if _mho > mho
-            chain = _chain
-        end
-    end
-
-    trace = retrieve_map(chain)
+    # random chain
+    trace = retrieve_map(rand(vs.chains))
     n = representation_count(trace)
     importance = fill(1.0 / n, n)
     MOTCore.paint(objp, trace, importance)
