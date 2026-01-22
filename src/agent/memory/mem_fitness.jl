@@ -216,3 +216,9 @@ function memory_fitness_epoch!(::Nothing,
     chain_map = retrieve_map(chain)
     comp_complexity(chain_map, fit.complexity_mass)
 end
+
+function update_fitness_reframe!(::Nothing, ::CompFitness, t::Int,
+                                 template::InertiaTrace, i::Int, parent::Int,
+                                 cm::ChoiceMap)
+    return nothing
+end

@@ -34,8 +34,8 @@ function restructure_kernel end
     restructure_prob::Float64 = 0.5
 end
 
-function restructure_kernel(kappa::UniformSplitMerge,
-                            t::InertiaTrace)
+function restructure_kernel(kappa::UniformSplitMerge, ::MemoryFitness, ::Nothing,
+                            t::InertiaTrace, i::Int)
     cm = choicemap()
     if rand() < kappa.restructure_prob
         # SPLIT | MERGE

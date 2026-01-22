@@ -52,7 +52,8 @@ tau = 1.0
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
-protocol = "MLLFitness"
+protocol = "CompFitness"
+params = { "complexity_mass" = 0.5}
 
 [Memory.params.kernel]
 protocol = "UniformSplitMerge"
