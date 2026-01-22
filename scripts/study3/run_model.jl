@@ -1,5 +1,5 @@
 ################################################################################
-# Script to run models on the Target-Ensemble Experiment (Study 2)
+# Script to run models on Study 3 - load curve
 #
 # Output is stored under `spaths/experiments/`
 # See `README` for more information.
@@ -47,7 +47,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 32
+    default = 8
 
     "model"
     help = "Model Variant"
@@ -68,7 +68,7 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
 
 ################################################################################
@@ -83,6 +83,7 @@ FRAMES  = 360
 
 NTARGETS = 3
 NDISTRACTORS = collect(3:8)
+NCOND = length(NDISTRACTORS)
 
 ################################################################################
 # ANALYSES
@@ -132,43 +133,62 @@ function run_model!(pbar, exp)
     (noticed, colp)
 end
 
+# Stores data from a single model run
+RunSummary = @NamedTuple begin
+    scene          :: Int64
+    ndark          :: Int64
+    chain          :: Int64
+    ndetected      :: Int64
+    expected_count :: Float64
+    count_error    :: Float64
+    time           :: Float64
+end
+
 ################################################################################
 # Main Entry
 ################################################################################
 
 function main()
-    result = NamedTuple[]
-    nsteps = length(NDISTRACTORS) * CHAINS * (FRAMES-1)
-    pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
+    nruns = NCOND * CHAINS
+    nsteps = nruns * (FRAMES-1)
+    pbar = Progress(nsteps;
+                    desc="[Study 3] $(MODEL_VARIANTS[MODEL]) (x$(nruns))",
+                    dt = 2.0)
+    # Preallocate simulation results
+    summaries = Vector{RunSummary}(undef, nruns)
+    linds = LinearIndices((CHAINS, NCOND))
+
     # Go through each of the conditions
-    for ndistractor = NDISTRACTORS
+    for (i, ndistractor) = enumerate(NDISTRACTORS)
         # Load the world model
-        wm = load_wm_from_toml("$(@__DIR__)/models/wm.toml";
+        wm = load_wm_from_toml("$(@__DIR__)/params/wm.toml";
                                object_rate = Float64(NTARGETS + ndistractor))
         # Load the experiment
         experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, ndistractor)
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
-        @show gt_count
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
+            
             run = @timed run_model!(pbar, experiment)
             ndetected, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
-            push!(result,
-                  (scene          = SCENE,
-                   ndark          = ndistractor,
-                   chain          = c,
-                   ndetected      = ndetected,
-                   expected_count = expected_count,
-                   count_error    = count_error,
-                   time           = run.time))
+
+            summaries[linds[c, i]] = RunSummary((
+                scene          = SCENE,
+                ndark          = ndistractor,
+                chain          = c,
+                ndetected      = ndetected,
+                expected_count = expected_count,
+                count_error    = count_error,
+                time           = run.time
+            ))
         end
     end
     finish!(pbar)
     out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result)
+    df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
 
     # Quick display

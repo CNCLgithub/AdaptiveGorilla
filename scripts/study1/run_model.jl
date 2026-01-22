@@ -132,7 +132,7 @@ function run_model!(pbar, exp)
     (noticed, colp)
 end
 
-
+# Stores data from a single model run
 RunSummary = @NamedTuple begin
     scene          :: Int64
     color          :: Symbol

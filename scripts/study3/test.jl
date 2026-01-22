@@ -53,7 +53,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ta
+    default = :fr
 
     "scene"
     help = "Which scene to run"
@@ -68,7 +68,7 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
 
 ################################################################################
@@ -134,7 +134,7 @@ function run_model!(pbar, exp)
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        # render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
@@ -149,7 +149,7 @@ function main()
     nsteps = FRAMES-1
     pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
     # Load the world model
-    wm = load_wm_from_toml("$(@__DIR__)/models/wm.toml";
+    wm = load_wm_from_toml("$(@__DIR__)/params/wm.toml";
                             object_rate = Float64(NTARGETS + NDISTRACTORS))
     # Load the experiment
     experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, NDISTRACTORS)

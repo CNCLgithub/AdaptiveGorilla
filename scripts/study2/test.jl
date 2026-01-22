@@ -63,10 +63,10 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
 # World model parameters; See "?InertiaWM" for documentation.
-WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
+WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
