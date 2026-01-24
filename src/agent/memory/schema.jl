@@ -592,6 +592,7 @@ function reconstitute_deltas(delta_integral::Dict{UUID, Float64},
 end
 
 function accumulate_deltas!(rep_scores::Dict{UUID, Float64},
+                            counts::Dict{UUID, Int64},
                             registry::SchemaRegistry,
                             schema_id::UInt64,
                             deltas::Vector{Float64})
@@ -600,6 +601,7 @@ function accumulate_deltas!(rep_scores::Dict{UUID, Float64},
         delta = deltas[i]
         rep_scores[rep_id] =
             logsumexp(delta, get(rep_scores, rep_id, -Inf))
+        counts[rep_id] = get(counts, rep_id, 0) + 1
     end
     return nothing
 end

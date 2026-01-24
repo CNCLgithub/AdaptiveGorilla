@@ -85,6 +85,7 @@ function memory_fitness_step!(mho::MhoScores,
          values(mho.rep_deltas))
 
     increment = Dict{UUID, Float64}()
+    counts = Dict{UUID, Int64}()
 
     for i = 1:hf.h
         chain = vstate.chains[i]
@@ -98,11 +99,15 @@ function memory_fitness_step!(mho::MhoScores,
         end
 
         deltas = task_relevance(attx, attp.partition, chain_map, attp.nns)
-        accumulate_deltas!(increment, mho.schema_registry, schema_id, deltas)
+        accumulate_deltas!(increment, counts, mho.schema_registry, schema_id,
+                           deltas)
     end
 
 
-    map!(v -> v - log(hf.h), values(increment))
+    for (k, c) = counts
+        increment[k] -= log(c)
+    end
+    # map!(v -> v - log(hf.h), values(increment))
 
     # Merge and update
     mergewith!(logsumexp, mho.rep_deltas, increment)
@@ -120,24 +125,26 @@ function memory_fitness_epoch!(fit_state::MhoScores,
     time_integral = reconstitute_deltas(fit_state.rep_deltas,
                                         fit_state.schema_registry,
                                         schema_id)
-    (mag, irc) = trace_mho(time_integral, attp.itemp,
-                           fit_proc.complexity_mass,
-                           fit_proc.complexity_factor)
-    mho = mag - irc
+    trace_mho(time_integral, attp.itemp,
+              fit_proc.complexity_mass,
+              fit_proc.complexity_factor)
+end
+
+function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
+                   slope::Float64)
+    mag = task_energy(deltas)
+    importance = softmax(deltas, temp)
+    c = irr_complexity(importance, mass, slope)
     # print_granularity_schema(chain)
     # println(time_integral)
     # println("mho = $(round(mag; digits=2))(mag) - " *
     #     " $(round(irc;digits=2))(irc) = $(mho)")
     # println("--------------")
-    mho
+    mag - c
 end
 
-function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
-                   slope::Float64)
-    mag = logsumexp(deltas)
-    importance = softmax(deltas, temp)
-    c = irr_complexity(importance, mass, slope)
-    (mag, c)
+function task_energy(deltas::Vector{Float64})
+    sum(softplus, deltas)
 end
 
 function irr_complexity(imp::Vector{Float64}, mass::Float64, slope::Float64)

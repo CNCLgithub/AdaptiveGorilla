@@ -53,7 +53,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :fr
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -79,10 +79,10 @@ MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 DATASET = "load_curve"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 360
+FRAMES  = 240
 
 NTARGETS = 4
-NDISTRACTORS = 9
+NDISTRACTORS = 7
 
 ################################################################################
 # ANALYSES
@@ -134,7 +134,7 @@ function run_model!(pbar, exp)
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        # render_agent_state(exp, agent, t, out)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results

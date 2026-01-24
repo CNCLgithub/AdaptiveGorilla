@@ -47,13 +47,13 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 8
+    default = 32
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :fr
 
     "scene"
     help = "Which scene to run"
@@ -79,9 +79,9 @@ MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 DATASET = "load_curve"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 360
+FRAMES  = 240
 
-NTARGETS = 3
+NTARGETS = 4
 NDISTRACTORS = collect(3:8)
 NCOND = length(NDISTRACTORS)
 
