@@ -5,7 +5,7 @@ using StaticArrays
 
 const S2V = SVector{2, Float64}
 
-dataset = "most"
+dataset = "study1"
 nscenes = 10 # unique scenes
 # Each scene will have 2 conditions:
 # Gorilla Light | Gorilla Dark

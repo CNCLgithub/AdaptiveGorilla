@@ -16,9 +16,7 @@ using Gen_Compose
 using ProgressMeter
 using DataFrames, CSV
 using AdaptiveGorilla
-
-using AdaptiveGorilla: S3V, count_collisions
-using Distances: WeightedEuclidean
+using AdaptiveGorilla:  count_collisions
 
 ################################################################################
 # Command Line Interface
@@ -56,7 +54,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ta
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -110,7 +108,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.50
+NOTICE_P_THRESH = 0.20
 
 ################################################################################
 # Methods
@@ -158,7 +156,7 @@ function main()
         results = run_model!(pbar, experiment)
         show(results; allrows=true)
         println("\n  ------")
-        count_f = x -> count(>(0.25), x) / CHAINS
+        count_f = x -> count(>=(NOTICE_P_THRESH), x) / CHAINS
         @show count_f(results[!, :gorilla_p])
     end
     finish!(pbar)

@@ -10,15 +10,15 @@
 # Includes
 ################################################################################
 
+using CSV
+using Random
 using ArgParse
+using DataFrames
 using ProgressMeter
-using DataFrames, CSV
 using AdaptiveGorilla
 using Statistics: mean
 using UnicodePlots: Plot, lineplot!, histogram
 
-using Random
-# Random.seed!(123)
 
 ################################################################################
 # Command Line Interface
@@ -29,20 +29,9 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
-ANALYSES_VARIANTS = [:NOTICE, :PERF]
-
 s = ArgParseSettings()
 
 @add_arg_table! s begin
-
-    "--restart", "-r"
-    help = "Whether to resume inference"
-    action = :store_true
-
-    "--analyses"
-    help = "Model analyses. Either NOTICE or PERF"
-    range_tester = in(ANALYSES_VARIANTS)
-    default = :NOTICE
 
     "--nchains", "-n"
     help = "The number of chains to run"
@@ -72,9 +61,13 @@ MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
 
 WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
 
+
 ################################################################################
 # General Experiment Parameters
 ################################################################################
+
+# Setting seed for reproducibility
+Random.seed!(123)
 
 # which dataset to run
 DATASET = "study2"
@@ -83,24 +76,15 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
+
+# Gorilla parent
 LONE_PARENT = [true, false]
 NP = length(LONE_PARENT)
-# SWAP_COLORS = [false, true]
-SWAP_COLORS = [false]
+
+# Swapping all object colors
+SWAP_COLORS = [false, true]
 NSC = length(SWAP_COLORS)
 
-################################################################################
-# ANALYSES
-################################################################################
-
-ANALYSIS = PARAMS["analyses"]
-
-if ANALYSIS == :NOTICE
-    SHOW_GORILLA=true
-
-elseif ANALYSIS == :PERF
-    SHOW_GORILLA=false
-end
 
 ################################################################################
 # Analysis Parameters
@@ -213,7 +197,7 @@ function main()
 
     # Record results to CSV
     out_dir = "/spaths/experiments/" *
-        "$(DATASET)/$(MODEL)-$(ANALYSIS)" *
+        "$(DATASET)/$(MODEL)" *
         "/scenes"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)

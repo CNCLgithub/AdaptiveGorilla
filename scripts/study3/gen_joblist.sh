@@ -1,29 +1,21 @@
 #!/usr/bin/env sh
 
 # Configuration
-OUTPUT_FILE="scripts/load/joblist.txt"
+MODELS=( "mo" "ja" "ta" "fr" )
+OUTPUT_FILE="scripts/study3/joblist.txt"
 NSCENES=10
 NTHREADS=8
 TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
- scripts/load/run_model.jl"
+ scripts/study3/run_model.jl"
 
 # Clear the file (or create it if it doesn't exist)
 : > "$OUTPUT_FILE"
 
 # Loop and write lines
-for i in $(seq 1 $NSCENES)
+for model in "${MODELS[@]}"
 do
-    echo "${TEMPLATE} mo ${i}" >> "$OUTPUT_FILE"
-done
-for i in $(seq 1 $NSCENES)
-do
-    echo "${TEMPLATE} ja ${i}" >> "$OUTPUT_FILE"
-done
-for i in $(seq 1 $NSCENES)
-do
-    echo "${TEMPLATE} ta ${i}" >> "$OUTPUT_FILE"
-done
-for i in $(seq 1 $NSCENES)
-do
-    echo "${TEMPLATE} fr ${i}" >> "$OUTPUT_FILE"
+    for i in $(seq 1 $NSCENES)
+    do
+        echo "${TEMPLATE} ${model} ${i}" >> "$OUTPUT_FILE"
+    done
 done

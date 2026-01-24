@@ -10,15 +10,14 @@
 # Includes
 ################################################################################
 
+using CSV
 using Gen
+using Random
 using ArgParse
-using Gen_Compose
+using DataFrames
 using ProgressMeter
-using DataFrames, CSV
 using AdaptiveGorilla
-
-using AdaptiveGorilla: S3V, count_collisions
-using Distances: WeightedEuclidean
+using AdaptiveGorilla: count_collisions
 
 ################################################################################
 # Command Line Interface
@@ -29,23 +28,9 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
-
-ANALYSES_VARIANTS = [:NOTICE, :PERF]
-
-
 s = ArgParseSettings()
 
 @add_arg_table! s begin
-
-
-    "--restart", "-r"
-    help = "Whether to resume inference"
-    action = :store_true
-
-    "--analyses"
-    help = "Model analyses. Either NOTICE or PERF"
-    range_tester = in(ANALYSES_VARIANTS)
-    default = :NOTICE
 
     "--nchains", "-n"
     help = "The number of chains to run"
@@ -77,15 +62,11 @@ MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
 ################################################################################
-# ANALYSES
-################################################################################
-
-ANALYSIS = PARAMS["analyses"]
-SHOW_GORILLA = true # ANALYSIS == :NOTICE
-
-################################################################################
 # General Experiment Parameters
 ################################################################################
+
+# Setting seed for reproducibility
+Random.seed!(123)
 
 # which dataset to run
 DATASET = "study1"
@@ -106,14 +87,14 @@ CHAINS = PARAMS["nchains"]
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
 # estimated across the hyper particles.
-# Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
+# Pr(detect_gorilla) = 0.2 denotes a 20% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
 NOTICE_P_THRESH = 0.20
+
 
 ################################################################################
 # Methods
 ################################################################################
-
 
 function run_model!(pbar, exp)
     # Initializes the agent
@@ -150,15 +131,14 @@ end
 function main()
     nruns = 2 * CHAINS
     nsteps = nruns * (FRAMES-1)
-    pbar = Progress(nsteps;
-                    desc="Running $(MODEL) model...",
-                    dt = 2.0)
+    pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 2.0)
+
     # Preallocate simulation results
     summaries = Vector{RunSummary}(undef, nruns)
     linds = LinearIndices((CHAINS, 2))
 
     for (color_idx, color) = enumerate(COLORS)
-        experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA)
+        experiment = MostExp(DPATH, WM, SCENE, color, FRAMES)
         gt_count = count_collisions(experiment)
 
         Threads.@threads for c = 1:CHAINS
@@ -178,11 +158,11 @@ function main()
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-    count_f = x -> count(>(18.0), x) / CHAINS
+    count_f = x -> count(>=(18.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color]), :ndetected => count_f))
     return nothing
 end;

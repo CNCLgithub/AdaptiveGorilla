@@ -94,6 +94,8 @@ export AdaptiveComputation,
     itemp::Float64 = 3.0
     "Load - constant for now"
     load::Int64 = 20
+    load_m::Float64 = 20.0
+    load_x0::Float64 = 5.0
 end
 
 mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
@@ -143,9 +145,7 @@ end
 # TODO: record parameters for load
 function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
     isempty(x) && return p.load
-    m = 20.0
-    x0 = 5.0
-    x = (logsumexp(deltas) - x0) / m
+    x = (logsumexp(deltas) - p.load_x0) / p.load_m
     p.load * exp(min(x, 0.0))
 end
 

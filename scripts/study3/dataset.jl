@@ -2,8 +2,7 @@
 #
 # The main logic as follows:
 # 1. Generate a template scene with all targets + distractors
-# 2. Evaluate a model on variants of the template,
-#    revealing more and more distractors
+# 2. Run model on variants on each template, incrementally adding distractors
 
 
 using Gen
@@ -13,7 +12,7 @@ using StaticArrays
 
 const S2V = SVector{2, Float64}
 
-dataset = "load_curve"
+dataset = "study3"
 stepsize = 2 # Number of distractors to add per step
 nsteps   = 5 # Number of steps
 mincount = 3 # Number of light and dark objects
