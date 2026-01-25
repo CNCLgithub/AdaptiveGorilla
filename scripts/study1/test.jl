@@ -91,7 +91,7 @@ SHOW_GORILLA = true # ANALYSIS == :NOTICE
 ################################################################################
 
 # which dataset to run
-DATASET = "most"
+DATASET = "study1"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
