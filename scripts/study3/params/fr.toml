@@ -38,7 +38,7 @@ tick_rate = 1
 protocol = "UniformProtocol"
 
 [Attention.params]
-moves = 12 # total number of rejuventation moves
+moves = 24 # total number of rejuventation moves
 
 ################################################################################
 # Memory

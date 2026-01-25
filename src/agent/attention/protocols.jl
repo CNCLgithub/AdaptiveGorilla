@@ -142,7 +142,6 @@ function update_task_relevance!(att::MentalModule{A}
     return nothing
 end
 
-# TODO: record parameters for load
 function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
     isempty(x) && return p.load
     x = (logsumexp(deltas) - p.load_x0) / p.load_m
@@ -200,12 +199,11 @@ function attend!(chain::APChain, att::MentalModule{AdaptiveComputation})
         importance = softmax(deltas, itemp)
         tload = load(protocol, aux, deltas)
         nobj = length(deltas)
-        steps_per_obj = round(Int, base_steps / nobj)
+        steps_per_obj = floor(Int, base_steps / nobj)
         # Stage 2
         # select latent and C_k
         for j = 1:nobj
-            steps = steps_per_obj +
-                round(Int, tload * importance[j])
+            steps = steps_per_obj + round(Int, tload * importance[j])
             for _ = 1:steps
                 prop = select_prop(partition, trace, j)
                 # Apply computation, estimate dS

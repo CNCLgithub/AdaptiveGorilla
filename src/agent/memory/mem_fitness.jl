@@ -125,9 +125,16 @@ function memory_fitness_epoch!(fit_state::MhoScores,
     time_integral = reconstitute_deltas(fit_state.rep_deltas,
                                         fit_state.schema_registry,
                                         schema_id)
-    trace_mho(time_integral, attp.itemp,
+    (mag, irc) = trace_mho(time_integral, attp.itemp,
               fit_proc.complexity_mass,
               fit_proc.complexity_factor)
+    mho = mag - irc
+    # print_granularity_schema(chain)
+    # println(time_integral)
+    # println("mho = $(round(mag; digits=2))(mag) - " *
+    #     " $(round(irc;digits=2))(irc) = $(mho)")
+    # println("--------------")
+    return mho
 end
 
 function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
@@ -135,12 +142,7 @@ function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
     mag = task_energy(deltas)
     importance = softmax(deltas, temp)
     c = irr_complexity(importance, mass, slope)
-    # print_granularity_schema(chain)
-    # println(time_integral)
-    # println("mho = $(round(mag; digits=2))(mag) - " *
-    #     " $(round(irc;digits=2))(irc) = $(mho)")
-    # println("--------------")
-    mag - c
+    (mag, c)
 end
 
 function task_energy(deltas::Vector{Float64})

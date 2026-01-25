@@ -53,7 +53,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"
@@ -76,13 +76,13 @@ MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 ################################################################################
 
 # which dataset to run
-DATASET = "load_curve"
+DATASET = "study3"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 NTARGETS = 4
-NDISTRACTORS = 7
+NDISTRACTORS = 8
 
 ################################################################################
 # ANALYSES
@@ -127,14 +127,14 @@ function run_model!(pbar, exp)
         :collision_p => Float64[],
         :birth_p => Float64[],
     )
-    for t = 1:(FRAMES - 1)
+    @time for t = 1:(FRAMES - 1)
         # println("###########                     ###########")
         # println("###########       TIME $(t)     ###########")
         # println("###########                     ###########")
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        # render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
@@ -157,7 +157,8 @@ function main()
     gt_count = count_collisions(experiment)
     @show gt_count
     results = run_model!(pbar, experiment)
-    show(results; allrows=true)
+    display(last(results))
+    # show(results; allrows=true)
     println()
     finish!(pbar)
     return nothing
