@@ -18,6 +18,10 @@ using DataFrames, CSV
 using AdaptiveGorilla
 using AdaptiveGorilla:  count_collisions
 
+using Profile
+using StatProfilerHTML
+
+
 ################################################################################
 # Command Line Interface
 ################################################################################
@@ -59,7 +63,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 1
+    default = 3
 
 end
 
@@ -121,21 +125,25 @@ function init_agent(query)
 end
 
 function run_model!(pbar, exp)
+    Profile.clear()
     agent = load_agent(MODEL_PARAMS, exp.init_query)
     out = "/spaths/tests/most"
     isdir(out) || mkpath(out)
 
     results = DataFrame(
         :frame => Int64[],
+        :time => Float64[],
         :gorilla_p => Float64[],
         :collision_p => Float64[],
         :birth_p => Float64[],
     )
     for t = 1:(FRAMES - 1)
-        _results = test_agent!(agent, exp, t)
+        step = @timed test_agent!(agent, exp, t)
+        _results = step.value
         _results[:frame] = t
+        _results[:time] = step.time
         push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        # render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
@@ -154,12 +162,15 @@ function main()
         gt_count = count_collisions(experiment)
         @show gt_count
         results = run_model!(pbar, experiment)
-        show(results; allrows=true)
+        # show(results; allrows=true)
         println("\n  ------")
         count_f = x -> count(>=(NOTICE_P_THRESH), x) / CHAINS
+        display(last(results))
         @show count_f(results[!, :gorilla_p])
+        @show sum(results[:, :time])
     end
     finish!(pbar)
+    # Profile.print()
     return nothing
 end;
 
