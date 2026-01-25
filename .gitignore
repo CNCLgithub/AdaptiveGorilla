@@ -3,6 +3,7 @@
 *.log
 tmp/
 output/
+statprof/
 
 *.py[cod]
 *.egg
