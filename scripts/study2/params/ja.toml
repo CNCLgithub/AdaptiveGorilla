@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown =  12 # Cooldown between hits (prevents overcounting)
+cooldown =  6 # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
 
 ################################################################################
