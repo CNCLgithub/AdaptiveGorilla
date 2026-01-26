@@ -3,7 +3,7 @@ using DataFrames
 using Statistics: mean
 
 NOTICE_MIN_FRAMES = 18
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "study2"
 MODELS = [:mo, :ja, :ta, :fr]
 
 function load_result(path::String)
@@ -18,7 +18,7 @@ function merge_results(path::String)
 end
 
 function aggregate_results(model)
-    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)-NOTICE"
+    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)"
     RUN_PATH = "$(BASE_PATH)/scenes"
     all = merge_results(RUN_PATH)
     g = groupby(all, [:scene, :color, :parent])
