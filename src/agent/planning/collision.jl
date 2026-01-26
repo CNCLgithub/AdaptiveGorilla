@@ -159,6 +159,7 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     #     @show z
     #     @show lcdf
     #     @show dpdz
+    #     error()
     # end
     (lcdf, dpdz)
 end
