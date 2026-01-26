@@ -63,7 +63,7 @@ protocol = "MhoFitness"
 [Memory.params.fitness.params]
 complexity_mass = 6.0  # Slope of exponential irrelevant complexity curve
 complexity_factor = 30 # irrelevant representations
-log_decay_rate = -0.05  # decay rate of time integral over task-relevance
+log_decay_rate = -0.1  # decay rate of time integral over task-relevance
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]

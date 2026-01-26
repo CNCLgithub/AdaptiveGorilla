@@ -53,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 1
+    default = 3
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -78,7 +78,7 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
-LONE_PARENT = false
+LONE_PARENT = true
 SWAP_COLORS = true
 
 ################################################################################
@@ -98,8 +98,8 @@ end
 # Analysis Parameters
 ################################################################################
 
-# RENDER = true
-RENDER = false
+RENDER = true
+# RENDER = false
 
 # Number of model runs per condition
 CHAINS = RENDER ? 1 : 16
@@ -171,7 +171,7 @@ function main()
     Threads.@threads for c = 1:CHAINS
     # for c = 1:CHAINS
         results = run_model!(pbar, experiment, c == 1)
-        # RENDER && show(results; allrows=true)
+        RENDER && show(results; allrows=true)
         # println()
         collision_counts[c] = last(results[!, :collision_p])
         ndetected[c] = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)

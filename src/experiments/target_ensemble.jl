@@ -224,7 +224,6 @@ function load_tens_trial(wm::WorldModel,
                             wm, gorilla_color, nobj + 1)
         observations[t-1] = cm
     end
-
     (istate, observations)
 end
 
