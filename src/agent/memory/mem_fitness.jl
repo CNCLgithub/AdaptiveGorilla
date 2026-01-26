@@ -145,12 +145,8 @@ function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
     (mag, c)
 end
 
-function task_energy(deltas::Vector{Float64})
-    x = 0.0
-    for d = deltas
-        x += softplus(d)
-    end
-    return log(x)
+function task_energy(deltas::Vector{Float64}, beta::Float64 = 0.05)
+    logsumexp( deltas .* beta ) / beta
 end
 
 function irr_complexity(imp::Vector{Float64}, mass::Float64, slope::Float64)
