@@ -53,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -73,15 +73,13 @@ WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 ################################################################################
 
 # which dataset to run
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "study2"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 200
+FRAMES  = 240
 
-# LONE_PARENT = true
 LONE_PARENT = false
-
-SWAP_COLORS = false
+SWAP_COLORS = true
 
 ################################################################################
 # ANALYSES
@@ -167,6 +165,7 @@ function main()
     ndetected = Vector{Int64}(undef, CHAINS)
     experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
     gt_count = count_collisions(experiment)
+    @show gt_count
     collision_counts = Vector{Float64}(undef, CHAINS)
 
     Threads.@threads for c = 1:CHAINS

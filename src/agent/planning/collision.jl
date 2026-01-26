@@ -176,7 +176,7 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v_orth = dot(v, w.normal)
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Penalty for higher angular velocity
-    sigma = 1.0 * exp(-2 * abs(get_avel(obj)))
+    sigma = 1.0 * exp(-abs(get_avel(obj)))
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
@@ -216,7 +216,7 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     # This is because ensemble spread relates
     # to its entropy, with more entropy
     # increasing the variance over velocity direction
-    sigma = r / get_var(obj)
+    sigma = 1.0 / get_var(obj)
     z = (1.0 - dt) / sigma
     # CDF up to 1 step
     pcol = Distributions.logcdf(standard_normal, z)

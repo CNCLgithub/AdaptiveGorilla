@@ -146,17 +146,20 @@ function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
 end
 
 function task_energy(deltas::Vector{Float64})
-    sum(softplus, deltas)
+    x = 0.0
+    for d = deltas
+        x += softplus(d)
+    end
+    return log(x)
 end
 
 function irr_complexity(imp::Vector{Float64}, mass::Float64, slope::Float64)
     n = length(imp)
-    waste = 0.0
+    waste = 1E-4
     @inbounds for i = 1:n
-        w = mass * exp(-slope * imp[i])
-        waste += w
+        waste += exp(-slope * imp[i])
     end
-    waste + 1E-4
+    mass * log(waste)
 end
 
 function print_granularity_schema(chain::APChain)
