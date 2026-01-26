@@ -98,7 +98,7 @@ FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Dark]
+COLORS = [Light]
 
 ################################################################################
 # Analysis Parameters
@@ -143,7 +143,7 @@ function run_model!(pbar, exp)
         _results[:frame] = t
         _results[:time] = step.time
         push!(results, _results)
-        # render_agent_state(exp, agent, t, out)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results

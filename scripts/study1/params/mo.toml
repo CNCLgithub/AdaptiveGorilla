@@ -26,7 +26,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown = 4   # Cooldown between hits (prevents overcounting)
+cooldown = 6   # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
 
 ################################################################################
@@ -61,8 +61,8 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-complexity_mass = 5    # Slope of exponential irrelevant complexity curve
-complexity_factor = 50 # irrelevant representations
+complexity_mass = 6    # Slope of exponential irrelevant complexity curve
+complexity_factor = 30 # irrelevant representations
 log_decay_rate = -0.1  # decay rate of time integral over task-relevance
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
