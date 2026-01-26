@@ -107,11 +107,8 @@ function restructure_kernel(kappa::MhoSplitMerge,
                                         schema_id)
     cm = choicemap()
     if rand() < kappa.restructure_prob
-        smw = split_prob(kappa, t, time_integral)
-        # SPLIT | MERGE
-        # if rand() < split_prob(kappa, t, time_integral)
-        # println("Pr(Split) = $(smw)")
-        if rand() < smw
+        split_or_merge = split_prob(kappa, t, time_integral)
+        if rand() < split_or_merge
             sample_split_move!(cm, kappa, t, time_integral)
         else
             sample_merge_move!(cm, kappa, t, time_integral)
@@ -140,6 +137,12 @@ function split_prob(kappa::MhoSplitMerge,
     #   2. Max delta is ensemble? => Split
     count(isinf, deltas) > 2  && return 0.1
     argmax(deltas) > ns && return 0.9
+
+    # If relatively few representations have all of the TR,
+    # then recommend merging
+    log_normed_deltas = deltas .- logsumexp(deltas)
+    ess = Gen.effective_sample_size(log_normed_deltas)
+    ess < 0.5 * re && return 0.1
      
     # 50/50
     return 0.5
