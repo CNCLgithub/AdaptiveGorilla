@@ -80,7 +80,7 @@ function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState
     InertiaState(new_singles, new_ensembles)
 end
 
-VAR_POS = 1.0 / 3.0
+VAR_POS = 0.25
 
 function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     new_count = e.rate - 1
