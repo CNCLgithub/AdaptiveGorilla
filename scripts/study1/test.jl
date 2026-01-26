@@ -98,7 +98,7 @@ FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Dark]
+COLORS = [Light]
 
 ################################################################################
 # Analysis Parameters
