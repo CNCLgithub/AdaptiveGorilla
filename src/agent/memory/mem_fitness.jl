@@ -119,6 +119,9 @@ function memory_fitness_epoch!(fit_state::MhoScores,
                                fit_proc::MhoFitness,
                                chain::APChain,
                                chain_idx::Int)
+    # MLL
+    mll = log_ml_estimate(chain.state) / 300.0
+    # Energy and Waste
     attp, attx = mparse(fit_proc.att)
     # integral from 0 to t
     schema_id = fit_state.schema_map[chain_idx]
@@ -134,7 +137,7 @@ function memory_fitness_epoch!(fit_state::MhoScores,
     # println("mho = $(round(mag; digits=2))(mag) - " *
     #     " $(round(irc;digits=2))(irc) = $(mho)")
     # println("--------------")
-    return mho
+    return mho + mll
 end
 
 function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
