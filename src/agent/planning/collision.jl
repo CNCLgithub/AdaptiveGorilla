@@ -193,7 +193,9 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
 
     # pdf is the derivative of the cdf
     dpdz = (r-1) * Distributions.logpdf(standard_normal, z) + lpl + r
-    (lcdf, dpdz)
+    # HACK: testing if ensembles messing with counting
+    # (lcdf, dpdz)
+    (-Inf, dpdz)
 end
 
 # VISUALS

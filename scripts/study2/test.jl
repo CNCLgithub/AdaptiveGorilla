@@ -98,8 +98,8 @@ end
 # Analysis Parameters
 ################################################################################
 
-# RENDER = true
-RENDER = false
+RENDER = true
+# RENDER = false
 
 # Number of model runs per condition
 CHAINS = RENDER ? 1 : 16
