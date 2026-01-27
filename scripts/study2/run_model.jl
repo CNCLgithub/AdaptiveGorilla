@@ -36,18 +36,18 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 64
+    default = 16
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 2
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -167,6 +167,7 @@ function main()
         experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
+        @show gt_count
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
             run = @timed run_model!(pbar, experiment)
@@ -233,6 +234,18 @@ function main()
     end
     display(plot)
 
+
+    display(
+        histogram(df[!, :expected_count], vertical=true,
+                  width=30, nbins=10,
+                  title = "Expected Count")
+    )
+
+    display(
+        histogram(df[!, :count_error], vertical=true,
+                  width=30, nbins=10,
+                  title = "Counting Error (%)")
+    )
 
     return nothing
 end;
