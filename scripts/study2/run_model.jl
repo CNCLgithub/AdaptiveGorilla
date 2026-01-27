@@ -42,13 +42,13 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 64
+    default = 16
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"
@@ -262,6 +262,18 @@ function main()
     #               width=30, nbins=10,
     #               title = "Counting Error (%)")
     # )
+
+    display(
+        histogram(df[!, :expected_count], vertical=true,
+                  width=30, nbins=10,
+                  title = "Expected Count")
+    )
+
+    display(
+        histogram(df[!, :count_error], vertical=true,
+                  width=30, nbins=10,
+                  title = "Counting Error (%)")
+    )
 
     return nothing
 end;
