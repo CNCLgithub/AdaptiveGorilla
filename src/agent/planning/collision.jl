@@ -60,7 +60,7 @@ function module_step!(planner::MentalModule{T},
                               plan_with_delta_pi!,
                               (protocol, attention))
         if state.cooldown == 0
-            # println("LOG COL PROB: $(w)")
+            println("TIME $(t), LOG COL PROB: $(w)")
             if log(rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
@@ -111,12 +111,7 @@ function plan_with_delta_pi!(
             (_colprob, _dpi) = colprob_and_agrad(single, closest)
             colprob = logsumexp(colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
-            # println("pos: $(get_pos(single)) \n vel: $(get_vel(single))")
-            # @show closest
-            # @show _colprob
-            # @show colprob
         end
-        # @show dpi
         update_dPi!(att, single, dpi)
     end
     @inbounds for j = 1:ne
@@ -129,43 +124,11 @@ function plan_with_delta_pi!(
             (_colprob, _dpi) = colprob_and_agrad(x, closest)
             colprob = logsumexp(colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
-            # println("pos: $(get_pos(x)) \n vel: $(get_vel(x)) \n spread: $(get_var(x))")
-            # @show closest
-            # @show _colprob
-            # @show colprob
         end
         update_dPi!(att, x, dpi)
     end
     return colprob
 end
-
-# # HACK: assumes object radius
-# function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
-#     p = exp(min(0.0, -log(d) - 1))
-#     dpdx = min(1.0, 1 / d )
-#     (p, dpdx)
-
-#     distance = max(0.1, (w.d - sum(w.normal .* pos)) - 10)
-
-#     distance = abs(w.d - dot(x, w.normal))
-
-#     # Distance distribution over near future
-#     v_orth = dot(v, w.normal)
-#     mu = 0.5 * v_orth + get_size(obj)
-#     sigma = 5.0 * abs(v_orth)
-#     z = (distance - mu) / sigma
-#     # CCDF up to wall
-#     lcdf = Distributions.logcdf(standard_normal, z)
-
-#     # Account for heading - low prob if object is facing away
-#     log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
-#     log_angle = clamp(log_angle, -10.0, 0.0)
-#     logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
-
-#     # pdf is the derivative of the cdf
-#     dpdz = log_angle + log_grad_normal_cdf_erfcx(z)
-#     (logcolprob, dpdz)
-# end
 
 function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     # Distance between object and wall
@@ -176,7 +139,7 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v_orth = dot(v, w.normal)
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Penalty for higher angular velocity
-    sigma = 1.5 * exp(-abs(get_avel(obj)))
+    sigma = 2.0 * exp(-abs(get_avel(obj)))
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
@@ -227,7 +190,9 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
 
     # pdf is the derivative of the cdf
     dpdz = (r-1) * Distributions.logpdf(standard_normal, z) + lpl + r
-    (lcdf, dpdz)
+    # HACK: testing if ensembles messing with counting
+    # (lcdf, dpdz)
+    (-Inf, dpdz)
 end
 
 # VISUALS
