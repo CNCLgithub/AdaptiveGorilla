@@ -175,7 +175,7 @@ end
 
 function reset_state!(memstate::MemoryAssessments, memp::HyperResampling)
     # clear instantaneous objectives
-    fill!(memstate.chain_objectives, -Inf)
+    # fill!(memstate.chain_objectives, -Inf)
 
     reset_state!(memstate.fitness_state)
     return nothing

@@ -53,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 2
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -78,8 +78,8 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
-LONE_PARENT = true
-SWAP_COLORS = true
+LONE_PARENT = false
+SWAP_COLORS = false
 
 ################################################################################
 # ANALYSES
@@ -98,8 +98,8 @@ end
 # Analysis Parameters
 ################################################################################
 
-RENDER = true
-# RENDER = false
+# RENDER = true
+RENDER = false
 
 # Number of model runs per condition
 CHAINS = RENDER ? 1 : 16

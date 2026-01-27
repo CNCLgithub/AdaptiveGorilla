@@ -34,7 +34,7 @@ function render_frame(perception::MentalModule{V},
                       attention::MentalModule{A},
                       memory::MentalModule{G},
                       objp = ObjectPainter(),
-                      render_mode::Symbol = :random,
+                      render_mode::Symbol = :best,
                       ) where {V<:HyperFilter,
                                A<:AdaptiveComputation,
                                G<:HyperResampling}
@@ -44,15 +44,7 @@ function render_frame(perception::MentalModule{V},
 
     # Get best hyper particle
     if render_mode == :best
-        chain = vs.chains[1]
-        mho = memory_fitness(memp.fitness, chain)
-        for i = 2:vp.h
-            _chain = vs.chains[i]
-            _mho = memory_fitness(memp.fitness, _chain)
-            if _mho > mho
-                chain = _chain
-            end
-        end
+        chain = vs.chains[argmax(memx.chain_objectives)]
         trace = retrieve_map(chain)
         tr = task_relevance(attx,
                             attp.partition,
@@ -61,8 +53,8 @@ function render_frame(perception::MentalModule{V},
         importance = softmax(tr, attp.itemp)
         # render_attention(attention)
         l = load(attp, attx, tr) / attp.load
-        MOTCore.paint(objp, trace, l .* importance)
         render_assigments(trace)
+        MOTCore.paint(objp, trace, l .* importance)
     
     # random chain
     elseif render_mode == :random
@@ -72,7 +64,7 @@ function render_frame(perception::MentalModule{V},
                             trace,
                             attp.nns)
         importance = softmax(tr, attp.itemp)
-        render_attention(attention)
+        # render_attention(attention)
         render_assigments(trace)
         l = load(attp, attx, tr) / attp.load
         MOTCore.paint(objp, trace, l .* importance)
