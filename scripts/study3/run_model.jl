@@ -46,13 +46,13 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 16
+    default = 8
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :fr
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -104,13 +104,14 @@ function run_model!(pbar, exp)
     # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
     collision_counts = 0.0
-    noticed = 0
+    elapsed = 0.0
     for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, exp, t)
         collision_counts = _results[:collision_p]
+        elapsed += _results[:time]
         next!(pbar)
     end
-    collision_counts
+    collision_counts, elapsed
 end
 
 # Stores data from a single model run
@@ -118,6 +119,7 @@ RunSummary = @NamedTuple begin
     scene          :: Int64
     ndark          :: Int64
     chain          :: Int64
+    gt_count       :: Int64
     expected_count :: Float64
     count_error    :: Float64
     time           :: Float64
@@ -150,17 +152,17 @@ function main()
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
             
-            run = @timed run_model!(pbar, experiment)
-            expected_count = run.value
+            expected_count, elapsed = run_model!(pbar, experiment)
             count_error = abs(gt_count - expected_count) / gt_count
 
             summaries[linds[c, i]] = RunSummary((
                 scene          = SCENE,
                 ndark          = ndistractor,
                 chain          = c,
+                gt_count       = gt_count,
                 expected_count = expected_count,
                 count_error    = count_error,
-                time           = run.time
+                time           = elapsed,
             ))
         end
     end
@@ -172,6 +174,7 @@ function main()
 
     # Quick display
     display(combine(groupby(df, [:scene, :ndark]),
+                    :gt_count => mean,
                     :expected_count => mean,
                     :count_error => mean,
                     :count_error => std,

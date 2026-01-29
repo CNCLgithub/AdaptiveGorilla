@@ -120,7 +120,7 @@ function memory_fitness_epoch!(fit_state::MhoScores,
                                chain::APChain,
                                chain_idx::Int)
     # MLL
-    mll = log_ml_estimate(chain.state) / 300.0
+    mll = log_ml_estimate(chain.state) / 500.0
     # Energy and Waste
     attp, attx = mparse(fit_proc.att)
     # integral from 0 to t
@@ -136,6 +136,7 @@ function memory_fitness_epoch!(fit_state::MhoScores,
     # println(time_integral)
     # println("mho = $(round(mag; digits=2))(mag) - " *
     #     " $(round(irc;digits=2))(irc) = $(mho)")
+    # println("mll = $(round(mll; digits=2))")
     # println("--------------")
     return mho + mll
 end

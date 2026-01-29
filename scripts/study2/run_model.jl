@@ -29,14 +29,20 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
-s = ArgParseSettings()
+ANALYSES_VARIANTS = [:NOTICE, :PERF]
 
+s = ArgParseSettings()
 @add_arg_table! s begin
+
+    "--analyses"
+    help = "Model analyses. Either NOTICE or PERF"
+    range_tester = in(ANALYSES_VARIANTS)
+    default = :PERF
 
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 16
+    default = 8
 
     "model"
     help = "Model Variant"
@@ -47,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 2
+    default = 4
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -99,6 +105,15 @@ CHAINS = PARAMS["nchains"]
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
 NOTICE_P_THRESH = 0.2
+
+ANALYSIS = PARAMS["analyses"]
+
+if ANALYSIS == :NOTICE
+    SHOW_GORILLA=true
+
+elseif ANALYSIS == :PERF
+    SHOW_GORILLA=false
+end
 
 ################################################################################
 # Methods
@@ -164,7 +179,8 @@ function main()
         color = swap ? :dark : :light
         parent = lone ? :lone : :grouped
         # Load the experiment
-        experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
+        experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES,
+                             show_gorilla=SHOW_GORILLA)
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
         @show gt_count
@@ -197,12 +213,12 @@ function main()
     finish!(pbar)
 
     # Record results to CSV
-    out_dir = "/spaths/experiments/" *
-        "$(DATASET)/$(MODEL)" *
-        "/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/$(ANALYSIS)"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
+
+    # Additional visualizations
     count_f = x -> count(>=(18), x) / CHAINS
 
     by_cond = groupby(df, [:color, :parent])

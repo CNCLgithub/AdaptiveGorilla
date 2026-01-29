@@ -105,10 +105,6 @@ end
 #################################################################################
 
 function run_analyses(experiment::LoadCurve, agent::Agent)
-    gorilla_p = exp(estimate_marginal(agent.perception,
-                                  detect_gorilla, ()))
-    birth_p = exp(estimate_marginal(agent.perception,
-                                  had_birth, ()))
     col_p = planner_expectation(agent.planning)
     Dict(:gorilla_p => gorilla_p,
          :collision_p => col_p, #abs(col_p - col_gt) / col_gt,
@@ -126,8 +122,9 @@ returns a `Dict` containing:
 """
 function test_agent!(agent::Agent, exp::LoadCurve, stepid::Int)
     obs = get_obs(exp, stepid)
-    agent_step!(agent, stepid, obs)
-    run_analyses(exp, agent)
+    result = @timed agent_step!(agent, stepid, obs)
+    Dict(:time => result.time,
+         :collision_p => planner_expectation(agent.planning))
 end
 
 #################################################################################

@@ -45,7 +45,7 @@ load_x0 = 5
 load_m = 20
 buffer_size = 1000                   # Size of task-relevance heatmap
 map_metric_weights = [0.1, 0.1, 0.8] # Distance function for task-relevance
-nns = 10
+nns = 20
 
 ################################################################################
 # Memory
