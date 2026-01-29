@@ -4,9 +4,7 @@
 MODELS=( "mo" "ja" "ta" "fr" )
 OUTPUT_FILE="scripts/study3/joblist.txt"
 NSCENES=10
-NTHREADS=8
-TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
- scripts/study3/run_model.jl"
+TEMPLATE="./env.d/run.sh julia scripts/study3/run_model.jl"
 
 # Clear the file (or create it if it doesn't exist)
 : > "$OUTPUT_FILE"
