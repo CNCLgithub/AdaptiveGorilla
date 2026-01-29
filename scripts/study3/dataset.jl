@@ -13,21 +13,32 @@ using StaticArrays
 const S2V = SVector{2, Float64}
 
 dataset = "study3"
-stepsize = 2 # Number of distractors to add per step
-nsteps   = 5 # Number of steps
-mincount = 3 # Number of light and dark objects
+nlight = 4
+ndark = 8
+n_dots = nlight + ndark
 nscenes = 10
-# Each scene will have 5 conditions: +0 -> +4 distractors
  
 fps = 24
 duration = 10 # seconds
-frames = fps * duration
+nframes = fps * duration
 out_dir = "/spaths/datasets/$(dataset)"
 isdir(out_dir) || mkdir(out_dir)
 out_path = "$(out_dir)/dataset.json"
 
-function gen_base_scene(nframes::Int64, nlight::Int64, ndark::Int64)
-    wm = init_wm(nlight + ndark)
+wm = SchollWM(
+	      ;
+	      n_dots = n_dots,
+	      dot_radius = 5.0,
+	      area_width = 720.0,
+	      area_height = 480.0,
+	      vel=4.5,
+	      vel_min = 3.5,
+	      vel_max = 5.5,
+	      vel_step = 0.20,
+	      vel_prob = 0.20
+	      )
+
+function gen_base_scene()
     _, states = wm_scholl(nframes, wm)
     steps = Vector{Vector{S2V}}(undef,nframes)
     @inbounds for j in 1:nframes
@@ -59,33 +70,14 @@ function gen_base_scene(nframes::Int64, nlight::Int64, ndark::Int64)
     )
 end
 
-function init_wm(n_dots::Int)
-    SchollWM(
-        ;
-        n_dots = n_dots,
-        dot_radius = 5.0,
-        area_width = 720.0,
-        area_height = 480.0,
-        vel=4.5,
-        vel_min = 3.5,
-        vel_max = 5.5,
-        vel_step = 0.20,
-        vel_prob = 0.20
-    )
-end
-
 function main()
     data = Dict()
-    templates = []
-    for i = 1:nscenes
-        trial = gen_base_scene(frames, 4, mincount + (nsteps - 1) * stepsize)
-        push!(templates, trial)
-    end
+    templates = [gen_base_scene() for _ = 1:nscenes]
     data[:trials] = templates
     data[:manifest] = Dict(:ntrials => length(templates),
                            :duration => duration,
                            :fps => fps,
-                           :frames => frames)
+                           :frames => nframes)
     open(out_path, "w") do io
         JSON3.write(io, data)
     end
