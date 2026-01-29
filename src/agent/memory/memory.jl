@@ -151,14 +151,10 @@ function optimize_memory!(mem::MentalModule{M},
         # Step 1
         parent = next_gen[i]
         chain = visstate.chains[parent]
-        template = retrieve_map(chain) # InertiaTrace
+        template = retrieve_map(chain)
         # Step 2 (optional)
         cm = restructure_kernel(memp.kernel, memp.fitness,
                                 memstate.fitness_state, template, parent)
-
-        # println("Reframing hyper particle $(i) to:")
-        # display(cm)
-         
         # Step 3
         update_fitness_reframe!(memstate.fitness_state, memp.fitness, t,
                                 template, i, parent, cm)

@@ -104,13 +104,6 @@ end
 # API
 #################################################################################
 
-function run_analyses(experiment::LoadCurve, agent::Agent)
-    col_p = planner_expectation(agent.planning)
-    Dict(:gorilla_p => gorilla_p,
-         :collision_p => col_p, #abs(col_p - col_gt) / col_gt,
-         :birth_p => birth_p)
-end
-
 """
 $(TYPEDSIGNATURES)
 
@@ -122,8 +115,10 @@ returns a `Dict` containing:
 """
 function test_agent!(agent::Agent, exp::LoadCurve, stepid::Int)
     obs = get_obs(exp, stepid)
-    result = @timed agent_step!(agent, stepid, obs)
-    Dict(:time => result.time,
+    start_time = time()
+    agent_step!(agent, stepid, obs)
+    elapsed = time() - start_time
+    Dict(:time => elapsed,
          :collision_p => planner_expectation(agent.planning))
 end
 
@@ -220,8 +215,8 @@ function render_agent_state(exp::LoadCurve, agent::Agent, t::Int, path::String)
 
 
     # Perception
-    init = InitPainter(path = "$(path)/perception-$(t).png",
-                       background = "white")
+    init = InitPainter(path = "$(path)/$(t).png",
+                       background = "#808080")
 
     _, wm, _ = exp.init_query.args
     # setup

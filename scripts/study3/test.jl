@@ -15,10 +15,9 @@ using ArgParse
 using Gen_Compose
 using ProgressMeter
 using DataFrames, CSV
-using Statistics: mean
 
 using AdaptiveGorilla
-using AdaptiveGorilla: S3V, count_collisions
+using AdaptiveGorilla: count_collisions
 
 ################################################################################
 # Command Line Interface
@@ -29,20 +28,9 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granular Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
-ANALYSES_VARIANTS = [:NOTICE, :PERF]
-
 s = ArgParseSettings()
 
 @add_arg_table! s begin
-
-    "--restart", "-r"
-    help = "Whether to resume inference"
-    action = :store_true
-
-    "--analyses"
-    help = "Model analyses. Either NOTICE or PERF"
-    range_tester = in(ANALYSES_VARIANTS)
-    default = :NOTICE
 
     "--nchains", "-n"
     help = "The number of chains to run"
@@ -53,12 +41,12 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ja
+    default = :mo
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 1
+    default = 4
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -83,19 +71,6 @@ FRAMES  = 240
 
 NTARGETS = 4
 NDISTRACTORS = 8
-
-################################################################################
-# ANALYSES
-################################################################################
-
-ANALYSIS = PARAMS["analyses"]
-
-if ANALYSIS == :NOTICE
-    SHOW_GORILLA=true
-
-elseif ANALYSIS == :PERF
-    SHOW_GORILLA=false
-end
 
 ################################################################################
 # Analysis Parameters
@@ -123,18 +98,14 @@ function run_model!(pbar, exp)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
     results = DataFrame(
         :frame => Int64[],
-        :gorilla_p => Float64[],
         :collision_p => Float64[],
-        :birth_p => Float64[],
+        :time => Float64[],
     )
-    @time for t = 1:(FRAMES - 1)
-        # println("###########                     ###########")
-        # println("###########       TIME $(t)     ###########")
-        # println("###########                     ###########")
+    for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        # render_agent_state(exp, agent, t, out)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
@@ -158,6 +129,7 @@ function main()
     @show gt_count
     results = run_model!(pbar, experiment)
     display(last(results))
+    @show sum(results[!, :time])
     # show(results; allrows=true)
     println()
     finish!(pbar)

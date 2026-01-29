@@ -18,6 +18,8 @@ $(TYPEDFIELDS)
     tick_rate::Int = 1
     "Counting cool down"
     cooldown::Int = 5
+    "Threshold to increment collision"
+    threshold::Float64 = 0.20
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
@@ -61,7 +63,7 @@ function module_step!(planner::MentalModule{T},
                               (protocol, attention))
         if state.cooldown == 0
             # println("TIME $(t), LOG COL PROB: $(w)")
-            if log(rand()) < w
+            if log(protocol.threshold * rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
                 # println("COUNT: $(state.expectation)")
