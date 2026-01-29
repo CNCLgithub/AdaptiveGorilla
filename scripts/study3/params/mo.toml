@@ -10,7 +10,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 18 # Time window, 500ms
+dt = 12 # Time window, 500ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]

@@ -46,7 +46,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 1
+    default = 4
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -91,7 +91,7 @@ function run_model!(pbar, exp)
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        # render_agent_state(exp, agent, t, out)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
