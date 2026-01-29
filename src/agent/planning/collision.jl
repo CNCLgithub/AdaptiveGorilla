@@ -60,10 +60,11 @@ function module_step!(planner::MentalModule{T},
                               plan_with_delta_pi!,
                               (protocol, attention))
         if state.cooldown == 0
-            println("TIME $(t), LOG COL PROB: $(w)")
+            # println("TIME $(t), LOG COL PROB: $(w)")
             if log(rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
+                # println("COUNT: $(state.expectation)")
             end
         else
             state.cooldown -= protocol.tick_rate
@@ -139,14 +140,14 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v_orth = dot(v, w.normal)
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Penalty for higher angular velocity
-    sigma = 2.0 * exp(-abs(get_avel(obj)))
+    sigma = 0.25 * exp(0.25*abs(get_avel(obj)))
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
     lcdf = Distributions.logcdf(standard_normal, z)
     # pdf is the derivative of the cdf
     dpdz = Distributions.logpdf(standard_normal, z)
-    # if dpdz > -15
+    # if lcdf > -0.5
     #     @show x
     #     @show v
     #     @show v_orth
@@ -156,7 +157,6 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     #     @show z
     #     @show lcdf
     #     @show dpdz
-    #     error()
     # end
     (lcdf, dpdz)
 end

@@ -28,9 +28,16 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
+ANALYSES_VARIANTS = [:NOTICE, :PERF]
+
 s = ArgParseSettings()
 
 @add_arg_table! s begin
+
+    "--analyses"
+    help = "Model analyses. Either NOTICE or PERF"
+    range_tester = in(ANALYSES_VARIANTS)
+    default = :PERF
 
     "--nchains", "-n"
     help = "The number of chains to run"
@@ -76,6 +83,16 @@ FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 COLORS = [Light, Dark]
+
+
+ANALYSIS = PARAMS["analyses"]
+
+if ANALYSIS == :NOTICE
+    SHOW_GORILLA=true
+
+elseif ANALYSIS == :PERF
+    SHOW_GORILLA=false
+end
 
 ################################################################################
 # Analysis Parameters
@@ -158,7 +175,7 @@ function main()
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/$(ANALYSIS)"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)

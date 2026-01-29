@@ -138,6 +138,9 @@ function split_prob(kappa::MhoSplitMerge,
     count(isinf, deltas) > 2  && return 0.1
     argmax(deltas) > ns && return 0.9
 
+    # Avoid merging into single ensemble
+    ns == 1 && return 0.9
+
     # If relatively few representations have all of the TR,
     # then recommend merging
     log_normed_deltas = deltas .- logsumexp(deltas)

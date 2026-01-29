@@ -10,7 +10,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 18  # Time window, 500ms
+dt = 18 # Time window, 500ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -26,7 +26,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown = 6   # Cooldown between hits (prevents overcounting)
+cooldown = 8  # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
 
 ################################################################################
@@ -61,9 +61,9 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-complexity_mass = 6.0  # Slope of exponential irrelevant complexity curve
+complexity_mass = 2.0  # Slope of exponential irrelevant complexity curve
 complexity_factor = 30 # irrelevant representations
-log_decay_rate = -0.1  # decay rate of time integral over task-relevance
+log_decay_rate = -0.05  # decay rate of time integral over task-relevance
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]

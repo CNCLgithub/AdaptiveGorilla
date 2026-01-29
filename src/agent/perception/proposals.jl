@@ -6,8 +6,8 @@
 function single_ancestral_proposal(trace::InertiaTrace,
                                    single::Int)
     t, wm = get_args(trace)
-    addr = :kernel => t => :forces => single
-    new_trace, w, _ = regenerate(trace, select(addr))
+    selection = select(:kernel => t => :forces => single)
+    new_trace, w, _ = regenerate(trace, selection)
 
     if isinf(w) || isnan(w)
         find_inf_scores(new_trace)
@@ -19,10 +19,24 @@ end
 function ensemble_ancestral_proposal(trace::InertiaTrace,
                                      idx::Int)
     t = first(get_args(trace))
-    new_trace, w, _ = regenerate(trace, select(
-        :kernel => t => :eshifts => idx => :force,
-        :kernel => t => :eshifts => idx => :spread,
-    ))
+    selection = select(
+        :kernel => t => :eshifts => idx,
+    )
+    # selection = select(
+    #     :kernel => t => :eshifts => idx => :fx,
+    #     :kernel => t => :eshifts => idx => :fy,
+    #     :kernel => t => :eshifts => idx => :spread,
+    # )
+    new_trace, w, _ = regenerate(trace, selection)
+
+    # println("BEFORE:")
+    # display(get_selected(get_choices(trace), selection))
+
+    # println("AFTER:")
+    # display(get_selected(get_choices(new_trace), selection))
+
+    # error()
+
     if isinf(w) || isnan(w)
         find_inf_scores(new_trace)
         error("Invalid score from ancestral proposal")

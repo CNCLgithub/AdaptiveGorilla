@@ -22,7 +22,7 @@ using AdaptiveGorilla: count_collisions
 import AdaptiveGorilla as AG
 
 using Random
-# Random.seed!(123)
+#Random.seed!()
 
 ################################################################################
 # Command Line Interface
@@ -53,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 2
+    default = 4
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -163,7 +163,8 @@ function main()
            NOTICE_P_THRESH,
            name = "Threshold")
     ndetected = Vector{Int64}(undef, CHAINS)
-    experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
+    experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES;
+                         show_gorilla = SHOW_GORILLA)
     gt_count = count_collisions(experiment)
     @show gt_count
     collision_counts = Vector{Float64}(undef, CHAINS)
@@ -188,7 +189,7 @@ function main()
     )
     RENDER ?
         println("Collision counts: $(collision_counts)") :
-        display(histogram(collision_counts, nbins=5,
+        display(histogram(collision_counts, nbins=5, vertical=true,
                   title = "Collision counts"))
     return nothing
 end;
