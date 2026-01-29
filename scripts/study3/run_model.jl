@@ -15,11 +15,9 @@ using Gen
 using Random
 using ArgParse
 using DataFrames
-using Gen_Compose
 using ProgressMeter
-using Statistics: mean, std
-
 using AdaptiveGorilla
+using Statistics: mean, std
 using AdaptiveGorilla: count_collisions
 
 
@@ -32,21 +30,14 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granular Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
-ANALYSES_VARIANTS = [:NOTICE, :PERF]
-
 s = ArgParseSettings()
 
 @add_arg_table! s begin
 
-    "--analyses"
-    help = "Model analyses. Either NOTICE or PERF"
-    range_tester = in(ANALYSES_VARIANTS)
-    default = :NOTICE
-
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 8
+    default = 16
 
     "model"
     help = "Model Variant"
@@ -67,29 +58,27 @@ PARAMS = parse_args(ARGS, s)
 # Model Parameters
 ################################################################################
 
-MODEL = PARAMS["model"]
+MODEL        = PARAMS["model"]
 MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
-
-# Number of model runs per condition
-CHAINS = PARAMS["nchains"]
 
 
 ################################################################################
 # General Experiment Parameters
 ################################################################################
 
-# Setting seed for reproducibility
-Random.seed!(123)
+Random.seed!(123) # Setting seed for reproducibility
+
+SCENE   = PARAMS["scene"]
+CHAINS  = PARAMS["nchains"]
 
 # which dataset to run
-DATASET = "load_curve"
+DATASET = "study3"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
-SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 # Number of targets and distractors
 NTARGETS = 4
-NDISTRACTORS = collect(3:8)
+NDISTRACTORS = [2, 4, 8]
 # Each condition is a distractor count
 NCOND = length(NDISTRACTORS)
 
@@ -99,19 +88,28 @@ NCOND = length(NDISTRACTORS)
 ################################################################################
 
 # Run the model once, returns expected collision count
-function run_model!(pbar, exp)
+function run_model!(pbar, experiment::LoadCurve, gt_count::Int, c::Int)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
-    agent = load_agent(MODEL_PARAMS, exp.init_query)
-    collision_counts = 0.0
+    agent = load_agent(MODEL_PARAMS, experiment.init_query)
+    count = 0.0
     elapsed = 0.0
     for t = 1:(FRAMES - 1)
-        _results = test_agent!(agent, exp, t)
-        collision_counts = _results[:collision_p]
+        _results = test_agent!(agent, experiment, t)
+        count = _results[:collision_p]
         elapsed += _results[:time]
         next!(pbar)
     end
-    collision_counts, elapsed
+    count_error = abs(gt_count - count) / gt_count
+    RunSummary((
+        scene          = SCENE,
+        ndark          = experiment.n_distractors,
+        chain          = c,
+        gt_count       = gt_count,
+        expected_count = count,
+        count_error    = count_error,
+        time           = elapsed,
+    ))
 end
 
 # Stores data from a single model run
@@ -125,7 +123,7 @@ RunSummary = @NamedTuple begin
     time           :: Float64
 end
 
-
+    
 ################################################################################
 # Main Entry
 ################################################################################
@@ -136,6 +134,7 @@ function main()
     pbar = Progress(nsteps;
                     desc="[Study 3] $(MODEL_VARIANTS[MODEL]) (x$(nruns))",
                     dt = 2.0)
+
     # Preallocate simulation results
     summaries = Vector{RunSummary}(undef, nruns)
     linds = LinearIndices((CHAINS, NCOND))
@@ -149,27 +148,16 @@ function main()
         experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, ndistractor)
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
-        # Run the model several chains
-        Threads.@threads for c = 1:CHAINS
-            
-            expected_count, elapsed = run_model!(pbar, experiment)
-            count_error = abs(gt_count - expected_count) / gt_count
 
-            summaries[linds[c, i]] = RunSummary((
-                scene          = SCENE,
-                ndark          = ndistractor,
-                chain          = c,
-                gt_count       = gt_count,
-                expected_count = expected_count,
-                count_error    = count_error,
-                time           = elapsed,
-            ))
+        # Run the model several chains
+        for c = 1:CHAINS
+            summaries[linds[c, i]] = run_model!(pbar, experiment, gt_count, c)
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/runs"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(summaries)
+    df = DataFrame(vec(summaries))
     CSV.write("$(out_dir)/$(SCENE).csv", df)
 
     # Quick display

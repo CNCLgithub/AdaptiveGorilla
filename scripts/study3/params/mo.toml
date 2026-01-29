@@ -10,12 +10,12 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 18 # Time window, 500ms
+dt = 12 # Time window, 500ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
 protocol = "AdaptiveParticleFilter"
-params = {particles = 5} # Number of inner particles
+params = {particles = 10} # Number of inner particles
 
 ################################################################################
 # Planning
@@ -28,6 +28,7 @@ protocol = "CollisionCounter"
 mat = "Light"  # Color of targets
 cooldown = 8  # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
+threshold = 0.2
 
 ################################################################################
 # Attention
