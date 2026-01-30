@@ -53,6 +53,10 @@ Defines the granularity mapping for a current trace format
     complexity_factor::Float64 = 2.0
     "Rate of decay for delta time integral"
     log_decay_rate::Float64 = 0.0
+    "Inverse temperature for task energy"
+    tenergy_inv_temp::Float64 = 0.05
+    "Beta regularizer for MLL"
+    mll_beta::Float64 = 500.0
 end
 
 mutable struct MhoScores
@@ -120,7 +124,7 @@ function memory_fitness_epoch!(fit_state::MhoScores,
                                chain::APChain,
                                chain_idx::Int)
     # MLL
-    mll = log_ml_estimate(chain.state) / 500.0
+    mll = log_ml_estimate(chain.state) / fit_proc.mll_beta
     # Energy and Waste
     attp, attx = mparse(fit_proc.att)
     # integral from 0 to t
@@ -128,32 +132,26 @@ function memory_fitness_epoch!(fit_state::MhoScores,
     time_integral = reconstitute_deltas(fit_state.rep_deltas,
                                         fit_state.schema_registry,
                                         schema_id)
-    (mag, irc) = trace_mho(time_integral, attp.itemp,
-              fit_proc.complexity_mass,
-              fit_proc.complexity_factor)
-    mho = mag - irc
+    energy = task_energy(time_integral, fit_proc.tenergy_inv_temp)
+    irc = irr_complexity(time_integral, attp.itemp, fit_proc.complexity_mass,
+                           fit_proc.complexity_factor)
+    mho = energy - irc
     # print_granularity_schema(chain)
     # println(time_integral)
-    # println("mho = $(round(mag; digits=2))(mag) - " *
+    # println("mho = $(round(energy; digits=2))(mag) - " *
     #     " $(round(irc;digits=2))(irc) = $(mho)")
     # println("mll = $(round(mll; digits=2))")
     # println("--------------")
     return mho + mll
 end
 
-function trace_mho(deltas::Vector{Float64}, temp::Float64, mass::Float64,
-                   slope::Float64)
-    mag = task_energy(deltas)
-    importance = softmax(deltas, temp)
-    c = irr_complexity(importance, mass, slope)
-    (mag, c)
-end
-
 function task_energy(deltas::Vector{Float64}, beta::Float64 = 0.05)
     logsumexp( deltas .* beta ) / beta
 end
 
-function irr_complexity(imp::Vector{Float64}, mass::Float64, slope::Float64)
+function irr_complexity(deltas::Vector{Float64}, temp::Float64, mass::Float64,
+                        slope::Float64)
+    imp = softmax(deltas, temp)
     n = length(imp)
     waste = 1E-4
     @inbounds for i = 1:n
