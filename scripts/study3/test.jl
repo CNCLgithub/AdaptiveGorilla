@@ -41,7 +41,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :fr
 
     "scene"
     help = "Which scene to run"
@@ -70,21 +70,7 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 NTARGETS = 4
-NDISTRACTORS = 8
-
-################################################################################
-# Analysis Parameters
-################################################################################
-
-# Number of model runs per condition
-CHAINS = PARAMS["nchains"]
-
-# The probability lower bound of gorilla noticing.
-# The probability is implemented with `detect_gorilla` and it's marginal is
-# estimated across the hyper particles.
-# Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
-# at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.5
+NDISTRACTORS = 4
 
 ################################################################################
 # Methods
@@ -121,16 +107,16 @@ function main()
     pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
     # Load the world model
     wm = load_wm_from_toml("$(@__DIR__)/params/wm.toml";
-                            object_rate = Float64(NTARGETS + NDISTRACTORS))
+                           object_rate = Float64(NTARGETS + NDISTRACTORS))
     # Load the experiment
     experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, NDISTRACTORS)
     # Retrieve the number of true collisions
     gt_count = count_collisions(experiment)
     @show gt_count
     results = run_model!(pbar, experiment)
-    display(last(results))
+    # display(last(results))
+    show(results; allrows=true)
     @show sum(results[!, :time])
-    # show(results; allrows=true)
     println()
     finish!(pbar)
     return nothing

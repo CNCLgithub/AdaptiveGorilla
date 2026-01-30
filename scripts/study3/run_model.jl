@@ -37,7 +37,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 16
+    default = 32
 
     "model"
     help = "Model Variant"
@@ -78,7 +78,7 @@ FRAMES  = 240
 
 # Number of targets and distractors
 NTARGETS = 4
-NDISTRACTORS = [2, 4, 8]
+NDISTRACTORS = [4, 6, 8]
 # Each condition is a distractor count
 NCOND = length(NDISTRACTORS)
 

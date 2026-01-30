@@ -10,7 +10,7 @@ name = "Multi-Granular Optimization"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 12 # Time window, 500ms
+dt = 18 # Time window, 500ms
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
@@ -65,6 +65,8 @@ protocol = "MhoFitness"
 complexity_mass = 2.0  # Slope of exponential irrelevant complexity curve
 complexity_factor = 30 # irrelevant representations
 log_decay_rate = -0.05  # decay rate of time integral over task-relevance
+tenergy_inv_temp = 0.05
+mll_beta = 500
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]
