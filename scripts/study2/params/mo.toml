@@ -15,7 +15,7 @@ h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
 protocol = "AdaptiveParticleFilter"
-params = {particles = 5} # Number of inner particles
+params = {particles = 10} # Number of inner particles
 
 ################################################################################
 # Planning
@@ -26,8 +26,9 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"  # Color of targets
-cooldown = 8  # Cooldown between hits (prevents overcounting)
+cooldown = 4  # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
+threshold = 0.2
 
 ################################################################################
 # Attention
@@ -64,6 +65,8 @@ protocol = "MhoFitness"
 complexity_mass = 2.0  # Slope of exponential irrelevant complexity curve
 complexity_factor = 30 # irrelevant representations
 log_decay_rate = -0.05  # decay rate of time integral over task-relevance
+tenergy_inv_temp = 0.05
+mll_beta = 500
 att = { "protocol" = "ModuleRef", "params" = { "ref" = "Attention" } }
 
 [Memory.params.kernel]

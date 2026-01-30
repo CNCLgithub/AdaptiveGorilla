@@ -37,12 +37,12 @@ s = ArgParseSettings()
     "--analyses"
     help = "Model analyses. Either NOTICE or PERF"
     range_tester = in(ANALYSES_VARIANTS)
-    default = :PERF
+    default = :NOTICE
 
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 8
+    default = 64
 
     "model"
     help = "Model Variant"
@@ -53,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 4
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -150,14 +150,14 @@ RunSummary = @NamedTuple begin
 end
 
 
-TimeSeries = @NamedTuple begin
-    color   :: Symbol
-    parent  :: Symbol
-    chain   :: Int64
-    frame   :: UnitRange{Int64}
-    pnotice :: Vector{Float64}
+# TimeSeries = @NamedTuple begin
+#     color   :: Symbol
+#     parent  :: Symbol
+#     chain   :: Int64
+#     frame   :: UnitRange{Int64}
+#     pnotice :: Vector{Float64}
     
-end
+# end
 
 ################################################################################
 # Main Entry
@@ -171,7 +171,7 @@ function main()
                     dt = 1.0)
     # Preallocate simulation results
     summaries = Vector{RunSummary}(undef, nruns)
-    time_series = Vector{TimeSeries}(undef, nruns)
+    # time_series = Vector{TimeSeries}(undef, nruns)
     linds = LinearIndices((CHAINS, NP, NSC))
     # Go through each of the conditions
     for (i, swap) = enumerate(SWAP_COLORS), (j, lone) = enumerate(LONE_PARENT)
@@ -183,7 +183,7 @@ function main()
                              show_gorilla=SHOW_GORILLA)
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
-        @show gt_count
+        # @show gt_count
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
             run = @timed run_model!(pbar, experiment)
@@ -201,13 +201,13 @@ function main()
                 time           = run.time
             ))
 
-            time_series[linds[c,j,i]] = TimeSeries((
-                color   = color,
-                parent  = parent,
-                chain   = c,
-                frame   = 1:(FRAMES-1),
-                pnotice = pnoticed
-            ))
+            # time_series[linds[c,j,i]] = TimeSeries((
+            #     color   = color,
+            #     parent  = parent,
+            #     chain   = c,
+            #     frame   = 1:(FRAMES-1),
+            #     pnotice = pnoticed
+            # ))
         end
     end
     finish!(pbar)
@@ -219,49 +219,49 @@ function main()
     CSV.write("$(out_dir)/$(SCENE).csv", df)
 
     # Additional visualizations
-    count_f = x -> count(>=(18), x) / CHAINS
+    # count_f = x -> count(>=(18), x) / CHAINS
 
-    by_cond = groupby(df, [:color, :parent])
-    display(combine(by_cond, :ndetected => count_f))
-    for k = keys(by_cond)
-        g = by_cond[k]
-        display(
-            histogram(g[!, :ndetected], nbins=10, vertical=true,
-                      title = repr(NamedTuple(k)),
-                      xlim = (0, 36))
-        )
-    end
+    # by_cond = groupby(df, [:color, :parent])
+    # display(combine(by_cond, :ndetected => count_f))
+    # for k = keys(by_cond)
+    #     g = by_cond[k]
+    #     display(
+    #         histogram(g[!, :ndetected], nbins=10, vertical=true,
+    #                   title = repr(NamedTuple(k)),
+    #                   xlim = (0, 36))
+    #     )
+    # end
 
-    noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
-    by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
-                       :pnotice => mean)
-    plot = Plot(;
-                title="Chain Averages",
-                xlabel = "t",
-                ylabel = "Pr(Notice)",
-                xlim = (1, FRAMES-1),
-                ylim = (0, 1),
-                )
-    g_by_frame = groupby(by_frame, [:color, :parent])
-    for k = keys(g_by_frame)
-        g = g_by_frame[k]
-        lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
-                  name = repr(NamedTuple(k)))
-    end
-    display(plot)
+    # noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
+    # by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
+    #                    :pnotice => mean)
+    # plot = Plot(;
+    #             title="Chain Averages",
+    #             xlabel = "t",
+    #             ylabel = "Pr(Notice)",
+    #             xlim = (1, FRAMES-1),
+    #             ylim = (0, 1),
+    #             )
+    # g_by_frame = groupby(by_frame, [:color, :parent])
+    # for k = keys(g_by_frame)
+    #     g = g_by_frame[k]
+    #     lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
+    #               name = repr(NamedTuple(k)))
+    # end
+    # display(plot)
 
 
-    display(
-        histogram(df[!, :expected_count], vertical=true,
-                  width=30, nbins=10,
-                  title = "Expected Count")
-    )
+    # display(
+    #     histogram(df[!, :expected_count], vertical=true,
+    #               width=30, nbins=10,
+    #               title = "Expected Count")
+    # )
 
-    display(
-        histogram(df[!, :count_error], vertical=true,
-                  width=30, nbins=10,
-                  title = "Counting Error (%)")
-    )
+    # display(
+    #     histogram(df[!, :count_error], vertical=true,
+    #               width=30, nbins=10,
+    #               title = "Counting Error (%)")
+    # )
 
     return nothing
 end;

@@ -16,7 +16,7 @@ h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
 protocol = "AdaptiveParticleFilter"
-params = {particles = 5} # Number of inner particles
+params = {particles = 10} # Number of inner particles
 
 ################################################################################
 # Planning
@@ -27,8 +27,9 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"
-cooldown = 6
+cooldown = 4
 tick_rate = 1
+threshold = 0.2
 
 ################################################################################
 # Attention
