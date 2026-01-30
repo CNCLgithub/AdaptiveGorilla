@@ -11,7 +11,7 @@ name = "Fixed Resource"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 12 # Time window, ~1.5s
+dt = 18 # Time window, ~1.5s
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]

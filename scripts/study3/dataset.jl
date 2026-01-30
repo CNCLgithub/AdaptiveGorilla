@@ -16,7 +16,7 @@ dataset = "study3"
 nlight = 4
 ndark = 8
 n_dots = nlight + ndark
-nscenes = 10
+nscenes = 20
  
 fps = 24
 duration = 10 # seconds
