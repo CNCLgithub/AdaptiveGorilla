@@ -23,7 +23,7 @@ end
 
 function aggregate_results(model)
     BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)"
-    RUN_PATH = "$(BASE_PATH)/scenes"
+    RUN_PATH = "$(BASE_PATH)/NOTICE/"
     all = merge_results(RUN_PATH)
     g = groupby(all, [:color])
     c = combine(g,
