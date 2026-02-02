@@ -158,7 +158,7 @@ function main()
         experiment = MostExp(DPATH, WM, SCENE, color, FRAMES)
         gt_count = count_collisions(experiment)
 
-        Threads.@threads for c = 1:CHAINS
+        for c = 1:CHAINS
             run = @timed run_model!(pbar, experiment)
             ndetected, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
