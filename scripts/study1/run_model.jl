@@ -37,7 +37,7 @@ s = ArgParseSettings()
     "--analyses"
     help = "Model analyses. Either NOTICE or PERF"
     range_tester = in(ANALYSES_VARIANTS)
-    default = :PERF
+    default = :NOTICE
 
     "--nchains", "-n"
     help = "The number of chains to run"

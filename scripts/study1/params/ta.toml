@@ -11,12 +11,12 @@ name = "Task-Agnostic"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 18 # Frame window, ~1.5s
+dt = 18 # Time window, ~1.5s
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
 protocol = "AdaptiveParticleFilter"
-params = {particles = 5} # Number of inner particles
+params = {particles = 10} # Number of inner particles
 
 ################################################################################
 # Planning
