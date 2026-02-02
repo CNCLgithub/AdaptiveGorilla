@@ -58,6 +58,7 @@ function split_prob(::UniformSplitMerge, tr::InertiaTrace)
     #   (2) Only one ensemble -> can't merge
     ne == 0 && return 0.0
     re == 1 && return 1.0
+    return 0.5
 end
 
 function sample_split_move!(cm::ChoiceMap,
