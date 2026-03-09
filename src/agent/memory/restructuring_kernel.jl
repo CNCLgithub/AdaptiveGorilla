@@ -26,7 +26,7 @@ function restructure_kernel end
 
 
 ################################################################################
-# Split-merge Heuristics
+# Uniform Split-merge
 ################################################################################
 
 
@@ -66,7 +66,7 @@ function sample_split_move!(cm::ChoiceMap,
                             t::InertiaTrace)
     nensemble = ensemble_count(t)
     cm[:s0 => :nsm] = 2 # split branch
-    cm[:s0 => :state => :idx] = rand(1:nensemble)
+    cm[:s0 => :state => :idx] = uniform_discrete(1, nensemble)
     return nothing
 end
 
@@ -79,9 +79,13 @@ function sample_merge_move!(cm::ChoiceMap,
     ntotal = nsingle + nensemble
     nmerges = ncr(ntotal, 2)
     cm[:s0 => :nsm] = 3 # merge branch
-    cm[:s0 => :state => :pair] = rand(1:nmerges)
+    cm[:s0 => :state => :pair] = uniform_discrete(1, nmerges)
     return nothing
 end
+
+################################################################################
+# Mho Split-merge
+################################################################################
 
 @with_kw struct MhoSplitMerge <: SplitMergeKernel
     "Reference to and AdaptiveComputation module"
