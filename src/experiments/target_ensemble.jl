@@ -103,18 +103,19 @@ message Dataset {
 function TEnsExp(dpath::String, wm::InertiaWM, trial_idx::Int64,
                  swap_color::Bool,
                  lone_parent::Bool,
-                 frames::Int64)
+                 frames::Int64;
+                 show_gorilla::Bool = true)
     ws, obs = load_tens_trial(wm, dpath, trial_idx, lone_parent,
-                              swap_color; frames=frames)
+                              swap_color; frames=frames,
+                              show_gorilla=show_gorilla)
 
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
-    # argdiffs: only `t` changes
-    argdiffs = (Gen.UnknownChange(), Gen.NoChange(), Gen.NoChange())
     # uniform initial granularity
     init_cm = choicemap()
     init_cm[:s0 => :nsm] = 1
-    q = IncrementalQuery(gm, init_cm, args, argdiffs, 1)
+    # argdiffs: only `t` changes
+    q = IncrementalQuery(gm, init_cm, args, INERTIA_ARG_DIFFS, 1)
     TEnsExp(frames, lone_parent, swap_color, obs, q)
 end
 
@@ -183,6 +184,7 @@ function load_tens_trial(wm::WorldModel,
                          lone_parent::Bool,
                          swap_color::Bool;
                          frames::Int = 10,
+                         show_gorilla = true,
                          gorilla_threshold::Float64 = 0.25)
     raw_length = 0
     open(dpath, "r") do io
@@ -218,14 +220,15 @@ function load_tens_trial(wm::WorldModel,
                 prefix = (t, i) -> i,
             )
         end
-        # Gorilla observations: orbits around parent
-        write_tens_gorilla!(cm, t, gorilla["frame"],
-                            gorilla_dur, gorilla_threshold,
-                            wm.single_size, step[parent],
-                            wm, gorilla_color, nobj + 1)
+        if show_gorilla
+            # Gorilla observations: orbits around parent
+            write_tens_gorilla!(cm, t, gorilla["frame"],
+                                gorilla_dur, gorilla_threshold,
+                                wm.single_size, step[parent],
+                                wm, gorilla_color, nobj + 1)
+        end
         observations[t-1] = cm
     end
-
     (istate, observations)
 end
 

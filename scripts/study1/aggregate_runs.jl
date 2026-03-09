@@ -3,9 +3,9 @@ using DataFrames
 using Statistics: mean
 
 
-NOTICE_MIN_FRAMES = 24
+NOTICE_MIN_FRAMES = 18
 
-DATASET = "most"
+DATASET = "study1"
 
 MODELS = [:mo, :ja, :ta, :fr]
 
@@ -22,9 +22,8 @@ end
 
 
 function aggregate_results(model)
-    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)-NOTICE"
-    RUN_PATH = "$(BASE_PATH)/scenes"
-    OUT_PATH = "$(BASE_PATH)/aggregate.csv"
+    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)"
+    RUN_PATH = "$(BASE_PATH)/NOTICE/"
     all = merge_results(RUN_PATH)
     g = groupby(all, [:color])
     c = combine(g,
@@ -33,15 +32,20 @@ function aggregate_results(model)
                     :noticed,
         :count_error => mean)
     show(c; allrows=true)
-    CSV.write(OUT_PATH, c)
+    all[!, :model] .= model
+    return all
 end
 
 function main()
+    dfs = DataFrame[]
     for model = MODELS
         println(model)
-        aggregate_results(model)
+	push!(dfs, aggregate_results(model))
         println("")
     end
+    df = vcat(dfs...)
+    OUT_PATH = "/spaths/experiments/$(DATASET)/aggregate.csv"
+    CSV.write(OUT_PATH, df)
 end
 
 main()

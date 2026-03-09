@@ -10,15 +10,14 @@
 # Includes
 ################################################################################
 
+using CSV
 using Gen
+using Random
 using ArgParse
-using Gen_Compose
+using DataFrames
 using ProgressMeter
-using DataFrames, CSV
 using AdaptiveGorilla
-
-using AdaptiveGorilla: S3V, count_collisions
-using Distances: WeightedEuclidean
+using AdaptiveGorilla: count_collisions
 
 ################################################################################
 # Command Line Interface
@@ -29,18 +28,11 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
                       :ja => "Just Attention",
                       :fr => "Fixed Resource")
 
-
 ANALYSES_VARIANTS = [:NOTICE, :PERF]
-
 
 s = ArgParseSettings()
 
 @add_arg_table! s begin
-
-
-    "--restart", "-r"
-    help = "Whether to resume inference"
-    action = :store_true
 
     "--analyses"
     help = "Model analyses. Either NOTICE or PERF"
@@ -50,7 +42,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 16
+    default = 64
 
     "model"
     help = "Model Variant"
@@ -72,29 +64,35 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
-
-################################################################################
-# ANALYSES
-################################################################################
-
-ANALYSIS = PARAMS["analyses"]
-SHOW_GORILLA = true # ANALYSIS == :NOTICE
+WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
 ################################################################################
 
+# Setting seed for reproducibility
+Random.seed!(123)
+
 # which dataset to run
-DATASET = "most"
+DATASET = "study1"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 COLORS = [Light, Dark]
+
+
+ANALYSIS = PARAMS["analyses"]
+
+if ANALYSIS == :NOTICE
+    SHOW_GORILLA=true
+
+elseif ANALYSIS == :PERF
+    SHOW_GORILLA=false
+end
 
 ################################################################################
 # Analysis Parameters
@@ -106,14 +104,14 @@ CHAINS = PARAMS["nchains"]
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
 # estimated across the hyper particles.
-# Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
+# Pr(detect_gorilla) = 0.2 denotes a 20% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.50
+NOTICE_P_THRESH = 0.20
+
 
 ################################################################################
 # Methods
 ################################################################################
-
 
 function run_model!(pbar, exp)
     # Initializes the agent
@@ -132,38 +130,56 @@ function run_model!(pbar, exp)
     (noticed, colp)
 end
 
+# Stores data from a single model run
+RunSummary = @NamedTuple begin
+    scene          :: Int64
+    color          :: Symbol
+    chain          :: Int64
+    ndetected      :: Int64
+    expected_count :: Float64
+    count_error    :: Float64
+    time           :: Float64
+end
 
 ################################################################################
 # Main Entry
 ################################################################################
 
 function main()
-    result = NamedTuple[]
-    pbar = Progress(length(COLORS) * CHAINS * (FRAMES-1);
-                    desc="Running $(MODEL) model...", dt = 2.0)
-    for color = COLORS
-        experiment = MostExp(DPATH, WM, SCENE, color, FRAMES, SHOW_GORILLA)
+    nruns = 2 * CHAINS
+    nsteps = nruns * (FRAMES-1)
+    pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 2.0)
+
+    # Preallocate simulation results
+    summaries = Vector{RunSummary}(undef, nruns)
+    linds = LinearIndices((CHAINS, 2))
+
+    for (color_idx, color) = enumerate(COLORS)
+        experiment = MostExp(DPATH, WM, SCENE, color, FRAMES)
         gt_count = count_collisions(experiment)
-        Threads.@threads for c = 1:CHAINS
+
+        for c = 1:CHAINS
             run = @timed run_model!(pbar, experiment)
             ndetected, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
-            push!(result,
-                  (scene          = SCENE,
-                   color          = color == Light ? :light : :dark,
-                   chain          = c,
-                   ndetected      = ndetected,
-                   expected_count = expected_count,
-                   count_error    = count_error,
-                   time           = run.time))
+
+            summaries[linds[c, color_idx]] = RunSummary((
+                scene          = SCENE,
+                color          = color == Light ? :light : :dark,
+                chain          = c,
+                ndetected      = ndetected,
+                expected_count = expected_count,
+                count_error    = count_error,
+                time           = run.time
+            ))
         end
     end
     finish!(pbar)
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)-$(ANALYSIS)/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/$(ANALYSIS)"
     isdir(out_dir) || mkpath(out_dir)
-    df = DataFrame(result)
-    CSV.write("$(out_dir)/$(SCENE).csv", DataFrame(result))
-    count_f = x -> count(>(12.0), x) / CHAINS
+    df = DataFrame(summaries)
+    CSV.write("$(out_dir)/$(SCENE).csv", df)
+    count_f = x -> count(>=(18.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color]), :ndetected => count_f))
     return nothing
 end;

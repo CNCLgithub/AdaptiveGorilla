@@ -35,12 +35,14 @@ function push_sample!(m::HashMap{K, V}, coord::K, sample::V) where {K, V}
 end
 
 function fit_map!(m::HashMap, metric)
-    if isempty(m.new_coords) || isempty(m.new_samples)
-        m.map = nothing
-    else
-        # TODO: Implement Base.copyto!
-        m.coords = deepcopy(m.new_coords)
-        m.samples = deepcopy(m.new_samples)
+    if !isempty(m.new_coords) && !isempty(m.new_samples)
+        # Copy over new data
+        copyto!(m.coords, m.new_coords)
+        copyto!(m.samples, m.new_samples)
+        # Flush new data buffers
+        empty!(m.new_coords)
+        empty!(m.new_samples)
+        # Update KD tree
         m.map = KDTree(m.coords, metric)
     end
     return nothing
@@ -64,3 +66,20 @@ function integrate!(idxs::Vector{Int32},
     x - log(k)
     return x
 end
+
+function Base.copyto!(dst::CircularBuffer{K},
+                      src::CircularBuffer{K}) where {K}
+    lsrc = length(src)
+    @inbounds for i = 1:lsrc
+        # `CircularBuffer` does not reallocate =)
+        push!(dst, src[i])
+    end
+    return nothing
+end
+
+
+# @with_kw struct HashRegistry{C, I}
+#     coords::Dict{UInt, C}
+#     integral::Dict{UInt, I}
+#     decay::Float64 = 1.0
+# end

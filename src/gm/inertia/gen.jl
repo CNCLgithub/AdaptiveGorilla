@@ -148,8 +148,7 @@ end
     return force
 end
 
-@gen static function inertia_ensemble(wm::InertiaWM,
-                                      e::InertiaEnsemble)
+@gen static function inertia_ensemble(wm::InertiaWM)
     fx ~ normal(0.0, wm.ensemble_force)
     fy ~ normal(0.0, wm.ensemble_force)
     spread ~ uniform(-wm.ensemble_var_shift, wm.ensemble_var_shift)
@@ -167,7 +166,7 @@ end
     ns = length(bd.singles)
     ne = length(bd.ensembles)
     forces ~ Gen.Map(inertia_force)(Fill(wm, ns), bd.singles)
-    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne), bd.ensembles)
+    eshifts ~ Gen.Map(inertia_ensemble)(Fill(wm, ne))
     shifted::InertiaState = step(wm, bd, forces, eshifts)
 
     # RFS observations

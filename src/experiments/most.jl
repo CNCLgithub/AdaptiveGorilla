@@ -228,7 +228,6 @@ function count_collisions(exp::MostExp)
     return count
 end
 
-# TODO: part of API instead of helper?
 function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
     objp = ObjectPainter()
     idp = IDPainter()
@@ -236,7 +235,7 @@ function render_agent_state(exp::MostExp, agent::Agent, t::Int, path::String)
 
     # Perception
     init = InitPainter(path = "$(path)/$(t).png",
-                       background = "white")
+                       background = "#808080")
 
     _, wm, _ = exp.init_query.args
     # setup

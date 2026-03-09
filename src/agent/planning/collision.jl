@@ -18,6 +18,8 @@ $(TYPEDFIELDS)
     tick_rate::Int = 1
     "Counting cool down"
     cooldown::Int = 5
+    "Threshold to increment collision"
+    threshold::Float64 = 0.20
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
@@ -60,10 +62,11 @@ function module_step!(planner::MentalModule{T},
                               plan_with_delta_pi!,
                               (protocol, attention))
         if state.cooldown == 0
-            # println("LOG COL PROB: $(w)")
-            if log(rand()) < w
+            # println("TIME $(t), LOG COL PROB: $(w)")
+            if log(protocol.threshold * rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
+                # println("COUNT: $(state.expectation)")
             end
         else
             state.cooldown -= protocol.tick_rate
@@ -111,12 +114,7 @@ function plan_with_delta_pi!(
             (_colprob, _dpi) = colprob_and_agrad(single, closest)
             colprob = logsumexp(colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
-            # println("pos: $(get_pos(single)) \n vel: $(get_vel(single))")
-            # @show closest
-            # @show _colprob
-            # @show colprob
         end
-        # @show dpi
         update_dPi!(att, single, dpi)
     end
     @inbounds for j = 1:ne
@@ -129,43 +127,11 @@ function plan_with_delta_pi!(
             (_colprob, _dpi) = colprob_and_agrad(x, closest)
             colprob = logsumexp(colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
-            # println("pos: $(get_pos(x)) \n vel: $(get_vel(x)) \n spread: $(get_var(x))")
-            # @show closest
-            # @show _colprob
-            # @show colprob
         end
         update_dPi!(att, x, dpi)
     end
     return colprob
 end
-
-# # HACK: assumes object radius
-# function colprob_and_agrad(pos::S2V, w::Wall, radius::Float64 = 5)
-#     p = exp(min(0.0, -log(d) - 1))
-#     dpdx = min(1.0, 1 / d )
-#     (p, dpdx)
-
-#     distance = max(0.1, (w.d - sum(w.normal .* pos)) - 10)
-
-#     distance = abs(w.d - dot(x, w.normal))
-
-#     # Distance distribution over near future
-#     v_orth = dot(v, w.normal)
-#     mu = 0.5 * v_orth + get_size(obj)
-#     sigma = 5.0 * abs(v_orth)
-#     z = (distance - mu) / sigma
-#     # CCDF up to wall
-#     lcdf = Distributions.logcdf(standard_normal, z)
-
-#     # Account for heading - low prob if object is facing away
-#     log_angle = log(0.5 * (dot(normalize(v), w.normal) + 1.0))
-#     log_angle = clamp(log_angle, -10.0, 0.0)
-#     logcolprob = log_angle + log1mexp(lcdf) # Pr(col) = 1 - Pr(!col)
-
-#     # pdf is the derivative of the cdf
-#     dpdz = log_angle + log_grad_normal_cdf_erfcx(z)
-#     (logcolprob, dpdz)
-# end
 
 function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     # Distance between object and wall
@@ -173,17 +139,17 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v = get_vel(obj)
     distance = abs(w.d - dot(x, w.normal)) - radius
     # Average time (steps) to collision
-    v_orth = min(dot(v, w.normal), 4.5)
+    v_orth = dot(v, w.normal)
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Penalty for higher angular velocity
-    sigma = exp(-0.5*abs(get_avel(obj)))
+    sigma = 0.25 * exp(0.25*abs(get_avel(obj)))
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
     lcdf = Distributions.logcdf(standard_normal, z)
     # pdf is the derivative of the cdf
     dpdz = Distributions.logpdf(standard_normal, z)
-    # if dpdz > -15
+    # if lcdf > -0.5
     #     @show x
     #     @show v
     #     @show v_orth
@@ -216,7 +182,7 @@ function colprob_and_agrad(obj::InertiaEnsemble, w::Wall)
     # This is because ensemble spread relates
     # to its entropy, with more entropy
     # increasing the variance over velocity direction
-    sigma = r  / sqrt(get_var(obj))
+    sigma = 1.0 / get_var(obj)
     z = (1.0 - dt) / sigma
     # CDF up to 1 step
     pcol = Distributions.logcdf(standard_normal, z)

@@ -5,6 +5,8 @@ include("distributions/distributions.jl")
 include("io.jl")
 include("datastructures.jl")
 include("query.jl")
+include("bell.jl")
+include("softplus.jl")
 
 const WALL_ANGLES = [0.0, pi/2, pi, 3/2 * pi]
 

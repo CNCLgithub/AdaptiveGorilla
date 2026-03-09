@@ -10,15 +10,15 @@
 # Includes
 ################################################################################
 
+using CSV
+using Random
 using ArgParse
+using DataFrames
 using ProgressMeter
-using DataFrames, CSV
 using AdaptiveGorilla
 using Statistics: mean
 using UnicodePlots: Plot, lineplot!, histogram
 
-using Random
-# Random.seed!(123)
 
 ################################################################################
 # Command Line Interface
@@ -32,12 +32,7 @@ MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
 ANALYSES_VARIANTS = [:NOTICE, :PERF]
 
 s = ArgParseSettings()
-
 @add_arg_table! s begin
-
-    "--restart", "-r"
-    help = "Whether to resume inference"
-    action = :store_true
 
     "--analyses"
     help = "Model analyses. Either NOTICE or PERF"
@@ -58,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -68,39 +63,34 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
+WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
+
 
 ################################################################################
 # General Experiment Parameters
 ################################################################################
 
+# Setting seed for reproducibility
+Random.seed!(123)
+
 # which dataset to run
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "study2"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 # 4 Conditions total: 2 colors x 2 gorilla parents
+
+# Gorilla parent
 LONE_PARENT = [true, false]
 NP = length(LONE_PARENT)
-# SWAP_COLORS = [false, true]
-SWAP_COLORS = [false]
+
+# Swapping all object colors
+SWAP_COLORS = [false, true]
 NSC = length(SWAP_COLORS)
 
-################################################################################
-# ANALYSES
-################################################################################
-
-ANALYSIS = PARAMS["analyses"]
-
-if ANALYSIS == :NOTICE
-    SHOW_GORILLA=true
-
-elseif ANALYSIS == :PERF
-    SHOW_GORILLA=false
-end
 
 ################################################################################
 # Analysis Parameters
@@ -114,7 +104,16 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.2
+
+ANALYSIS = PARAMS["analyses"]
+
+if ANALYSIS == :NOTICE
+    SHOW_GORILLA=true
+
+elseif ANALYSIS == :PERF
+    SHOW_GORILLA=false
+end
 
 ################################################################################
 # Methods
@@ -151,14 +150,14 @@ RunSummary = @NamedTuple begin
 end
 
 
-TimeSeries = @NamedTuple begin
-    color   :: Symbol
-    parent  :: Symbol
-    chain   :: Int64
-    frame   :: UnitRange{Int64}
-    pnotice :: Vector{Float64}
+# TimeSeries = @NamedTuple begin
+#     color   :: Symbol
+#     parent  :: Symbol
+#     chain   :: Int64
+#     frame   :: UnitRange{Int64}
+#     pnotice :: Vector{Float64}
     
-end
+# end
 
 ################################################################################
 # Main Entry
@@ -172,7 +171,7 @@ function main()
                     dt = 1.0)
     # Preallocate simulation results
     summaries = Vector{RunSummary}(undef, nruns)
-    time_series = Vector{TimeSeries}(undef, nruns)
+    # time_series = Vector{TimeSeries}(undef, nruns)
     linds = LinearIndices((CHAINS, NP, NSC))
     # Go through each of the conditions
     for (i, swap) = enumerate(SWAP_COLORS), (j, lone) = enumerate(LONE_PARENT)
@@ -180,9 +179,11 @@ function main()
         color = swap ? :dark : :light
         parent = lone ? :lone : :grouped
         # Load the experiment
-        experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES)
+        experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES,
+                             show_gorilla=SHOW_GORILLA)
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
+        # @show gt_count
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
             run = @timed run_model!(pbar, experiment)
@@ -200,55 +201,67 @@ function main()
                 time           = run.time
             ))
 
-            time_series[linds[c,j,i]] = TimeSeries((
-                color   = color,
-                parent  = parent,
-                chain   = c,
-                frame   = 1:(FRAMES-1),
-                pnotice = pnoticed
-            ))
+            # time_series[linds[c,j,i]] = TimeSeries((
+            #     color   = color,
+            #     parent  = parent,
+            #     chain   = c,
+            #     frame   = 1:(FRAMES-1),
+            #     pnotice = pnoticed
+            # ))
         end
     end
     finish!(pbar)
 
     # Record results to CSV
-    out_dir = "/spaths/experiments/" *
-        "$(DATASET)/$(MODEL)-$(ANALYSIS)" *
-        "/scenes"
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/$(ANALYSIS)"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-    count_f = x -> count(>(12), x) / CHAINS
 
-    by_cond = groupby(df, [:color, :parent])
-    display(combine(by_cond, :ndetected => count_f))
-    for k = keys(by_cond)
-        g = by_cond[k]
-        display(
-            histogram(g[!, :ndetected], nbins=30, vertical=true,
-                      title = repr(NamedTuple(k)),
-                      xlim = (0, 48))
-        )
-    end
+    # Additional visualizations
+    # count_f = x -> count(>=(18), x) / CHAINS
 
-    noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
-    by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
-                       :pnotice => mean)
-    plot = Plot(;
-                title="Chain Averages",
-                xlabel = "t",
-                ylabel = "Pr(Notice)",
-                xlim = (1, FRAMES-1),
-                ylim = (0, 1),
-                )
-    g_by_frame = groupby(by_frame, [:color, :parent])
-    for k = keys(g_by_frame)
-        g = g_by_frame[k]
-        lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
-                  name = repr(NamedTuple(k)))
-    end
-    display(plot)
+    # by_cond = groupby(df, [:color, :parent])
+    # display(combine(by_cond, :ndetected => count_f))
+    # for k = keys(by_cond)
+    #     g = by_cond[k]
+    #     display(
+    #         histogram(g[!, :ndetected], nbins=10, vertical=true,
+    #                   title = repr(NamedTuple(k)),
+    #                   xlim = (0, 36))
+    #     )
+    # end
 
+    # noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
+    # by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
+    #                    :pnotice => mean)
+    # plot = Plot(;
+    #             title="Chain Averages",
+    #             xlabel = "t",
+    #             ylabel = "Pr(Notice)",
+    #             xlim = (1, FRAMES-1),
+    #             ylim = (0, 1),
+    #             )
+    # g_by_frame = groupby(by_frame, [:color, :parent])
+    # for k = keys(g_by_frame)
+    #     g = g_by_frame[k]
+    #     lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
+    #               name = repr(NamedTuple(k)))
+    # end
+    # display(plot)
+
+
+    # display(
+    #     histogram(df[!, :expected_count], vertical=true,
+    #               width=30, nbins=10,
+    #               title = "Expected Count")
+    # )
+
+    # display(
+    #     histogram(df[!, :count_error], vertical=true,
+    #               width=30, nbins=10,
+    #               title = "Counting Error (%)")
+    # )
 
     return nothing
 end;

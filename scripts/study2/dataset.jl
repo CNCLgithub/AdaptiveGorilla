@@ -7,9 +7,9 @@ using FillArrays
 using StaticArrays
 using UnicodePlots
 using Statistics: mean
-using LinearAlgebra: norm, cross, dot
-using AdaptiveGorilla: ncr, S2V
 using Accessors: setproperties
+using AdaptiveGorilla: ncr, S2V
+using LinearAlgebra: norm, cross, dot
 using MOTCore: scholl_delta, scholl_init, in_bounds
 
 include("running_stats.jl")
@@ -232,8 +232,7 @@ end
 
 function main()
 
-    dataset = "target_ensemble"
-    version = "0.2"
+    dataset = "study2"
     nscenes = 6
     nexamples = 3
     fps = 24

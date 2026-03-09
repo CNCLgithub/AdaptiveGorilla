@@ -1,17 +1,19 @@
-# Sustained Inattentional Blindness (Most et. al 2001)
+# Study 1
 
-These scripts correspond to Study 1, demonstrating the first model of SIB.
+These scripts correspond to Study 1, demonstrating the first model of SIB, based off [Most et. al 2001](https://doi.org/10.1111/1467-9280.00303).
+
 
 ## Scripts
 
-- `dataset.jl`: Generates a series of trials.
-- `run_model.jl`: Runs a model variant on the given dataset.
+- `dataset.jl`: Generates a series of trials. The exact copy of the script used can be found under `env.d/spaths/datasets/study1/script.jl`
+- `run_model.jl`: Runs a model variant on the given dataset, the results will be located at `env.d/spaths/experiments/study1`
+- `aggregate_runs.jl`: Combines all of the runs across models in to a csv file: `env.d/spaths/experiments/study1/aggregate.csv`.
+`
 
 ## Auxillary scripts
 
-- `running_stats.jl`: A helper script using in `dataset.jl`.
 - `gen_joblist.sh`: A helper script to create a joblist for Yale's [dSQ](https://github.com/ycrc/dsq) program.
-- `render_dataset.jl`: A simple visualizer of object motions. Meant for internal purposes. To view the trials, see the experiment code in https://github.com/CNCLgithub/ib-jspsych
+- `dsq-jobfile.sh`: The file produced by dSQ that can be submitted to `sbatch`. (Note: the file should be regenerated on your own slurm cluster, see below)
 
 
 ## Running on a cluster
@@ -37,10 +39,13 @@ Yielding:
 #SBATCH --partition=day --cpus-per-task=8 --mem=4GB --time=60 --chdir=/gpfs/radev/home/meb266/scratch/AdaptiveGorilla
 
 # DO NOT EDIT LINE BELOW
-/gpfs/radev/apps/avx512/software/dSQ/1.05/dSQBatch.py --job-file /gpfs/radev/scratch/yildirim/meb266/AdaptiveGorilla/scripts/sib/joblist.txt --status-dir /gpfs/radev/home/meb266/scratch/AdaptiveGorilla/env.d/spaths/slurm
+/gpfs/radev/apps/avx512/software/dSQ/1.05/dSQBatch.py --job-file /gpfs/radev/scratch/yildirim/meb266/AdaptiveGorilla/scripts/study1/joblist.txt --status-dir /gpfs/radev/home/meb266/scratch/AdaptiveGorilla/env.d/spaths/slurm
 ```
 
-3. Submit the batch job to slurm: `sbatch scripts/sib/dsq-jobfile.sh`
+3. Submit the batch job to slurm: `sbatch scripts/study1/dsq-jobfile.sh`
 
 
-The results should appear under `env.d/spaths/experiments/sib`.
+The results should appear under `env.d/spaths/experiments/study1`.
+
+
+## Replicating Analyses

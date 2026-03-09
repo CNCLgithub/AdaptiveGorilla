@@ -25,11 +25,6 @@ function MOTCore.paint(p::InitPainter, area_width, area_height)
 end
 
 function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
-
-    # TODO: figure out how to visualize this (dash around emsemble, see its center( a dot?),
-    # its cardinality (colour change or a number) )
-
-    # println("\nobj_var $(obj.var)")
     std = obj.var
     w = round(obj.matws[1]; digits = 2)
     w = clamp(w, .2, .8)

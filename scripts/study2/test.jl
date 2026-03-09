@@ -19,9 +19,10 @@ using ProgressMeter
 using AdaptiveGorilla
 using UnicodePlots: Plot, lineplot!, hline!, histogram
 using AdaptiveGorilla: count_collisions
+import AdaptiveGorilla as AG
 
 using Random
-# Random.seed!(123)
+#Random.seed!()
 
 ################################################################################
 # Command Line Interface
@@ -41,7 +42,7 @@ s = ArgParseSettings()
     "--analyses"
     help = "Model analyses. Either NOTICE or PERF"
     range_tester = in(ANALYSES_VARIANTS)
-    default = :NOTICE
+    default = :PERF
 
     "model"
     help = "Model Variant"
@@ -52,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 2
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -62,24 +63,22 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
 # World model parameters; See "?InertiaWM" for documentation.
-WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
+WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
 ################################################################################
 
 # which dataset to run
-DATASET = "target_ensemble/2025-06-09_W96KtK"
+DATASET = "study2"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 200
+FRAMES  = 240
 
 LONE_PARENT = true
-# LONE_PARENT = false
-
 SWAP_COLORS = false
 
 ################################################################################
@@ -103,14 +102,14 @@ RENDER = true
 # RENDER = false
 
 # Number of model runs per condition
-CHAINS = RENDER ? 1 : 32
+CHAINS = RENDER ? 1 : 16
 
 # The probability lower bound of gorilla noticing.
 # The probability is implemented with `detect_gorilla` and it's marginal is
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.25
+NOTICE_P_THRESH = 0.20
 
 ################################################################################
 # Methods
@@ -164,12 +163,16 @@ function main()
            NOTICE_P_THRESH,
            name = "Threshold")
     ndetected = Vector{Int64}(undef, CHAINS)
-    experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES)
+    experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES;
+                         show_gorilla = SHOW_GORILLA)
     gt_count = count_collisions(experiment)
+    @show gt_count
     collision_counts = Vector{Float64}(undef, CHAINS)
+
     Threads.@threads for c = 1:CHAINS
-        results = run_model!(pbar, experiment, RENDER)
-        # RENDER && show(results; allrows=true)
+    # for c = 1:CHAINS
+        results = run_model!(pbar, experiment, c == 1)
+        RENDER && show(results; allrows=true)
         # println()
         collision_counts[c] = last(results[!, :collision_p])
         ndetected[c] = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
@@ -180,14 +183,14 @@ function main()
     finish!(pbar)
     display(plot)
     RENDER || display(
-        histogram(ndetected, nbins=10,
+        histogram(ndetected, nbins=15,
                   title = "Frames noticed",
-                  xlim = (0, 48))
+                  vertical = true)
     )
     RENDER ?
         println("Collision counts: $(collision_counts)") :
-        histogram(collision_counts, nbins=10,
-                  title = "Collision counts")
+        display(histogram(collision_counts, nbins=5, vertical=true,
+                  title = "Collision counts"))
     return nothing
 end;
 

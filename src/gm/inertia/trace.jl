@@ -128,3 +128,7 @@ function object_from_idx(tr::InertiaTrace, idx::Int64)
     state = get_last_state(tr)
     object_from_idx(state, idx)
 end
+
+function pretty_state(tr::InertiaTrace)
+    pretty_state(get_last_state(tr))
+end

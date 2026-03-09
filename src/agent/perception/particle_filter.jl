@@ -68,6 +68,9 @@ function retrieve_map(chain::APChain)
     state.traces[argmax(state.log_weights)]
 end
 
+const INERTIA_ARG_DIFFS =
+    (Gen.UnknownChange(), Gen.NoChange(), Gen.NoChange())
+
 function reinit_chain(chain::APChain, template::InertiaTrace,
                       cm = choicemap())
     pf = estimator(chain)
@@ -76,7 +79,6 @@ function reinit_chain(chain::APChain, template::InertiaTrace,
     _, wm, _ = q.args
     ws = get_last_state(template)
     args = (0, wm, ws)
-    argdiffs = (Gen.UnknownChange(), Gen.NoChange(), Gen.NoChange())
-    q = IncrementalQuery(q.model, cm, args, argdiffs, 1)
+    q = IncrementalQuery(q.model, cm, args, INERTIA_ARG_DIFFS, 1)
     Gen_Compose.initialize_chain(pf, q, steps)
 end

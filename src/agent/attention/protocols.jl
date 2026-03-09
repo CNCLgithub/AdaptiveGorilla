@@ -94,6 +94,8 @@ export AdaptiveComputation,
     itemp::Float64 = 3.0
     "Load - constant for now"
     load::Int64 = 20
+    load_m::Float64 = 20.0
+    load_x0::Float64 = 5.0
 end
 
 mutable struct AdaptiveAux <: MentalState{AdaptiveComputation}
@@ -140,21 +142,17 @@ function update_task_relevance!(att::MentalModule{A}
     return nothing
 end
 
-# TODO: revisit after `importance`
-# Can implement by storing running average
 function load(p::AdaptiveComputation, x::AdaptiveAux, deltas::Vector{Float64})
     isempty(x) && return p.load
-    m = 1.0
-    x0 = 0.0
-    x = (logsumexp(deltas) - x0) / m
+    x = (logsumexp(deltas) - p.load_x0) / p.load_m
     p.load * exp(min(x, 0.0))
 end
 
-function task_relevance(
-        x::AdaptiveAux,
-        partition::TracePartition{T},
-        trace::T,
-        k::Int = 25) where {T<:Gen.Trace}
+function task_relevance(x::AdaptiveAux,
+                        partition::TracePartition{T},
+                        trace::T,
+                        k::Int = 25
+                        ) where {T<:Gen.Trace}
     @unpack dPi, dS = x
     n = latent_size(partition, trace)
     # NOTE: case with empty estimate?
@@ -165,9 +163,8 @@ function task_relevance(
     idxs, dists = zeros(Int32, k), zeros(Float32, k)
     for i = 1:n
         coord = get_coord(partition, trace, i)
-        _dpi = integrate!(idxs, dists, coord, dPi)
-        # tr[i] = _dpi
-        _ds  = integrate!(idxs, dists, coord, dS )
+        _dpi  = integrate!(idxs, dists, coord, dPi)
+        _ds   = integrate!(idxs, dists, coord, dS )
         tr[i] = _dpi + _ds
     end
     return tr
@@ -202,12 +199,11 @@ function attend!(chain::APChain, att::MentalModule{AdaptiveComputation})
         importance = softmax(deltas, itemp)
         tload = load(protocol, aux, deltas)
         nobj = length(deltas)
-        steps_per_obj = round(Int, base_steps / nobj)
+        steps_per_obj = floor(Int, base_steps / nobj)
         # Stage 2
         # select latent and C_k
         for j = 1:nobj
-            steps = steps_per_obj +
-                round(Int, tload * importance[j])
+            steps = steps_per_obj + round(Int, tload * importance[j])
             for _ = 1:steps
                 prop = select_prop(partition, trace, j)
                 # Apply computation, estimate dS
@@ -232,16 +228,12 @@ end
 function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
     delta_score = 0.0
     for _ = 1:steps
-        # new_trace, w = baby_ancestral_proposal(trace)
-        idx = categorical(ws)
-        new_trace, w = bd_loc_transform(trace, idx)
-        # if rand() < 0.5
-        #     new_trace, w = baby_ancestral_proposal(trace)
-        # else
-        #     idx = categorical(ws)
-        #     new_trace, w = bd_loc_transform(trace, idx)
-        # end
-        # Importance driven (or uniform)
+        if rand() < 0.5
+            new_trace, w = baby_ancestral_proposal(trace)
+        else
+            idx = categorical(ws)
+            new_trace, w = bd_loc_transform(trace, idx)
+        end
         if log(rand()) < w
             trace = new_trace
             delta_score = w
@@ -249,23 +241,4 @@ function baby_loop(trace::Trace, ws::Vector{Float64}, steps = 3)
         end
     end
     return (trace, delta_score)
-    # trace, rw_score = baby_ancestral_mh_kernel(trace)
-    # return (trace, delta_score + rw_score)
-end
-
-function baby_ancestral_mh_kernel(trace::InertiaTrace, steps = 10)
-    t, wm, istate = get_args(trace)
-    switch_idx = trace[:kernel => t => :bd => :i]
-    switch_idx != 2 && return (trace, 0.0)
-    # A birth has just occured
-    ns = single_count(trace)
-    delta_score = 0.0
-    for _ = 1:steps
-        new_trace, w = single_ancestral_proposal(trace, ns) 
-        if log(rand()) < w
-            trace = new_trace
-            delta_score += w
-        end
-    end
-    (trace, delta_score)
 end

@@ -10,7 +10,7 @@ using SparseArrays: sparsevec
 "No restructuring"
 struct StaticRKernel <: RestructuringKernel end
 
-function restructure_kernel(::StaticRKernel, t::InertiaTrace)
+function restructure_kernel(::StaticRKernel, ::Any, ::Any, t::InertiaTrace, i::Int)
     cm = choicemap()
     cm[:s0 => :nsm] = 1 # no change
     return cm
@@ -34,8 +34,8 @@ function restructure_kernel end
     restructure_prob::Float64 = 0.5
 end
 
-function restructure_kernel(kappa::UniformSplitMerge,
-                            t::InertiaTrace)
+function restructure_kernel(kappa::UniformSplitMerge, ::MemoryFitness, ::Nothing,
+                            t::InertiaTrace, i::Int)
     cm = choicemap()
     if rand() < kappa.restructure_prob
         # SPLIT | MERGE
@@ -51,11 +51,13 @@ function restructure_kernel(kappa::UniformSplitMerge,
 end
 
 function split_prob(::UniformSplitMerge, tr::InertiaTrace)
-    # Only one ensemble -> can't merge
-    representation_count(tr) == 1 && return 1.0
-    # No ensemble -> can't split
-    ensemble_count(tr) == 0 && return 0.0
-    # 50/50 split/merge
+    ne = ensemble_count(tr)
+    re = representation_count(tr)
+    # Edge cases:
+    #   (1) No ensemble -> can't split
+    #   (2) Only one ensemble -> can't merge
+    ne == 0 && return 0.0
+    re == 1 && return 1.0
     return 0.5
 end
 
@@ -85,11 +87,7 @@ end
     "Reference to and AdaptiveComputation module"
     att::MentalModule{<:AdaptiveComputation}
     # Restructure
-    restructure_prob_min::Float64 = 0.25
-    restructure_prob_max::Float64 = 0.75
-    restructure_prob_delta::Float64 = (restructure_prob_max -
-        restructure_prob_min)
-    restructure_prob_slope::Float64 = 10.0
+    restructure_prob::Float64 = 0.5
     # Split
     split_tau::Float64 = 1.0
     # Merge
@@ -99,37 +97,27 @@ end
 end
 
 function restructure_kernel(kappa::MhoSplitMerge,
-                            t::InertiaTrace)
+                            fitness::MhoFitness,
+                            state::MhoScores,
+                            t::InertiaTrace,
+                            chain_idx::Int)
     # Task-relevance will inform the kernel at several points
-    attp, attx = mparse(kappa.att)
-    tr = task_relevance(attx,
-                        attp.partition,
-                        t,
-                        attp.nns)
-
+    schema_id = state.schema_map[chain_idx]
+    time_integral = reconstitute_deltas(state.rep_deltas,
+                                        state.schema_registry,
+                                        schema_id)
     cm = choicemap()
-    if rand() < restructure_prob(kappa, tr)
-        smw = split_prob(kappa, t, tr)
-        # SPLIT | MERGE
-        # if rand() < split_prob(kappa, t, tr)
-        # println("Pr(Split) = $(smw)")
-        if rand() < smw
-            sample_split_move!(cm, kappa, t, tr)
+    if rand() < kappa.restructure_prob
+        split_or_merge = split_prob(kappa, t, time_integral)
+        if rand() < split_or_merge
+            sample_split_move!(cm, kappa, t, time_integral)
         else
-            sample_merge_move!(cm, kappa, t, tr)
+            sample_merge_move!(cm, kappa, t, time_integral)
         end
     else
         cm[:s0 => :nsm] = 1 # no change
     end
     return cm
-end
-
-function restructure_prob(k::MhoSplitMerge, tr::Vector{Float64})
-    mag = logsumexp(tr) # REVIEW: needed elsewhere? 
-    x = exp(mag / k.restructure_prob_slope)
-    w = k.restructure_prob_min + min(k.restructure_prob_delta, x)
-    println("Restructure prob: $(w)")
-    return w
 end
 
 function split_prob(kappa::MhoSplitMerge,
@@ -150,6 +138,15 @@ function split_prob(kappa::MhoSplitMerge,
     #   2. Max delta is ensemble? => Split
     count(isinf, deltas) > 2  && return 0.1
     argmax(deltas) > ns && return 0.9
+
+    # Avoid merging into single ensemble
+    ns == 1 && return 0.9
+
+    # If relatively few representations have all of the TR,
+    # then recommend merging
+    log_normed_deltas = deltas .- logsumexp(deltas)
+    ess = Gen.effective_sample_size(log_normed_deltas)
+    ess < 0.5 * re && return 0.1
      
     # 50/50
     return 0.5
@@ -195,20 +192,10 @@ end
 function merge_weights(k::MhoSplitMerge,
                        t::InertiaTrace,
                        deltas::Vector{Float64})
-
-    # Determine importance: Less importance -> higher merge weight
-    # NOTE: importance temperature scales with |tr|
-    #   - at low |tr|, differences don't matter as much
-    # temp = 10*attp.itemp - logsumexp(tr)
-    # temp = max(temp, 1.0)
-    # importance = softmax(tr, temp)
-    # importance = softmax(tr, attp.itemp)
-
-    attp, attx = mparse(k.att)
-    # @show tr
-    # @show importance
-    # The weight of each merge pair is simply the sum of their importance values
     ntotal = length(deltas)
+    if ntotal < 2
+        error("Attempting to merge in trace with only 1 representation")
+    end
     # Only consider the `k` least important elements
     # (to reduce combinatoric explosions)
     ncandidates = min(ntotal, k.merge_max_elems)
@@ -220,33 +207,18 @@ function merge_weights(k::MhoSplitMerge,
         (x, y) = combination(ncandidates, 2, i)
         a = cand_indices[x]
         b = cand_indices[y]
-        # Pr(Merge) inv. prop. importance
         pair_id[i] = combination_rank(ntotal, 2, [a, b])
-        # pair_ws[i] = .75*(1.0 - importance[a])^75 * .75*(1.0 - importance[b])^75
-        # pair_ws[i] = 0.5((1.0 - importance[a])^100 * (1.0 - importance[b])^100)
-        pair_ws[i] = logsumexp(deltas[a], deltas[b]) +
-            2*dissimilarity(t, attp.map_metric, a, b)
-        # pair_ws[i] = logsumexp(
-        #     logsumexp(deltas[a], deltas[b]),
-        #     -dissimilarity(t, a, b))
-        # println("W: $(a),$(b) => $(pair_ws[i])")
-        # println("ID: $(a),$(b) => $(pair_id[i]) =>"*
-        #     " $(combination(ntotal, 2, pair_id[i]))")
+        pair_ws[i] = logsumexp(deltas[a], deltas[b])
     end
-    # deterministic if only 1 pair | categorical
-    if ncandidates > 2
-        # Normalize
-        # rmul!(pair_ws, 1.0 / sum(pair_ws))
-        pair_ws = inv_softmax(pair_ws, k.merge_tau, -1E5)
-    else
-        pair_ws[1] = 1.0
+    if ncandidates > 2 
+        pair_ws = inv_softmax(pair_ws, k.merge_tau, -1E5) # Normalize
+    else 
+        pair_ws[1] = 1.0 # deterministic if only 1 pair | categorical
     end
-    
     # Store merge-weights in a sparse vector
-    total_pairs = ncr(ntotal, 2)
-    ws = sparsevec(pair_id, pair_ws, total_pairs)
-
     # NOTE: to retrieve members use:
     # selected = combination(total_pairs, 2, pair_idx)
+    total_pairs = ncr(ntotal, 2)
+    ws = sparsevec(pair_id, pair_ws, total_pairs)
     return ws
 end

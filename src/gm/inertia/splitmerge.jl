@@ -80,7 +80,7 @@ function apply_granularity_move(m::SplitMove, wm::InertiaWM, state::InertiaState
     InertiaState(new_singles, new_ensembles)
 end
 
-VAR_POS = 0.2
+VAR_POS = 0.25
 
 function apply_split(e::InertiaEnsemble, x::InertiaSingle)
     new_count = e.rate - 1
@@ -116,8 +116,8 @@ function apply_merge(a::InertiaSingle, b::InertiaSingle)
     matws = zeros(NMAT)
     matws[Int64(a.mat)] += 0.5
     matws[Int64(b.mat)] += 0.5
-    delta_pos = (get_pos(a) + get_pos(b))
-    new_pos = 0.5 .* delta_pos
+    delta_pos = (get_pos(a) - get_pos(b))
+    new_pos = 0.5 .* (get_pos(a) + get_pos(b))
     mag_pos = max(norm(delta_pos), 1.0)
     std = VAR_POS * mag_pos
     new_vel = 0.5 * (get_vel(a) + get_vel(b))
@@ -161,13 +161,14 @@ function apply_merge(a::InertiaEnsemble, b::InertiaEnsemble)
     new_count = a.rate + b.rate
     matws = a.rate .* a.matws + b.rate .* b.matws
     lmul!(1.0 / new_count, matws)
-    delta_pos = (get_pos(a) - get_pos(b)) / new_count
-    delta_vel = (get_vel(a) - get_vel(b)) / new_count
-    new_pos = get_pos(b) + delta_pos
-    new_vel = get_vel(b) + delta_vel
+    new_pos = (a.rate/new_count)*get_pos(a) +
+        (b.rate/new_count)*get_pos(b)
+    new_vel = (a.rate/new_count)*get_vel(a) +
+        (b.rate/new_count)*get_vel(b)
 
+    delta_pos = get_pos(a) - get_pos(b)
     mag_pos = max(norm(delta_pos), 1.0)
-    var = 0.25*mag_pos + get_var(a) * a.rate / new_count +
+    var = VAR_POS*mag_pos + get_var(a) * a.rate / new_count +
         get_var(b) * b.rate / new_count
     # println("Growing $(get_var(a)), $(get_var(b)) -> $(var)")
     InertiaEnsemble(

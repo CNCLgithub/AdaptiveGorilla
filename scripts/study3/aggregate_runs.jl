@@ -2,8 +2,7 @@ using CSV
 using DataFrames
 using Statistics: mean
 
-NOTICE_MIN_FRAMES = 18
-DATASET = "load_curve"
+DATASET = "study3"
 MODELS = [:mo, :ja, :ta, :fr]
 
 function load_result(path::String)
@@ -18,8 +17,7 @@ function merge_results(path::String)
 end
 
 function aggregate_results(model)
-    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)-NOTICE"
-    RUN_PATH = "$(BASE_PATH)/scenes"
+    RUN_PATH = "/spaths/experiments/$(DATASET)/$(model)/runs"
     all = merge_results(RUN_PATH)
     g = groupby(all, [:scene, :ndark])
     c = combine(g,

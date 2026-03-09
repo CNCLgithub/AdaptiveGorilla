@@ -72,6 +72,14 @@ function module_step!(perception::MentalModule{T},
     return nothing
 end
 
+function reset_state!(visstate::HyperState, visp::HyperFilter)
+    visstate.age = 1
+    temp_chains = visstate.chains
+    visstate.chains = visstate.new_chains
+    visstate.new_chains = temp_chains
+    return nothing
+end
+
 function estimate_marginal(perception::MentalModule{T},
                            func::Function,
                            args::Tuple
@@ -79,7 +87,9 @@ function estimate_marginal(perception::MentalModule{T},
     pf, st = mparse(perception)
     m = -Inf
     for i = 1:pf.h
-        m = logsumexp(m, estimate_marginal(st.chains[i], func, args))
+        v = estimate_marginal(st.chains[i], func, args)
+        m = logsumexp(m, v)
     end
-    return m - log(pf.h)
+    m -= log(pf.h)
+    return m
 end

@@ -1,6 +1,6 @@
 format = "Agent"
 version = "1.0"
-name = "Fixed Resource"
+name = "Task-Agnostic"
 
 
 ################################################################################
@@ -11,12 +11,12 @@ name = "Fixed Resource"
 protocol = "HyperFilter"
 
 [Perception.params]
-dt = 12 # Time window, ~1.5s
+dt = 18 # Time window, ~1.5s
 h  = 5  # Number of hyper particles
 
 [Perception.params.pf]
 protocol = "AdaptiveParticleFilter"
-params = {particles = 5} # Number of inner particles
+params = {particles = 10} # Number of inner particles
 
 ################################################################################
 # Planning
@@ -27,7 +27,7 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"
-cooldown = 8
+cooldown = 4
 tick_rate = 1
 
 ################################################################################
@@ -52,7 +52,11 @@ tau = 1.0
 perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 
 [Memory.params.fitness]
-protocol = "MLLFitness"
+protocol = "CompFitness"
+params = { "complexity_mass" = 0.5}
 
 [Memory.params.kernel]
-protocol = "StaticRKernel"
+protocol = "UniformSplitMerge"
+
+[Memory.params.kernel.params]
+restructure_prob = 0.5

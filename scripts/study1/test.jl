@@ -16,9 +16,11 @@ using Gen_Compose
 using ProgressMeter
 using DataFrames, CSV
 using AdaptiveGorilla
+using AdaptiveGorilla:  count_collisions
 
-using AdaptiveGorilla: S3V, count_collisions
-using Distances: WeightedEuclidean
+using Profile
+using StatProfilerHTML
+
 
 ################################################################################
 # Command Line Interface
@@ -61,7 +63,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 1
+    default = 3
 
 end
 
@@ -73,9 +75,9 @@ PARAMS = parse_args(ARGS, s)
 
 # which model variant to run (uncomment 1 of the lines below)
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/models/$(MODEL).toml"
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/models/wm.toml")
+WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
 ################################################################################
 # ANALYSES
@@ -89,14 +91,14 @@ SHOW_GORILLA = true # ANALYSIS == :NOTICE
 ################################################################################
 
 # which dataset to run
-DATASET = "most"
+DATASET = "study1"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 60
+FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Light]
+COLORS = [Dark]
 
 ################################################################################
 # Analysis Parameters
@@ -110,7 +112,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.50
+NOTICE_P_THRESH = 0.20
 
 ################################################################################
 # Methods
@@ -123,19 +125,23 @@ function init_agent(query)
 end
 
 function run_model!(pbar, exp)
+    Profile.clear()
     agent = load_agent(MODEL_PARAMS, exp.init_query)
     out = "/spaths/tests/most"
     isdir(out) || mkpath(out)
 
     results = DataFrame(
         :frame => Int64[],
+        :time => Float64[],
         :gorilla_p => Float64[],
         :collision_p => Float64[],
         :birth_p => Float64[],
     )
     for t = 1:(FRAMES - 1)
-        _results = test_agent!(agent, exp, t)
+        step = @timed test_agent!(agent, exp, t)
+        _results = step.value
         _results[:frame] = t
+        _results[:time] = step.time
         push!(results, _results)
         render_agent_state(exp, agent, t, out)
         next!(pbar)
@@ -156,12 +162,15 @@ function main()
         gt_count = count_collisions(experiment)
         @show gt_count
         results = run_model!(pbar, experiment)
-        show(results; allrows=true)
+        # show(results; allrows=true)
         println("\n  ------")
-        count_f = x -> count(>(0.25), x) / CHAINS
+        count_f = x -> count(>=(NOTICE_P_THRESH), x) / CHAINS
+        display(last(results))
         @show count_f(results[!, :gorilla_p])
+        @show sum(results[:, :time])
     end
     finish!(pbar)
+    # Profile.print()
     return nothing
 end;
 

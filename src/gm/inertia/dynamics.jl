@@ -5,7 +5,6 @@ function object_bounds(wm::InertiaWM)
     (xs, ys)
 end
 
-# TODO: death weight for extra color.
 """
 Uniform probability of Pr(Obj | Death = true)
 """
@@ -16,7 +15,9 @@ end
 
 function death_weight(wm::InertiaWM, st::InertiaState)
     object_count(st) > wm.object_rate && !isempty(st.singles) ?
-        (1.0 - wm.birth_weight) : 0
+        0.01 : 0
+        # wm.birth_weight : 0
+        # (1.0 - wm.birth_weight) : 0
 end
 
 function death_from_switch(prev, idx)
@@ -147,14 +148,10 @@ function update_state(e::InertiaEnsemble, wm::InertiaWM, update::S3V)
     x, y = pos
     dx, dy, dvar = update
 
-    mxv = 2.0 * wm.vel
-    dx = clamp(dx, -mxv, mxv)
-    dy = clamp(dy, -mxv, mxv)
-
     bx, by = wm.dimensions
     new_pos = S2V(clamp(x + dx, -0.5 * bx, 0.5 * bx),
                   clamp(y + dy, -0.5 * by, 0.5 * by))
-    new_var = clamp(var + dvar, 10.0, 300.0)
+    new_var = clamp(var + dvar, 10.0, bx)
     setproperties(e; pos = new_pos,
                   vel = S2V(dx, dy),
                   var = new_var)
