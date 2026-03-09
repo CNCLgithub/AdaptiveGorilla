@@ -41,7 +41,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :fr
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -70,7 +70,7 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 NTARGETS = 4
-NDISTRACTORS = 4
+NDISTRACTORS = 8
 
 ################################################################################
 # Methods
@@ -91,7 +91,7 @@ function run_model!(pbar, exp)
         _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        # render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
@@ -114,8 +114,8 @@ function main()
     gt_count = count_collisions(experiment)
     @show gt_count
     results = run_model!(pbar, experiment)
-    # display(last(results))
-    show(results; allrows=true)
+    display(last(results))
+    # show(results; allrows=true)
     @show sum(results[!, :time])
     println()
     finish!(pbar)
