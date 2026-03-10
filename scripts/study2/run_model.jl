@@ -42,13 +42,13 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 64
+    default = 4
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :fr
 
     "scene"
     help = "Which scene to run"
@@ -218,19 +218,19 @@ function main()
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
 
-    # Additional visualizations
-    # count_f = x -> count(>=(18), x) / CHAINS
+    ## Additional visualizations
+    count_f = x -> count(>=(18), x) / CHAINS
 
-    # by_cond = groupby(df, [:color, :parent])
-    # display(combine(by_cond, :ndetected => count_f))
-    # for k = keys(by_cond)
-    #     g = by_cond[k]
-    #     display(
-    #         histogram(g[!, :ndetected], nbins=10, vertical=true,
-    #                   title = repr(NamedTuple(k)),
-    #                   xlim = (0, 36))
-    #     )
-    # end
+    by_cond = groupby(df, [:color, :parent])
+    display(combine(by_cond, :ndetected => count_f))
+    for k = keys(by_cond)
+        g = by_cond[k]
+        display(
+            histogram(g[!, :ndetected], nbins=10, vertical=true,
+                      title = repr(NamedTuple(k)),
+                      xlim = (0, 36))
+        )
+    end
 
     # noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
     # by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
@@ -251,17 +251,17 @@ function main()
     # display(plot)
 
 
-    # display(
-    #     histogram(df[!, :expected_count], vertical=true,
-    #               width=30, nbins=10,
-    #               title = "Expected Count")
-    # )
+    display(
+        histogram(df[!, :expected_count], vertical=true,
+                  width=30, nbins=10,
+                  title = "Expected Count")
+    )
 
-    # display(
-    #     histogram(df[!, :count_error], vertical=true,
-    #               width=30, nbins=10,
-    #               title = "Counting Error (%)")
-    # )
+    display(
+        histogram(df[!, :count_error], vertical=true,
+                  width=30, nbins=10,
+                  title = "Counting Error (%)")
+    )
 
     return nothing
 end;

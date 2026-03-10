@@ -46,7 +46,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 4
+    default = 3
 end
 
 PARAMS = parse_args(ARGS, s)
