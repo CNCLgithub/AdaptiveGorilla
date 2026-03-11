@@ -37,13 +37,13 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 32
+    default = 4
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"

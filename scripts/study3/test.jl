@@ -70,7 +70,7 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 NTARGETS = 4
-NDISTRACTORS = 8
+NDISTRACTORS = 4
 
 ################################################################################
 # Methods

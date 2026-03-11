@@ -11,6 +11,7 @@
 ################################################################################
 
 using CSV
+using TOML
 using Random
 using ArgParse
 using DataFrames
@@ -24,10 +25,21 @@ using UnicodePlots: Plot, lineplot!, histogram
 # Command Line Interface
 ################################################################################
 
-MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
-                      :ta => "Task-Agnostic",
-                      :ja => "Just Attention",
-                      :fr => "Fixed Resource")
+PARAM_VARIANTS = Dict(:w => "MLL weight",
+                      :inv_t => "Task Exergy inv. temp",
+                      :mho_m => "Task Anergy mass",
+                      :mho_a => "Task Anergy sensitivity")
+
+PARAM_RANGES = Dict(:w => (400.0, 600.0),
+                    :inv_t => (.01, .20),
+                    :mho_m => (1.0, 3.0),
+                    :mho_a => (20.0, 40.0))
+PARAMS_BASE = ["Memory" , "params" , "fitness" , "params"]
+PARAM_PATHS = Dict(:w => "mll_beta" ,
+                   :inv_t => "tenergy_inv_temp",
+                   :mho_m => "complexity_mass",
+                   :mho_a => "complexity_factor")
+
 
 ANALYSES_VARIANTS = [:NOTICE, :PERF]
 
@@ -42,18 +54,18 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 16
+    default = 8
 
-    "model"
-    help = "Model Variant"
+    "param"
+    help = "MO parameter to test"
     arg_type = Symbol
-    range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    range_tester = in(keys(PARAM_VARIANTS))
+    default = :mho_a
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 6
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -62,11 +74,25 @@ PARAMS = parse_args(ARGS, s)
 # Model Parameters
 ################################################################################
 
-MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
+MODEL = :mo
+MODEL_PARAMS = "$(@__DIR__)/params/mo.toml"
+
+MODEL_PARAM_KEY = PARAMS["param"]
+MODEL_PARAM_PATH = PARAM_PATHS[MODEL_PARAM_KEY]
+MODEL_PARAM_LOW_HIGH = PARAM_RANGES[MODEL_PARAM_KEY]
 
 WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
 
+function configure_params(param_val::Float64)
+    # load original TOML
+    head = toml = TOML.parsefile(MODEL_PARAMS)
+    # Retrieve parameter address and configure it
+    for step = PARAMS_BASE
+       head = head[step]
+    end
+    head[MODEL_PARAM_PATH] = param_val
+    return toml
+end
 
 ################################################################################
 # General Experiment Parameters
@@ -119,10 +145,10 @@ end
 # Methods
 ################################################################################
 
-function run_model!(pbar, experiment)
+function run_model!(pbar, experiment, param_val)
     # Initializes the agent
-    # (Done from scratch each time to avoid bugs / memory leaks)
-    agent = load_agent(MODEL_PARAMS, experiment.init_query)
+    params = configure_params(param_val)
+    agent = load_agent(params, experiment.init_query)
     colp = 0.0
     noticed = 0
     pgorilla = Vector{Float64}(undef, FRAMES-1)
@@ -139,6 +165,8 @@ function run_model!(pbar, experiment)
 end
 
 RunSummary = @NamedTuple begin
+    param          :: Symbol
+    param_val      :: Float64
     scene          :: Int64
     color          :: Symbol
     parent         :: Symbol
@@ -149,48 +177,42 @@ RunSummary = @NamedTuple begin
     time           :: Float64
 end
 
-
-# TimeSeries = @NamedTuple begin
-#     color   :: Symbol
-#     parent  :: Symbol
-#     chain   :: Int64
-#     frame   :: UnitRange{Int64}
-#     pnotice :: Vector{Float64}
-    
-# end
-
 ################################################################################
 # Main Entry
 ################################################################################
 
 function main()
-    nruns = NSC * NP * CHAINS
+    nruns = 2 * NSC * NP * CHAINS
     nsteps = nruns * (FRAMES-1)
     pbar = Progress(nsteps;
                     desc="Running $(MODEL) model...",
                     dt = 1.0)
     # Preallocate simulation results
     summaries = Vector{RunSummary}(undef, nruns)
-    # time_series = Vector{TimeSeries}(undef, nruns)
-    linds = LinearIndices((CHAINS, NP, NSC))
+    linds = LinearIndices((CHAINS, NP, NSC, 2))
     # Go through each of the conditions
-    for (i, swap) = enumerate(SWAP_COLORS), (j, lone) = enumerate(LONE_PARENT)
+    for (i, swap) = enumerate(SWAP_COLORS),
+        (j, lone) = enumerate(LONE_PARENT),
+        (k, param_val ) = enumerate(MODEL_PARAM_LOW_HIGH)
 
         color = swap ? :dark : :light
         parent = lone ? :lone : :grouped
         # Load the experiment
         experiment = TEnsExp(DPATH, WM, SCENE, swap, lone, FRAMES,
                              show_gorilla=SHOW_GORILLA)
+
         # Retrieve the number of true collisions
         gt_count = count_collisions(experiment)
-        # @show gt_count
+
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
-            run = @timed run_model!(pbar, experiment)
+            run = @timed run_model!(pbar, experiment, param_val)
             ndetected, pnoticed, expected_count = run.value
             count_error = abs(gt_count - expected_count) / gt_count
 
-            summaries[linds[c,j,i]] = RunSummary((
+            summaries[linds[c,k,j,i]] = RunSummary((
+                param          = MODEL_PARAM_KEY,
+                param_val      = param_val,
                 scene          = SCENE,
                 color          = color,
                 parent         = parent,
@@ -201,67 +223,20 @@ function main()
                 time           = run.time
             ))
 
-            # time_series[linds[c,j,i]] = TimeSeries((
-            #     color   = color,
-            #     parent  = parent,
-            #     chain   = c,
-            #     frame   = 1:(FRAMES-1),
-            #     pnotice = pnoticed
-            # ))
         end
     end
     finish!(pbar)
 
     # Record results to CSV
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/$(ANALYSIS)"
+    out_dir = "/spaths/experiments/sensitivity/$(MODEL_PARAM_KEY)/$(ANALYSIS)"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
 
     ## Additional visualizations
-    count_f = x -> count(>=(18), x) / CHAINS
-
-    by_cond = groupby(df, [:color, :parent])
+    count_f = x -> count(>=(24), x) / CHAINS
+    by_cond = groupby(df, [:param_val, :color, :parent])
     display(combine(by_cond, :ndetected => count_f))
-    for k = keys(by_cond)
-        g = by_cond[k]
-        display(
-            histogram(g[!, :ndetected], nbins=10, vertical=true,
-                      title = repr(NamedTuple(k)),
-                      xlim = (0, 36))
-        )
-    end
-
-    # noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
-    # by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
-    #                    :pnotice => mean)
-    # plot = Plot(;
-    #             title="Chain Averages",
-    #             xlabel = "t",
-    #             ylabel = "Pr(Notice)",
-    #             xlim = (1, FRAMES-1),
-    #             ylim = (0, 1),
-    #             )
-    # g_by_frame = groupby(by_frame, [:color, :parent])
-    # for k = keys(g_by_frame)
-    #     g = g_by_frame[k]
-    #     lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
-    #               name = repr(NamedTuple(k)))
-    # end
-    # display(plot)
-
-
-    display(
-        histogram(df[!, :expected_count], vertical=true,
-                  width=30, nbins=10,
-                  title = "Expected Count")
-    )
-
-    display(
-        histogram(df[!, :count_error], vertical=true,
-                  width=30, nbins=10,
-                  title = "Counting Error (%)")
-    )
 
     return nothing
 end;
