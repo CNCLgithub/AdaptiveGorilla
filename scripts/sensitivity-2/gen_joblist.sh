@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Configuration
-PARAMS=( "w" "inv_t" "m_mho" "a_mho" )
+PARAMS=( "w" "inv_t" "a_mho" )
 SCRIPT_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE}")")" && pwd)
 OUTPUT_FILE="${SCRIPT_DIR}/joblist.txt"
 NSCENES=6

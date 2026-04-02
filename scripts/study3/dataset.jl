@@ -16,7 +16,7 @@ dataset = "study3"
 nlight = 4
 ndark = 8
 n_dots = nlight + ndark
-nscenes = 20
+nscenes = 10
  
 fps = 24
 duration = 10 # seconds
@@ -32,10 +32,10 @@ wm = SchollWM(
 	      area_width = 720.0,
 	      area_height = 480.0,
 	      vel=4.5,
-	      vel_min = 3.5,
-	      vel_max = 5.5,
-	      vel_step = 0.20,
-	      vel_prob = 0.20
+	      vel_min = 3.0,
+	      vel_max = 6.0,
+	      vel_step = 0.8,
+	      vel_prob = 0.50
 	      )
 
 function gen_base_scene()

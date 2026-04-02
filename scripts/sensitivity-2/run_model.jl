@@ -1,5 +1,5 @@
 ################################################################################
-# Script to run models on the Target-Ensemble Experiment (Study 2)
+# Script to run sensitivity analyses for Study 2
 #
 # Output is stored under `spaths/experiments/`
 # See `README` for more information.
@@ -27,18 +27,15 @@ using UnicodePlots: Plot, lineplot!, histogram
 
 PARAM_VARIANTS = Dict(:w => "MLL weight",
                       :inv_t => "Task Exergy inv. temp",
-                      :mho_m => "Task Anergy mass",
-                      :mho_a => "Task Anergy sensitivity")
+                      :a_mho => "Task Anergy sensitivity")
 
 PARAM_RANGES = Dict(:w => (400.0, 600.0),
                     :inv_t => (.01, .20),
-                    :mho_m => (1.0, 3.0),
-                    :mho_a => (20.0, 40.0))
+                    :a_mho => (20.0, 40.0))
 PARAMS_BASE = ["Memory" , "params" , "fitness" , "params"]
 PARAM_PATHS = Dict(:w => "mll_beta" ,
                    :inv_t => "tenergy_inv_temp",
-                   :mho_m => "complexity_mass",
-                   :mho_a => "complexity_factor")
+                   :a_mho => "complexity_factor")
 
 
 ANALYSES_VARIANTS = [:NOTICE, :PERF]
@@ -54,13 +51,13 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 8
+    default = 64
 
     "param"
     help = "MO parameter to test"
     arg_type = Symbol
     range_tester = in(keys(PARAM_VARIANTS))
-    default = :mho_a
+    default = :a_mho
 
     "scene"
     help = "Which scene to run"
@@ -228,7 +225,7 @@ function main()
     finish!(pbar)
 
     # Record results to CSV
-    out_dir = "/spaths/experiments/sensitivity/$(MODEL_PARAM_KEY)/$(ANALYSIS)"
+    out_dir = "/spaths/experiments/sensitivity-2/$(MODEL_PARAM_KEY)/$(ANALYSIS)"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)

@@ -2,7 +2,6 @@ using CSV
 using DataFrames
 using Statistics: mean
 
-NOTICE_MIN_FRAMES = 18
 DATASET = "study2"
 MODELS = [:mo, :ja, :ta, :fr]
 
@@ -19,16 +18,8 @@ end
 
 function aggregate_results(model)
     BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)"
-    RUN_PATH = "$(BASE_PATH)/scenes"
+    RUN_PATH = "$(BASE_PATH)/NOTICE"
     all = merge_results(RUN_PATH)
-    g = groupby(all, [:scene, :color, :parent])
-    c = combine(g,
-                :ndetected =>
-                    (x -> mean(>(NOTICE_MIN_FRAMES), x)) =>
-                    :noticed,
-        :count_error => mean,
-        :time => mean)
-    show(c; allrows=true)
     all[!, :model] .= model
     return all
 end

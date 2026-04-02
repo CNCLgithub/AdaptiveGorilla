@@ -37,7 +37,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 4
+    default = 32
 
     "model"
     help = "Model Variant"
@@ -66,7 +66,7 @@ MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 # General Experiment Parameters
 ################################################################################
 
-Random.seed!(123) # Setting seed for reproducibility
+Random.seed!(321) # Setting seed for reproducibility
 
 SCENE   = PARAMS["scene"]
 CHAINS  = PARAMS["nchains"]
@@ -78,7 +78,7 @@ FRAMES  = 240
 
 # Number of targets and distractors
 NTARGETS = 4
-NDISTRACTORS = [4, 6, 8]
+NDISTRACTORS = [5, 6, 7, 8]
 # Each condition is a distractor count
 NCOND = length(NDISTRACTORS)
 

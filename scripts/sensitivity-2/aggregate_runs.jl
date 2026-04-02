@@ -2,11 +2,8 @@ using CSV
 using DataFrames
 using Statistics: mean
 
-
-
-DATASET = "study1"
-
-MODELS = [:mo, :ja, :ta, :fr]
+EXPERIMENT = "sensitivity-2"
+PARAMS = [:w, :inv_t, :a_mho]
 
 function load_result(path::String)
     CSV.read(path, DataFrame)
@@ -19,22 +16,21 @@ function merge_results(path::String)
     return all
 end
 
-
-function aggregate_results(model)
-    BASE_PATH = "/spaths/experiments/$(DATASET)/$(model)"
-    RUN_PATH = "$(BASE_PATH)/NOTICE/"
+function aggregate_results(param)
+    BASE_PATH = "/spaths/experiments/$(EXPERIMENT)/$(param)"
+    RUN_PATH = "$(BASE_PATH)/NOTICE"
     all = merge_results(RUN_PATH)
-    all[!, :model] .= model
     return all
 end
 
+
 function main()
     dfs = DataFrame[]
-    for model = MODELS
-	push!(dfs, aggregate_results(model))
+    for param = PARAMS
+        push!(dfs, aggregate_results(param))
     end
     df = vcat(dfs...)
-    OUT_PATH = "/spaths/experiments/$(DATASET)/aggregate.csv"
+    OUT_PATH = "/spaths/experiments/$(EXPERIMENT)/aggregate.csv"
     CSV.write(OUT_PATH, df)
 end
 

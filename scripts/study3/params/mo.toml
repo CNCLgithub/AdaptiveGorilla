@@ -28,7 +28,7 @@ protocol = "CollisionCounter"
 mat = "Light"  # Color of targets
 cooldown = 8  # Cooldown between hits (prevents overcounting)
 tick_rate = 1  # How often to evaluate counting (same as perception)
-threshold = 0.7
+threshold = 0.5
 
 ################################################################################
 # Attention
@@ -62,7 +62,7 @@ perception = { "protocol" = "ModuleRef", "params" = { "ref" = "Perception" } }
 protocol = "MhoFitness"
 
 [Memory.params.fitness.params]
-complexity_mass = 2.0  # Slope of exponential irrelevant complexity curve
+complexity_mass = 1.0
 complexity_factor = 30 # irrelevant representations
 log_decay_rate = -0.05  # decay rate of time integral over task-relevance
 tenergy_inv_temp = 0.05

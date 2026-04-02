@@ -179,7 +179,7 @@ function main()
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-    count_f = x -> count(>=(18.0), x) / CHAINS
+    count_f = x -> count(>=(24.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color]), :ndetected => count_f))
     return nothing
 end;
