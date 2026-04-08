@@ -57,7 +57,7 @@ function main()
         area_height = 480.0,
         vel=4.5,
         vel_min = 3.0,
-        vel_max = 6.5,
+        vel_max = 6.0,
         vel_step = 0.80,
         vel_prob = 0.50
     )
