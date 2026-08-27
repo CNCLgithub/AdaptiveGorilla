@@ -58,7 +58,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"
@@ -98,7 +98,7 @@ FRAMES  = 240
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Dark]
+COLORS = [Light]
 
 ################################################################################
 # Analysis Parameters

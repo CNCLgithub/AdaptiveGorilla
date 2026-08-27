@@ -42,7 +42,7 @@ s = ArgParseSettings()
     "--analyses"
     help = "Model analyses. Either NOTICE or PERF"
     range_tester = in(ANALYSES_VARIANTS)
-    default = :PERF
+    default = :NOTICE
 
     "model"
     help = "Model Variant"
@@ -78,7 +78,7 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
-LONE_PARENT = true
+LONE_PARENT = false
 SWAP_COLORS = false
 
 ################################################################################
