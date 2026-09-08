@@ -62,8 +62,8 @@ function module_step!(planner::MentalModule{T},
                               plan_with_delta_pi!,
                               (protocol, attention))
         if state.cooldown == 0
-            # println("TIME $(t), LOG COL PROB: $(w)")
-            if log(protocol.threshold * rand()) < w
+            # println("TIME $(t), COL PROB: $(exp(w))")
+            if log(rand()) < w
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
                 # println("COUNT: $(state.expectation)")

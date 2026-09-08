@@ -25,7 +25,7 @@ function Base.isapprox(x::Detection, y::Detection)
 end
 
 
-const DetectionRFS = RFGM(MRFS{Detection}(), (150, 1.0))
+const DetectionRFS = RFGM(MRFS{Detection}(), (100, 1.0))
 
 struct DetectionRV <: Gen.Distribution{Detection} end
 

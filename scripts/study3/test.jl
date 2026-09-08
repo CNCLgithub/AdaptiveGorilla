@@ -1,5 +1,5 @@
 ################################################################################
-# Script to run models on the Target-Ensemble Experiment (Study 2)
+# Script to run models on the Load Experiment (Study 1)
 #
 # Output is stored under `spaths/experiments/`
 # See `README` for more information.
@@ -18,6 +18,9 @@ using DataFrames, CSV
 
 using AdaptiveGorilla
 using AdaptiveGorilla: count_collisions
+
+using Profile
+using StatProfilerHTML
 
 ################################################################################
 # Command Line Interface
@@ -41,7 +44,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ta
+    default = :fr
 
     "scene"
     help = "Which scene to run"
@@ -70,7 +73,7 @@ SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
 NTARGETS = 4
-NDISTRACTORS = 4
+NDISTRACTORS = 6
 
 ################################################################################
 # Methods
@@ -89,6 +92,7 @@ function run_model!(pbar, exp)
     )
     for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, exp, t)
+        # @profile _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
         # render_agent_state(exp, agent, t, out)
@@ -112,13 +116,17 @@ function main()
     experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, NDISTRACTORS)
     # Retrieve the number of true collisions
     gt_count = count_collisions(experiment)
-    @show gt_count
+
+    Profile.clear()
     results = run_model!(pbar, experiment)
-    display(last(results))
-    # show(results; allrows=true)
+    # statprofilehtml()
+    # display(last(results))
+    show(results; allrows=true)
+    println()
     @show sum(results[!, :time])
     println()
     finish!(pbar)
+    @show gt_count
     return nothing
 end;
 

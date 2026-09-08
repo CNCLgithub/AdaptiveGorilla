@@ -98,11 +98,6 @@ git-tree-sha1 = "2ac646d71d0d24b44f3f8c84da8c9f4d70fb67df"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.4+0"
 
-[[deps.Cassette]]
-git-tree-sha1 = "f8764df8d9d2aec2812f009a1ac39e46c33354b8"
-uuid = "7057c7e9-c182-5462-911a-8362d720325c"
-version = "0.3.14"
-
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
 git-tree-sha1 = "1713c74e00545bfe14605d2a2be1712de8fbcb58"
@@ -156,11 +151,6 @@ deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
 git-tree-sha1 = "64e15186f0aa277e174aa81798f7eb8598e0157e"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.13.0"
-
-[[deps.Combinatorics]]
-git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
-uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "1.0.2"
 
 [[deps.CommonSubexpressions]]
 deps = ["MacroTools"]
@@ -429,12 +419,10 @@ uuid = "56b76ac4-72ef-411e-b419-6d312ed86a6f"
 version = "0.2.3"
 
 [[deps.GenRFS]]
-deps = ["BenchmarkTools", "Cassette", "Combinatorics", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "Lazy", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions", "StatProfilerHTML", "Test", "UnicodePlots"]
-git-tree-sha1 = "0a5c2ac9d8079bde036acd23bd65c2f465da3002"
-repo-rev = "regenerate"
-repo-url = "https://github.com/CNCLgithub/GenRFS.git"
+deps = ["BenchmarkTools", "DataStructures", "Distributions", "FunctionalCollections", "Gen", "IterTools", "LRUCache", "LightGraphs", "LinearAlgebra", "Revise", "SHA", "SpecialFunctions"]
+path = "deps/GenRFS"
 uuid = "56ab6c88-a2ab-44ec-99ca-7b9069b439c2"
-version = "0.1.1"
+version = "0.1.2"
 
 [[deps.Gen_Compose]]
 deps = ["DataStructures", "FileIO", "Gen", "JLD2", "Revise", "UnPack"]
@@ -629,12 +617,6 @@ version = "2.10.3+0"
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.4.0"
-
-[[deps.Lazy]]
-deps = ["MacroTools"]
-git-tree-sha1 = "1370f8202dac30758f3c345f9909b97f53d87d3f"
-uuid = "50d2b5c4-7a5e-59d5-8109-a42b560f39c0"
-version = "0.15.1"
 
 [[deps.LeftChildRightSiblingTrees]]
 deps = ["AbstractTrees"]

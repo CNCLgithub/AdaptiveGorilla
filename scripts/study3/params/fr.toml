@@ -27,9 +27,9 @@ protocol = "CollisionCounter"
 
 [Planning.params]
 mat = "Light"
-cooldown = 8
+cooldown = 4
 tick_rate = 1
-threshold = 0.5
+threshold = 1.0
 
 ################################################################################
 # Attention
