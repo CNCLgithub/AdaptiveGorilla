@@ -43,12 +43,12 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ja
+    default = :mo
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 4
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)

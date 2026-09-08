@@ -116,9 +116,10 @@ returns a `Dict` containing:
 function test_agent!(agent::Agent, exp::LoadCurve, stepid::Int)
     obs = get_obs(exp, stepid)
     start_time = time()
-    agent_step!(agent, stepid, obs)
+    stats = @timed agent_step!(agent, stepid, obs)
     elapsed = time() - start_time
-    Dict(:time => elapsed,
+    Dict(:time => stats.time,
+	 :bytes => stats.bytes,
          :collision_p => planner_expectation(agent.planning))
 end
 
