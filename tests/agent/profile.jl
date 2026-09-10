@@ -50,7 +50,7 @@ MODEL_PARAMS = "/project/scripts/study3/params"
 DATASET = "study3"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = 3
-FRAMES  = 60
+FRAMES  = 120
 
 NTARGETS = 4
 NDISTRACTORS = 6
