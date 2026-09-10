@@ -18,6 +18,8 @@ using Printf: @sprintf
 using AdaptiveGorilla
 import AdaptiveGorilla as AG
 
+TO = TimerOutput()   # global timer; snapshot per model with copy(TO)
+
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
@@ -61,6 +63,7 @@ function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
         AG.module_step!(agent.memory,     t, agent.perception)
     end
 
+    reset_timer!(TO)
     GC.gc()
     for t = (warmup + 1):(FRAMES - 1)
         obs = get_obs(exp, t)
@@ -69,7 +72,7 @@ function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
         @timeit TO "planning"   AG.module_step!(agent.planning,   t, agent.attention, agent.perception)
         @timeit TO "memory"     AG.module_step!(agent.memory,     t, agent.perception)
     end
-    return to
+    return deepcopy(TO)
 end
 
 results = Dict{String, TimerOutput}()
