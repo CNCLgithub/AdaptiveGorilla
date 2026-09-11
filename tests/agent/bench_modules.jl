@@ -18,7 +18,6 @@ using Printf: @sprintf
 using AdaptiveGorilla
 import AdaptiveGorilla as AG
 
-TO = TimerOutput()   # global timer; snapshot per model with copy(TO)
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -27,12 +26,12 @@ REPO_ROOT   = "/project"                 # tests/ -> repo root
 MODEL_DIR   = joinpath(REPO_ROOT, "scripts", "study3", "params")
 WM_TOML     = joinpath(MODEL_DIR, "wm.toml")
 
-MODELS      = isempty(ARGS) ? ["mo", "ja"] : ARGS
+MODELS      = isempty(ARGS) ? ["mo", "ja", "ta", "fr"] : ARGS
 DATASET     = get(ENV, "AG_DATASET", "study3")
 DPATH       = get(ENV, "AG_DPATH", "/spaths/datasets/$(DATASET)/dataset.json")
 
 FRAMES      = 240
-WARMUP      = 40        # frames before measurement begins
+WARMUP      = 1        # frames before measurement begins
 TRIAL_IDX   = 1
 NTARGET     = 4
 NDISTRACTOR = 8
@@ -51,7 +50,6 @@ exp = LoadCurve(wm, DPATH, TRIAL_IDX, FRAMES, NTARGET, NDISTRACTOR)
 # -----------------------------------------------------------------------------
 function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
     agent = load_agent(joinpath(MODEL_DIR, "$(model).toml"), exp.init_query)
-
     # Warm-up: lets Adaptive-Compute / MO regranularization engage before
     # the timed region. Untimed; module states still evolve normally.
     for t = 1:warmup
@@ -63,6 +61,7 @@ function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
     end
 
     GC.gc()
+    TO = TimerOutput()
     reset_timer!(TO)
     @timeit TO "total" for t = (warmup + 1):(FRAMES - 1)
         @timeit TO "get_obs"    obs = get_obs(exp, t)
@@ -71,21 +70,15 @@ function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
         @timeit TO "planning"   AG.module_step!(agent.planning,   t, agent.attention, agent.perception)
         @timeit TO "reframe"    AG.module_step!(agent.memory,     t, agent.perception)
     end
-    return deepcopy(TO)
+    return TO
 end
 
-results = Dict{String, TimerOutput}()
+results = Dict{String, Any}()
 for model in MODELS
     @info "Benchmarking model: $(model)"
-    results[model] = run_model_timed!(exp, model)
-end
-
-# -----------------------------------------------------------------------------
-# Report
-# -----------------------------------------------------------------------------
-for model in MODELS
+    timer_output = run_model_timed!(exp, model)
     println("\n================ $(model) (post-warmup) ================")
-    print(results[model])
+    println(timer_output)
 end
 
 # Per-frame averages, for cross-model comparison

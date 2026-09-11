@@ -38,21 +38,32 @@ function attend!(chain::APChain,
     for i = 1:np # iterate through each particle
         trace = state.traces[i]
         nobj = representation_count(trace)
-        # number of moves per object
-        steps_per_obj = round(Int, protocol.moves / nobj)
-        # Stage 2
-        # select latent and C_k
-        for j = 1:nobj
-            for _ = 1:steps_per_obj
-                prop = select_prop(protocol.partition, trace, j)
-                # Apply computation, estimate dS
-                new_trace, alpha = prop(trace)
-                if log(rand()) < alpha # update particle
-                    trace = new_trace
-                    state.log_weights[i] += alpha
-                end
+
+        for _ = 1:protocol.moves
+            j = rand(1:nobj)
+            prop = select_prop(protocol.partition, trace, j)
+            # Apply computation, estimate dS
+            new_trace, alpha = prop(trace)
+            if log(rand()) < alpha # update particle
+                trace = new_trace
+                state.log_weights[i] += alpha
             end
         end
+        # # number of moves per object
+        # steps_per_obj = round(Int, protocol.moves / nobj)
+        # # Stage 2
+        # # select latent and C_k
+        # for j = 1:nobj
+        #     for _ = 1:steps_per_obj
+        #         prop = select_prop(protocol.partition, trace, j)
+        #         # Apply computation, estimate dS
+        #         new_trace, alpha = prop(trace)
+        #         if log(rand()) < alpha # update particle
+        #             trace = new_trace
+        #             state.log_weights[i] += alpha
+        #         end
+        #     end
+        # end
 
         # state.traces[i] = trace
         ws = fill(1.0 / nobj, nobj)
@@ -183,6 +194,8 @@ function module_step!(att::MentalModule{<:AdaptiveComputation},
     return nothing
 end
 
+stochastic_round(x::Float64)::Int64 = floor(Int, x) + (rand() < x - floor(Int, x))
+
 function attend!(chain::APChain, att::MentalModule{AdaptiveComputation})
     protocol, aux = mparse(att)
 
@@ -199,24 +212,50 @@ function attend!(chain::APChain, att::MentalModule{AdaptiveComputation})
         importance = softmax(deltas, itemp)
         tload = load(protocol, aux, deltas)
         nobj = length(deltas)
-        steps_per_obj = floor(Int, base_steps / nobj)
+        # steps_per_obj = floor(Int, base_steps / nobj)
         # Stage 2
-        # select latent and C_k
-        for j = 1:nobj
-            steps = steps_per_obj + round(Int, tload * importance[j])
-            for _ = 1:steps
-                prop = select_prop(partition, trace, j)
-                # Apply computation, estimate dS
-                new_trace, alpha = prop(trace)
-                dS = min(alpha, 0.)
-                if log(rand()) < alpha # update particle
-                    trace = new_trace
-                    state.log_weights[i] += alpha
-                end
-                # NOTE: continually updating partition map
-                update_dS!(att, partition, trace, j, dS)
+        # Pre-attentive
+        for _ = 1:base_steps
+            j = rand(1:nobj)
+            prop = select_prop(partition, trace, j)
+            # Apply computation, estimate dS
+            new_trace, alpha = prop(trace)
+            dS = min(alpha, 0.)
+            if log(rand()) < alpha # update particle
+                trace = new_trace
+                state.log_weights[i] += alpha
             end
+            update_dS!(att, partition, trace, j, dS)
         end
+        # attended
+        for _ = 1:tload
+            j = categorical(importance)
+            prop = select_prop(partition, trace, j)
+            # Apply computation, estimate dS
+            new_trace, alpha = prop(trace)
+            dS = min(alpha, 0.)
+            if log(rand()) < alpha # update particle
+                trace = new_trace
+                state.log_weights[i] += alpha
+            end
+            update_dS!(att, partition, trace, j, dS)
+        end
+        # for j = 1:nobj
+        #     # steps = steps_per_obj + round(Int, tload * importance[j])
+        #     steps = steps_per_obj + stochastic_round(tload * importance[j])
+        #     for _ = 1:steps
+        #         prop = select_prop(partition, trace, j)
+        #         # Apply computation, estimate dS
+        #         new_trace, alpha = prop(trace)
+        #         dS = min(alpha, 0.)
+        #         if log(rand()) < alpha # update particle
+        #             trace = new_trace
+        #             state.log_weights[i] += alpha
+        #         end
+        #         # NOTE: continually updating partition map
+        #         update_dS!(att, partition, trace, j, dS)
+        #     end
+        # end
 
         state.traces[i], delta_score = baby_loop(trace, importance)
         state.log_weights[i] += delta_score
