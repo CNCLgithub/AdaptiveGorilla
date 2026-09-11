@@ -51,7 +51,6 @@ exp = LoadCurve(wm, DPATH, TRIAL_IDX, FRAMES, NTARGET, NDISTRACTOR)
 # -----------------------------------------------------------------------------
 function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
     agent = load_agent(joinpath(MODEL_DIR, "$(model).toml"), exp.init_query)
-    to = TimerOutput()   # one per model: reset_timer! would clobber shared data
 
     # Warm-up: lets Adaptive-Compute / MO regranularization engage before
     # the timed region. Untimed; module states still evolve normally.
@@ -63,14 +62,14 @@ function run_model_timed!(exp, model::String; warmup::Int = WARMUP)
         AG.module_step!(agent.memory,     t, agent.perception)
     end
 
-    reset_timer!(TO)
     GC.gc()
-    for t = (warmup + 1):(FRAMES - 1)
-        obs = get_obs(exp, t)
+    reset_timer!(TO)
+    @timeit TO "total" for t = (warmup + 1):(FRAMES - 1)
+        @timeit TO "get_obs"    obs = get_obs(exp, t)
         @timeit TO "perception" AG.module_step!(agent.perception, t, obs)
         @timeit TO "attention"  AG.module_step!(agent.attention,  t, agent.perception)
         @timeit TO "planning"   AG.module_step!(agent.planning,   t, agent.attention, agent.perception)
-        @timeit TO "memory"     AG.module_step!(agent.memory,     t, agent.perception)
+        @timeit TO "reframe"    AG.module_step!(agent.memory,     t, agent.perception)
     end
     return deepcopy(TO)
 end
@@ -90,19 +89,19 @@ for model in MODELS
 end
 
 # Per-frame averages, for cross-model comparison
-if length(MODELS) > 1
-    n_frames = FRAMES - 1 - WARMUP
-    println("\n================ Per-frame averages =================")
-    for model in MODELS
-        d = TimerOutputs.todict(results[model])
-        for name in ("perception", "attention", "planning", "memory")
-            entry = d[name]
-            time_ns     = entry["time"]       # nanoseconds (cumulative)
-            alloc_bytes = entry["allocated"]  # bytes (cumulative)
-            println(@sprintf("%-4s %-11s  %8.3f ms/frame  %10.1f KB/frame",
-                             model, name,
-                             time_ns / n_frames * 1e-6,
-                             alloc_bytes / n_frames / 1024))
-        end
-    end
-end
+# if length(MODELS) > 1
+#     n_frames = FRAMES - 1 - WARMUP
+#     println("\n================ Per-frame averages =================")
+#     for model in MODELS
+#         d = TimerOutputs.todict(results[model])
+#         for name in ("perception", "attention", "planning", "reframe")
+#             entry = d[name]
+#             time_ns     = entry["time"]       # nanoseconds (cumulative)
+#             alloc_bytes = entry["allocated"]  # bytes (cumulative)
+#             println(@sprintf("%-4s %-11s  %8.3f ms/frame  %10.1f KB/frame",
+#                              model, name,
+#                              time_ns / n_frames * 1e-6,
+#                              alloc_bytes / n_frames / 1024))
+#         end
+#     end
+# end
