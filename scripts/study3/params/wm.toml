@@ -14,5 +14,5 @@ force_high = 10.0
 ang_acc = 0.01
 ensemble_force = 4.5
 ensemble_var_shift = 10.0
-single_noise = 0.5
+single_noise = 0.25
 material_noise = 0.01

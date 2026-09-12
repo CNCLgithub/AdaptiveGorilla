@@ -44,7 +44,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ja
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -96,7 +96,7 @@ function run_model!(pbar, exp)
         # @profile _results = test_agent!(agent, exp, t)
         _results[:frame] = t
         push!(results, _results)
-        # render_agent_state(exp, agent, t, out)
+        render_agent_state(exp, agent, t, out)
         next!(pbar)
     end
     return results
