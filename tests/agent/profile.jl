@@ -53,7 +53,7 @@ SCENE   = 3
 FRAMES  = 120
 
 NTARGETS = 4
-NDISTRACTORS = 6
+NDISTRACTORS = 4
 
 ################################################################################
 # Methods
@@ -62,9 +62,9 @@ NDISTRACTORS = 6
 function run_model!(exp, model::String)
     model_path = "$(MODEL_PARAMS)/$(model).toml"
     agent = load_agent(model_path, exp.init_query)
-    for t = 1:(FRAMES - 1)
+    @profile for t = 1:(FRAMES - 1)
         obs = AG.get_obs(exp, t)
-        @profile AG.module_step!(agent.perception, t, obs)
+        AG.module_step!(agent.perception, t, obs)
         AG.module_step!(agent.attention,  t, agent.perception)
         AG.module_step!(agent.planning,   t, agent.attention, agent.perception)
         AG.module_step!(agent.memory,     t, agent.perception)

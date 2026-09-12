@@ -26,7 +26,7 @@ REPO_ROOT   = "/project"                 # tests/ -> repo root
 MODEL_DIR   = joinpath(REPO_ROOT, "scripts", "study3", "params")
 WM_TOML     = joinpath(MODEL_DIR, "wm.toml")
 
-MODELS      = isempty(ARGS) ? ["mo", "ja", "ta", "fr"] : ARGS
+MODELS      = isempty(ARGS) ? ["mo", "ja"] : ARGS
 DATASET     = get(ENV, "AG_DATASET", "study3")
 DPATH       = get(ENV, "AG_DPATH", "/spaths/datasets/$(DATASET)/dataset.json")
 
