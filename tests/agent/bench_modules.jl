@@ -31,7 +31,7 @@ DATASET     = get(ENV, "AG_DATASET", "study3")
 DPATH       = get(ENV, "AG_DPATH", "/spaths/datasets/$(DATASET)/dataset.json")
 
 FRAMES      = 240
-WARMUP      = 54        # frames before measurement begins
+WARMUP      = 1        # frames before measurement begins
 TRIAL_IDX   = 1
 NTARGET     = 4
 NDISTRACTOR = 8
