@@ -19,7 +19,7 @@ $(TYPEDFIELDS)
     "Counting cool down"
     cooldown::Int = 5
     "Threshold to increment collision"
-    threshold::Float64 = 0.20
+    threshold::Float64 = 20.0
 end
 
 mutable struct CollisionState <: MentalState{CollisionCounter}
@@ -27,10 +27,12 @@ mutable struct CollisionState <: MentalState{CollisionCounter}
     expectation::Float64
     "Amount of frames until next estimate"
     cooldown::Int64
+    "Previous collision location"
+    prev_spot::S2V
 end
 
 function PlanningModule(p::CollisionCounter)
-    MentalModule(p, CollisionState(0.0, 0))
+    MentalModule(p, CollisionState(0.0, 0, S2V(0., 0.)))
 end
 
 # helper to extract planning state
@@ -57,15 +59,23 @@ function module_step!(planner::MentalModule{T},
 
     protocol, state = mparse(planner)
     if (t > 0 && t % protocol.tick_rate == 0)
-        # updates dPi
-        w = estimate_marginal(perception,
-                              plan_with_delta_pi!,
-                              (protocol, attention))
+        # updates dPi internally, see `plan_with_delta_pi!`
+        map_colprob, map_loc =
+            estimate_marginal_outer(protocol, attention, perception)
+
+        # Only consider new collision if either:
+        # - it has been sufficient time
+        # - it is in a new spot
+        
+        # println("TIME $(t) [-t: $(state.cooldown)], COL PROB: $(map_colprob), D: $(d)")
+        # @show map_loc
+        # @show state.prev_spot
         if state.cooldown == 0
-            # println("TIME $(t), COL PROB: $(exp(w))")
-            if log(rand()) < w
+            d = norm(state.prev_spot - map_loc)
+            if log(rand()) < map_colprob && d > protocol.threshold 
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
+                state.prev_spot = map_loc
                 # println("COUNT: $(state.expectation)")
             end
         else
@@ -104,7 +114,9 @@ function plan_with_delta_pi!(
     @unpack singles, ensembles = state
     ns = length(singles)
     ne = length(ensembles)
-    colprob = -Inf
+    cum_colprob = -Inf
+    map_colprob = -Inf
+    map_loc = S2V(0, 0)
     @inbounds for j = 1:ns
         dpi = -Inf
         single = singles[j]
@@ -112,7 +124,12 @@ function plan_with_delta_pi!(
         if single.mat == pl.mat
             closest = walls[closest_wall(single, walls)]
             (_colprob, _dpi) = colprob_and_agrad(single, closest)
-            colprob = logsumexp(colprob, _colprob)
+            # update record of most likely col
+            if _colprob > map_colprob
+                map_colprob = _colprob
+                map_loc = get_pos(single)
+            end
+            cum_colprob = logsumexp(cum_colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
         end
         update_dPi!(att, single, dpi)
@@ -125,12 +142,21 @@ function plan_with_delta_pi!(
         if w  > 0.1
             closest = walls[closest_wall(x, walls)]
             (_colprob, _dpi) = colprob_and_agrad(x, closest)
-            colprob = logsumexp(colprob, _colprob)
+            # update record of most likely col
+            if _colprob > map_colprob
+                map_colprob = _colprob
+                sampled_pos = broadcasted_normal(
+                    get_pos(x),
+                    get_var(x)
+                )
+                map_loc = S2V(sampled_pos)
+            end
+            cum_colprob = logsumexp(cum_colprob, _colprob)
             dpi = logsumexp(dpi, _dpi)
         end
         update_dPi!(att, x, dpi)
     end
-    return colprob
+    return (cum_colprob, map_colprob, map_loc)
 end
 
 function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
@@ -142,18 +168,20 @@ function colprob_and_agrad(obj::InertiaSingle, w::Wall, radius = 5.0)
     v_orth = dot(v, w.normal)
     dt = v_orth < 1E-5 ? 100.0 : distance / v_orth
     # Penalty for higher angular velocity
-    sigma = 0.25 * exp(0.25*abs(get_avel(obj)))
+    sigma = 0.5 * exp(0.5*abs(get_avel(obj)))
     # Z score of 1 step in the future
     z = (1.0 - dt) / sigma
     # CCDF up to 1 step
     lcdf = Distributions.logcdf(standard_normal, z)
     # pdf is the derivative of the cdf
     dpdz = Distributions.logpdf(standard_normal, z)
+    # Uncomment to verify high-col prob
     # if lcdf > -0.5
     #     @show x
     #     @show v
     #     @show v_orth
     #     @show get_avel(obj)
+    #     @show distance
     #     @show dt
     #     @show sigma
     #     @show z
@@ -203,4 +231,52 @@ function render_frame(x::MentalModule{P}, t::Int) where{P<:CollisionCounter}
     protocol, state = mparse(x)
     c = round(state.expectation; digits = 2)
     _draw_text("Bounce weight: $(c)", [-380, 380.])
+end
+
+
+#################################################################################
+# Marginal operations over perception                                           #
+#################################################################################
+
+function estimate_marginal_outer(
+    pl::CollisionCounter,
+    att::MentalModule{A},
+    perception::MentalModule{T}
+    )::Tuple{Float64, S2V} where {T<:HyperFilter, A<:AttentionProtocol}
+
+    pf, st = mparse(perception)
+    map_colprob = -Inf
+    map_loc = S2V(0, 0)
+    for i = 1:pf.h
+        _map_colprob, _map_loc =
+            estimate_marginal_inner(st.chains[i], pl, att)
+        if _map_colprob > map_colprob
+            map_colprob = _map_colprob
+            map_loc = _map_loc
+        end
+    end
+    return map_colprob, map_loc
+end
+
+function estimate_marginal_inner(
+    chain::PFChain{<:IncrementalQuery, <:AdaptiveParticleFilter},
+    pl::CollisionCounter, att::MentalModule{A}
+    ) where {A<:AttentionProtocol}
+    @unpack state = chain
+    ws = state.log_weights
+    mass = logsumexp(ws)
+
+    map_colprob = -Inf
+    map_loc = S2V(0, 0)
+    @inbounds for i = 1:length(ws)
+        (_, _map_colprob, _map_loc) =
+            plan_with_delta_pi!(pl, att, state.traces[i])
+
+        _map_colprob += ws[i] - mass
+        if _map_colprob > map_colprob
+            map_colprob = _map_colprob
+            map_loc = _map_loc
+        end
+    end
+    return (map_colprob, map_loc)
 end
