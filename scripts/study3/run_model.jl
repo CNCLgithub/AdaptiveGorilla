@@ -78,8 +78,7 @@ FRAMES  = 240
 
 # Number of targets and distractors
 NTARGETS = 4
-# NDISTRACTORS = [5, 6, 7, 8]
-NDISTRACTORS = [5, 6]
+NDISTRACTORS = [5, 6, 7, 8]
 # Each condition is a distractor count
 NCOND = length(NDISTRACTORS)
 
