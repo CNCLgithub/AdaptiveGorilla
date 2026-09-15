@@ -58,7 +58,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :ja
+    default = :mo
 
     "scene"
     help = "Which scene to run"
@@ -75,9 +75,9 @@ PARAMS = parse_args(ARGS, s)
 
 # which model variant to run (uncomment 1 of the lines below)
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
+MODEL_PARAMS = "/project/scripts/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
+WM = load_wm_from_toml("/project/scripts/params/wm.toml")
 
 ################################################################################
 # ANALYSES
@@ -94,7 +94,7 @@ SHOW_GORILLA = true # ANALYSIS == :NOTICE
 DATASET = "study1"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 66
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
@@ -112,7 +112,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.20
+NOTICE_P_THRESH = 0.10
 
 ################################################################################
 # Methods
@@ -162,10 +162,10 @@ function main()
         gt_count = count_collisions(experiment)
         @show gt_count
         results = run_model!(pbar, experiment)
-        # show(results; allrows=true)
+        show(results; allrows=true)
         println("\n  ------")
         count_f = x -> count(>=(NOTICE_P_THRESH), x) / CHAINS
-        display(last(results))
+        # display(results)
         @show count_f(results[!, :gorilla_p])
         @show sum(results[:, :time])
     end

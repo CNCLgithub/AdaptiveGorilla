@@ -42,7 +42,7 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 64
+    default = 8
 
     "model"
     help = "Model Variant"

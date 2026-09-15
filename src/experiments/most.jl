@@ -101,10 +101,11 @@ end
 #################################################################################
 
 function run_analyses(experiment::MostExp, agent::Agent)
+    println("Gorilla prob")
     gorilla_p = exp(estimate_marginal(agent.perception,
-                                  detect_gorilla, ()))
+                                      detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,
-                                  had_birth, ()))
+                                    had_birth, ()))
     col_p = planner_expectation(agent.planning)
     Dict(:gorilla_p => gorilla_p,
          :collision_p => col_p,

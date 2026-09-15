@@ -29,10 +29,10 @@ end
 Posterior probability that gorilla is detected.
 ---
 Criterion:
-    1. A gorilla is present
-    2. There are 5 singles
-    3. All targets (xs[1-4]) are tracked
-    4. The gorilla (x = n + 1) is tracked
+    1. A gorilla is present in the observation
+    2. A birth has occurred
+    2. There is at least 1 individual representation
+    3. The gorilla detection is assigned to an individual
 """
 function detect_gorilla(trace::InertiaTrace)
     t, wm, _ = get_args(trace)
@@ -40,23 +40,39 @@ function detect_gorilla(trace::InertiaTrace)
     t == 0 && return -Inf
     state = get_last_state(trace)
     rfs = extract_rfs_subtrace(trace, t)
-    nx,ne,np = size(rfs.ptensor)
+    # nx,ne,np = size(rfs.ptensor)
+    nx = findlast(>(0), first(keys(rfs.partitions)))
     ns = length(state.singles)
     # Cases for 0 prob
     # No gorilla
     # No individuals to detect gorilla
     # No birth
     if (nx != nobj + 1 ) ||
-        ns == 0  ||
-        (object_count(state) != nobj + 1 )
+        ns == 0
+        # ns == 0  ||
+        # (object_count(state) != nobj + 1 )
         return -Inf
     end
-    result = -Inf
-    @inbounds for p = 1:np, e = 1:ns
-        rfs.ptensor[nx, e, p] || continue
-        result = logsumexp(result, rfs.pscores[p])
+    acc_log_score = -Inf
+    tot_score = -Inf
+    # Check which key has nx assigned to e<ns
+    println(@sprintf "NX = %12d | NS = %12d |" nx ns)
+    for (tup_key, l) in rfs.partitions
+        e = Int(tup_key[nx])
+        w = l - rfs.score
+        tot_score = logsumexp(tot_score, l)
+        println(@sprintf "x => %12.2d | ps = %12.2f | w = %12.2f | ls = %12.2f" e l w rfs.score)
+        e <= ns || continue
+        acc_log_score = logsumexp(acc_log_score, l)
     end
-    result - rfs.score
+    # @show nx
+    # @show ns
+    @show acc_log_score - tot_score
+    @show acc_log_score - rfs.score
+    # error()
+    p = acc_log_score - rfs.score
+    println("Detect gorilla trace: $p | Trace score $(rfs.score)")
+    p
 end
 
 function had_birth_bool(trace::InertiaTrace)
