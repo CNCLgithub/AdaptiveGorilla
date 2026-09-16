@@ -94,11 +94,11 @@ SHOW_GORILLA = true # ANALYSIS == :NOTICE
 DATASET = "study1"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 66
+FRAMES  = 120
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Light]
+COLORS = [Dark]
 
 ################################################################################
 # Analysis Parameters

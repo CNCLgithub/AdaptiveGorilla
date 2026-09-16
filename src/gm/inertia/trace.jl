@@ -36,43 +36,35 @@ Criterion:
 """
 function detect_gorilla(trace::InertiaTrace)
     t, wm, _ = get_args(trace)
+    # Number of objects in the system
     nobj = Int64(wm.object_rate)
     t == 0 && return -Inf
+
+    # Number of singles and detections
     state = get_last_state(trace)
-    rfs = extract_rfs_subtrace(trace, t)
-    # nx,ne,np = size(rfs.ptensor)
-    nx = findlast(>(0), first(keys(rfs.partitions)))
     ns = length(state.singles)
+    rfs = extract_rfs_subtrace(trace, t)
+    nx = findlast(>(0), first(keys(rfs.partitions)))
     # Cases for 0 prob
     # No gorilla
     # No individuals to detect gorilla
     # No birth
     if (nx != nobj + 1 ) ||
-        ns == 0
-        # ns == 0  ||
-        # (object_count(state) != nobj + 1 )
+        ns == 0  ||
+        (object_count(state) != nobj + 1 )
         return -Inf
     end
     acc_log_score = -Inf
     tot_score = -Inf
     # Check which key has nx assigned to e<ns
-    println(@sprintf "NX = %12d | NS = %12d |" nx ns)
     for (tup_key, l) in rfs.partitions
         e = Int(tup_key[nx])
         w = l - rfs.score
         tot_score = logsumexp(tot_score, l)
-        println(@sprintf "x => %12.2d | ps = %12.2f | w = %12.2f | ls = %12.2f" e l w rfs.score)
         e <= ns || continue
         acc_log_score = logsumexp(acc_log_score, l)
     end
-    # @show nx
-    # @show ns
-    @show acc_log_score - tot_score
-    @show acc_log_score - rfs.score
-    # error()
-    p = acc_log_score - rfs.score
-    println("Detect gorilla trace: $p | Trace score $(rfs.score)")
-    p
+    acc_log_score - rfs.score
 end
 
 function had_birth_bool(trace::InertiaTrace)

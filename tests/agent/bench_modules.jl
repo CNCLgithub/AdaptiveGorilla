@@ -23,7 +23,7 @@ import AdaptiveGorilla as AG
 # Configuration
 # -----------------------------------------------------------------------------
 REPO_ROOT   = "/project"                 # tests/ -> repo root
-MODEL_DIR   = joinpath(REPO_ROOT, "scripts", "study3", "params")
+MODEL_DIR   = joinpath(REPO_ROOT, "scripts", "params")
 WM_TOML     = joinpath(MODEL_DIR, "wm.toml")
 
 MODELS      = isempty(ARGS) ? ["mo", "ja"] : ARGS

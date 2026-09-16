@@ -101,7 +101,6 @@ end
 #################################################################################
 
 function run_analyses(experiment::MostExp, agent::Agent)
-    println("Gorilla prob")
     gorilla_p = exp(estimate_marginal(agent.perception,
                                       detect_gorilla, ()))
     birth_p = exp(estimate_marginal(agent.perception,

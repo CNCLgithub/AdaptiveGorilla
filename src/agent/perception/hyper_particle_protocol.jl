@@ -88,7 +88,6 @@ function estimate_marginal(perception::MentalModule{T},
     m = -Inf
     for i = 1:pf.h
         v = estimate_marginal(st.chains[i], func, args)
-        @show v
         m = logsumexp(m, v)
     end
     m -= log(pf.h)
