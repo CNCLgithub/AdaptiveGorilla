@@ -28,11 +28,11 @@ mutable struct CollisionState <: MentalState{CollisionCounter}
     "Amount of frames until next estimate"
     cooldown::Int64
     "Previous collision location"
-    prev_spot::S2V
+    prev_col::CircularBuffer{S2V}
 end
 
 function PlanningModule(p::CollisionCounter)
-    MentalModule(p, CollisionState(0.0, 0, S2V(0., 0.)))
+    MentalModule(p, CollisionState(0.0, 0, CircularBuffer{S2V}(5)))
 end
 
 # helper to extract planning state
@@ -70,12 +70,13 @@ function module_step!(planner::MentalModule{T},
         # println("TIME $(t) [-t: $(state.cooldown)], COL PROB: $(map_colprob), D: $(d)")
         # @show map_loc
         # @show state.prev_spot
-        if state.cooldown == 0
-            d = norm(state.prev_spot - map_loc)
-            if log(rand()) < map_colprob && d > protocol.threshold 
+        d_prev_col = min_col_dist(state.prev_col, map_loc)
+        if state.cooldown == 0 || d_prev_col > protocol.threshold
+            # if log(rand()) < map_colprob && d > protocol.threshold 
+            if log(rand()) < map_colprob
                 state.expectation += 1
                 state.cooldown = protocol.cooldown
-                state.prev_spot = map_loc
+                push!(state.prev_col, map_loc)
                 # println("COUNT: $(state.expectation)")
             end
         else
@@ -279,4 +280,19 @@ function estimate_marginal_inner(
         end
     end
     return (map_colprob, map_loc)
+end
+
+
+# Closest previous colision, returns distance and time of prev
+function min_col_dist(prev_col::CircularBuffer{S2V}, col::S2V
+                      )::Float64
+    isempty(prev_col) && return Inf
+    min_d = Inf
+    for c = prev_col
+        d = norm(col - c)
+        if d < min_d
+            min_d = d
+        end
+    end
+    return min_d
 end

@@ -98,7 +98,7 @@ FRAMES  = 120
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Dark]
+COLORS = [Light]
 
 ################################################################################
 # Analysis Parameters
@@ -112,7 +112,7 @@ CHAINS = PARAMS["nchains"]
 # estimated across the hyper particles.
 # Pr(detect_gorilla) = 0.1 denotes a 10% confidence that the gorilla is present
 # at a given moment in time (i.e., a frame)
-NOTICE_P_THRESH = 0.10
+NOTICE_P_THRESH = 0.20
 
 ################################################################################
 # Methods
