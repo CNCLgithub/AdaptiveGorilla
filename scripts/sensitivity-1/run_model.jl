@@ -72,13 +72,13 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = :mo
-MODEL_PARAMS = "$(@__DIR__)/params/mo.toml"
+MODEL_PARAMS = "/project/scripts/params/mo.toml"
 
 MODEL_PARAM_KEY = PARAMS["param"]
 MODEL_PARAM_PATH = PARAM_PATHS[MODEL_PARAM_KEY]
 MODEL_PARAM_LOW_HIGH = PARAM_RANGES[MODEL_PARAM_KEY]
 
-WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
+WM = load_wm_from_toml("/project/scripts/params/wm.toml")
 
 function configure_params(param_val::Float64)
     # load original TOML

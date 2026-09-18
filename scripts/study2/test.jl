@@ -53,7 +53,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 2
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -63,10 +63,10 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
+MODEL_PARAMS = "/project/scripts/params/$(MODEL).toml"
 
 # World model parameters; See "?InertiaWM" for documentation.
-WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
+WM = load_wm_from_toml("/project/scripts/params/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
@@ -78,7 +78,7 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
-LONE_PARENT = false
+LONE_PARENT = true
 SWAP_COLORS = false
 
 ################################################################################
