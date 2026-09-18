@@ -217,12 +217,6 @@ function main()
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-
-    ## Additional visualizations
-    count_f = x -> count(>=(24), x) / CHAINS
-    by_cond = groupby(df, [:param_val, :color, :parent])
-    display(combine(by_cond, :ndetected => count_f))
-
     return nothing
 end;
 
