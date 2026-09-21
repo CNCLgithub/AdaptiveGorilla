@@ -15,7 +15,7 @@ function merge_results(path::String)
 end
 
 function aggregate_results()
-    PATH = "/spaths/experiments/$(EXP)/run"
+    PATH = "/spaths/experiments/$(EXP)/runs"
     merge_results(PATH)
 end
 
