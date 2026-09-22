@@ -15,19 +15,20 @@ using Random
 using ArgParse
 using DataFrames
 using ProgressMeter
+using Gen: has_value
 using AdaptiveGorilla
 using Statistics: mean
-using UnicodePlots: Plot, lineplot!, histogram
-
+using LinearAlgebra: norm
+import AdaptiveGorilla as AG
 
 ################################################################################
 # Command Line Interface
 ################################################################################
 
-MODEL_VARIANTS = Dict(:mo => "Multi-Granularity Optimization",
-                      :ta => "Task-Agnostic",
-                      :ja => "Just Attention",
-                      :fr => "Fixed Resource")
+MODEL_VARIANTS = Dict(
+    :mo => "Multi-Granularity Optimization",
+    :ja => "Just Attention",
+)
 
 ANALYSES_VARIANTS = [:NOTICE, :PERF]
 
@@ -48,12 +49,12 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 6
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -119,23 +120,51 @@ end
 # Methods
 ################################################################################
 
+# NOTE: assumes agent has adaptive computation
+function attention_centroid(agent)
+    prot, state = mparse(agent.attention)
+    xs = Array(state.dPi.coords)
+    ys = Array(state.dPi.samples)
+    ws = softmax(ys)  
+    mu = sum(xs .* ws)
+    AG.S2V(mu[1], mu[2])
+end
+
+function probe_point(exp, t)
+    mask_id = 9 # exp.lone_parent ? 4 : 1
+    masks = exp.observations[t]
+    detection = masks[mask_id]
+    AG.S2V(detection.x, detection.y)
+end
+
+function has_gorilla(exp, t)
+    masks = exp.observations[t]
+    mask_id = 9 # exp.lone_parent ? 4 : 1
+    (has_value(masks, mask_id), masks)
+end
+
+function distance_to_centroid(exp, agent, t)
+    valid, masks = has_gorilla(exp, t)
+    valid || return missing
+    detection = masks[9]
+    p = probe_point(exp, t)
+    c = attention_centroid(agent)
+    norm(p - c)
+end
+
 function run_model!(pbar, experiment)
-    # Initializes the agent
-    # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, experiment.init_query)
-    colp = 0.0
-    noticed = 0
-    pgorilla = Vector{Float64}(undef, FRAMES-1)
+    results = DataFrame(
+        :frame => Int64[],
+        :distance => Vector{Union{Missing, Float64}}(undef, 0),
+    )
     for t = 1:(FRAMES - 1)
-        _results = test_agent!(agent, experiment, t)
-        colp = _results[:collision_p]
-        if  _results[:gorilla_p] > NOTICE_P_THRESH
-            noticed += 1
-        end
-        pgorilla[t] = _results[:gorilla_p]
+        test_agent!(agent, experiment, t)
+        distance = distance_to_centroid(experiment, agent, t)
+        push!(results, (;frame = t, distance = distance))
         next!(pbar)
     end
-    (noticed, pgorilla, colp)
+    mean(skipmissing(results[!, :distance]))
 end
 
 RunSummary = @NamedTuple begin
@@ -143,21 +172,8 @@ RunSummary = @NamedTuple begin
     color          :: Symbol
     parent         :: Symbol
     chain          :: Int64
-    ndetected      :: Int64
-    expected_count :: Float64
-    count_error    :: Float64
-    time           :: Float64
+    distance       :: Float64
 end
-
-
-# TimeSeries = @NamedTuple begin
-#     color   :: Symbol
-#     parent  :: Symbol
-#     chain   :: Int64
-#     frame   :: UnitRange{Int64}
-#     pnotice :: Vector{Float64}
-    
-# end
 
 ################################################################################
 # Main Entry
@@ -186,82 +202,23 @@ function main()
         # @show gt_count
         # Run the model several chains
         Threads.@threads for c = 1:CHAINS
-            run = @timed run_model!(pbar, experiment)
-            ndetected, pnoticed, expected_count = run.value
-            count_error = abs(gt_count - expected_count) / gt_count
-
+            distance = run_model!(pbar, experiment)
             summaries[linds[c,j,i]] = RunSummary((
                 scene          = SCENE,
                 color          = color,
                 parent         = parent,
                 chain          = c,
-                ndetected      = ndetected,
-                expected_count = expected_count,
-                count_error    = count_error,
-                time           = run.time
+                distance       = distance,
             ))
-
-            # time_series[linds[c,j,i]] = TimeSeries((
-            #     color   = color,
-            #     parent  = parent,
-            #     chain   = c,
-            #     frame   = 1:(FRAMES-1),
-            #     pnotice = pnoticed
-            # ))
         end
     end
     finish!(pbar)
 
     # Record results to CSV
-    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/$(ANALYSIS)"
+    out_dir = "/spaths/experiments/periphery/runs"
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-
-    ## Additional visualizations
-    # count_f = x -> count(>=(18), x) / CHAINS
-
-    # by_cond = groupby(df, [:color, :parent])
-    # display(combine(by_cond, :ndetected => count_f))
-    # for k = keys(by_cond)
-    #     g = by_cond[k]
-    #     display(
-    #         histogram(g[!, :ndetected], nbins=10, vertical=true,
-    #                   title = repr(NamedTuple(k)),
-    #                   xlim = (0, 36))
-    #     )
-    # end
-
-    # noticed_df = mapreduce(x -> DataFrame(; x...), vcat, time_series)
-    # by_frame = combine(groupby(noticed_df, [:color, :parent, :frame]),
-    #                    :pnotice => mean)
-    # plot = Plot(;
-    #             title="Chain Averages",
-    #             xlabel = "t",
-    #             ylabel = "Pr(Notice)",
-    #             xlim = (1, FRAMES-1),
-    #             ylim = (0, 1),
-    #             )
-    # g_by_frame = groupby(by_frame, [:color, :parent])
-    # for k = keys(g_by_frame)
-    #     g = g_by_frame[k]
-    #     lineplot!(plot, collect(g[!, :frame]), g[!, :pnotice_mean],
-    #               name = repr(NamedTuple(k)))
-    # end
-    # display(plot)
-
-
-    #display(
-    #    histogram(df[!, :expected_count], vertical=true,
-    #              width=30, nbins=10,
-    #              title = "Expected Count")
-    #)
-
-    #display(
-    #    histogram(df[!, :count_error], vertical=true,
-    #              width=30, nbins=10,
-    #              title = "Counting Error (%)")
-    #)
 
     return nothing
 end;

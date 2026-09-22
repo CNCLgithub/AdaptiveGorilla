@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 
 # Configuration
-MODELS=( "mo" "ja" "ta" "fr" )
-OUTPUT_FILE="scripts/study1/joblist.txt"
+PARAMS=( "w" "inv_t" "a_mho" )
+SCRIPT_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE}")")" && pwd)
+OUTPUT_FILE="${SCRIPT_DIR}/joblist.txt"
 NSCENES=10
 NTHREADS=4
 TEMPLATE="./env.d/run.sh julia --threads=${NTHREADS}\
- scripts/study1/run_model.jl"
+ ${SCRIPT_DIR}/run_model.jl"
 
 # Clear the file (or create it if it doesn't exist)
 : > "$OUTPUT_FILE"
 
 # Loop and write lines
 
-for model in "${MODELS[@]}"
+for param in "${PARAMS[@]}"
 do
     for i in $(seq 1 $NSCENES)
     do
-        echo "${TEMPLATE} ${model} ${i}" >> "$OUTPUT_FILE"
+        echo "${TEMPLATE} ${param} ${i}" >> "$OUTPUT_FILE"
     done
 done

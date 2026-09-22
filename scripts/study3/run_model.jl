@@ -48,7 +48,7 @@ s = ArgParseSettings()
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 4
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
@@ -59,14 +59,14 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL        = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
+MODEL_PARAMS = "/project/scripts/params/$(MODEL).toml"
 
 
 ################################################################################
 # General Experiment Parameters
 ################################################################################
 
-Random.seed!(123) # Setting seed for reproducibility
+Random.seed!(321) # Setting seed for reproducibility
 
 SCENE   = PARAMS["scene"]
 CHAINS  = PARAMS["nchains"]
@@ -78,7 +78,7 @@ FRAMES  = 240
 
 # Number of targets and distractors
 NTARGETS = 4
-NDISTRACTORS = [4, 6, 8]
+NDISTRACTORS = [5, 6, 7, 8]
 # Each condition is a distractor count
 NCOND = length(NDISTRACTORS)
 
@@ -94,10 +94,12 @@ function run_model!(pbar, experiment::LoadCurve, gt_count::Int, c::Int)
     agent = load_agent(MODEL_PARAMS, experiment.init_query)
     count = 0.0
     elapsed = 0.0
+    bytes = 0
     for t = 1:(FRAMES - 1)
         _results = test_agent!(agent, experiment, t)
         count = _results[:collision_p]
         elapsed += _results[:time]
+        bytes += _results[:bytes]
         next!(pbar)
     end
     count_error = abs(gt_count - count) / gt_count
@@ -109,6 +111,7 @@ function run_model!(pbar, experiment::LoadCurve, gt_count::Int, c::Int)
         expected_count = count,
         count_error    = count_error,
         time           = elapsed,
+        bytes          = bytes
     ))
 end
 
@@ -121,6 +124,7 @@ RunSummary = @NamedTuple begin
     expected_count :: Float64
     count_error    :: Float64
     time           :: Float64
+    bytes          :: Int64
 end
 
     
@@ -142,7 +146,7 @@ function main()
     # Go through each of the conditions
     for (i, ndistractor) = enumerate(NDISTRACTORS)
         # Load the world model
-        wm = load_wm_from_toml("$(@__DIR__)/params/wm.toml";
+        wm = load_wm_from_toml("/project/scripts/params/wm.toml";
                                object_rate = Float64(NTARGETS + ndistractor))
         # Load the experiment
         experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, ndistractor)
@@ -166,7 +170,8 @@ function main()
                     :expected_count => mean,
                     :count_error => mean,
                     :count_error => std,
-                    :time => mean))
+                    :time => mean,
+                    :bytes => mean))
     return nothing
 end;
 

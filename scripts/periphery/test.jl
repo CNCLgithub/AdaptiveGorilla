@@ -14,11 +14,10 @@ using Gen
 using CSV
 using ArgParse
 using DataFrames
-using Gen_Compose
 using ProgressMeter
 using AdaptiveGorilla
-using UnicodePlots: Plot, lineplot!, hline!, histogram
 using AdaptiveGorilla: count_collisions
+using LinearAlgebra: norm
 import AdaptiveGorilla as AG
 
 using Random
@@ -28,10 +27,10 @@ using Random
 # Command Line Interface
 ################################################################################
 
-MODEL_VARIANTS = Dict(:mo => "Multi-Granular Optimization",
-                      :ta => "Task-Agnostic Regranularization",
-                      :ja => "Just Attention",
-                      :fr => "Fixed Resource")
+MODEL_VARIANTS = Dict(
+    :mo => "Multi-Granular Optimization",
+    :ja => "Just Attention",
+)
 
 ANALYSES_VARIANTS = [:NOTICE, :PERF]
 
@@ -48,7 +47,7 @@ s = ArgParseSettings()
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :ja
 
     "scene"
     help = "Which scene to run"
@@ -78,7 +77,7 @@ DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
-LONE_PARENT = true
+LONE_PARENT = false
 SWAP_COLORS = false
 
 ################################################################################
@@ -115,27 +114,60 @@ NOTICE_P_THRESH = 0.20
 # Methods
 ################################################################################
 
-function run_model!(pbar, exp, render=false)
+# NOTE: assumes agent has adaptive computation
+function attention_centroid(agent)
+    prot, state = mparse(agent.attention)
+    xs = Array(state.dPi.coords)
+    ys = Array(state.dPi.samples)
+    ws = softmax(ys)  
+    mu = sum(xs .* ws)
+    AG.S2V(mu[1], mu[2])
+end
+
+function probe_point(exp, t)
+    mask_id = 9 # exp.lone_parent ? 4 : 1
+    masks = exp.observations[t]
+    detection = masks[mask_id]
+    AG.S2V(detection.x, detection.y)
+end
+
+function has_gorilla(exp, t)
+    masks = exp.observations[t]
+    mask_id = 9 # exp.lone_parent ? 4 : 1
+    (has_value(masks, mask_id), masks)
+end
+
+function distance_to_centroid(exp, agent, t)
+    valid, masks = has_gorilla(exp, t)
+    valid || return missing
+    detection = masks[9]
+    p = probe_point(exp, t)
+    c = attention_centroid(agent)
+    norm(p - c)
+end
+
+function run_model!(pbar, exp)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
     agent = load_agent(MODEL_PARAMS, exp.init_query)
-    out = "/spaths/tests/target-ensemble"
-    isdir(out) || mkpath(out)
 
     results = DataFrame(
         :frame => Int64[],
         :gorilla_p => Float64[],
         :collision_p => Float64[],
         :birth_p => Float64[],
+        :distance => Vector{Union{Missing, Float64}}(undef, 0),
     )
+
     for t = 1:(FRAMES - 1)
         # println("###########                     ###########")
         # println("###########       TIME $(t)     ###########")
         # println("###########                     ###########")
         _results = test_agent!(agent, exp, t)
+        distance = distance_to_centroid(exp, agent, t)
         _results[:frame] = t
-        push!(results, _results)
-        render && render_agent_state(exp, agent, t, out)
+        # _results[:distance] = distance
+        push!(results, (;_results..., distance = distance))
         next!(pbar)
     end
     return results
@@ -148,49 +180,16 @@ end
 function main()
     result = NamedTuple[]
     pbar = Progress(
-        CHAINS * (FRAMES-1);
+        (FRAMES-1);
         desc="Running $(MODEL) model...", dt = 1.0)
-    plot = Plot(;
-                title="Color: $(SWAP_COLORS ? :Dark : :Light) | " *
-                    "Parent: $(LONE_PARENT ? :Lone : :Group)",
-                xlabel = "t",
-                ylabel = "Pr(Notice)",
-                xlim = (1, FRAMES-1),
-                ylim = (0, 1),
-                width = 60, height=20,
-                )
-    hline!(plot,
-           NOTICE_P_THRESH,
-           name = "Threshold")
-    ndetected = Vector{Int64}(undef, CHAINS)
     experiment = TEnsExp(DPATH, WM, SCENE, SWAP_COLORS, LONE_PARENT, FRAMES;
                          show_gorilla = SHOW_GORILLA)
     gt_count = count_collisions(experiment)
     @show gt_count
-    collision_counts = Vector{Float64}(undef, CHAINS)
 
-    Threads.@threads for c = 1:CHAINS
-    # for c = 1:CHAINS
-        results = run_model!(pbar, experiment, c == 1)
-        RENDER && show(results; allrows=true)
-        # println()
-        collision_counts[c] = last(results[!, :collision_p])
-        ndetected[c] = count(results[!, :gorilla_p] .> NOTICE_P_THRESH)
-        lineplot!(plot,
-                  results[!, :frame],
-                  results[!, :gorilla_p])
-    end
+    results = run_model!(pbar, experiment)
+    show(results; allrows=true)
     finish!(pbar)
-    display(plot)
-    RENDER || display(
-        histogram(ndetected, nbins=15,
-                  title = "Frames noticed",
-                  vertical = true)
-    )
-    RENDER ?
-        println("Collision counts: $(collision_counts)") :
-        display(histogram(collision_counts, nbins=5, vertical=true,
-                  title = "Collision counts"))
     return nothing
 end;
 

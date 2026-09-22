@@ -75,9 +75,9 @@ PARAMS = parse_args(ARGS, s)
 
 # which model variant to run (uncomment 1 of the lines below)
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
+MODEL_PARAMS = "/project/scripts/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
+WM = load_wm_from_toml("/project/scripts/params/wm.toml")
 
 ################################################################################
 # ANALYSES
@@ -94,11 +94,11 @@ SHOW_GORILLA = true # ANALYSIS == :NOTICE
 DATASET = "study1"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
 SCENE   = PARAMS["scene"]
-FRAMES  = 240
+FRAMES  = 120
 
 # 2 Conditions total: Gorilla Light | Dark
 # COLORS = [Light, Dark]
-COLORS = [Dark]
+COLORS = [Light]
 
 ################################################################################
 # Analysis Parameters
@@ -162,10 +162,10 @@ function main()
         gt_count = count_collisions(experiment)
         @show gt_count
         results = run_model!(pbar, experiment)
-        # show(results; allrows=true)
+        show(results; allrows=true)
         println("\n  ------")
         count_f = x -> count(>=(NOTICE_P_THRESH), x) / CHAINS
-        display(last(results))
+        # display(results)
         @show count_f(results[!, :gorilla_p])
         @show sum(results[:, :time])
     end

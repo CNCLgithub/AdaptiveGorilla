@@ -64,9 +64,9 @@ PARAMS = parse_args(ARGS, s)
 ################################################################################
 
 MODEL = PARAMS["model"]
-MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
+MODEL_PARAMS = "/project/scripts/params/$(MODEL).toml"
 
-WM = load_wm_from_toml("$(@__DIR__)/params/wm.toml")
+WM = load_wm_from_toml("/project/scripts/params/wm.toml")
 
 ################################################################################
 # General Experiment Parameters
@@ -179,7 +179,7 @@ function main()
     isdir(out_dir) || mkpath(out_dir)
     df = DataFrame(summaries)
     CSV.write("$(out_dir)/$(SCENE).csv", df)
-    count_f = x -> count(>=(18.0), x) / CHAINS
+    count_f = x -> count(>=(24.0), x) / CHAINS
     display(combine(groupby(df, [:scene, :color]), :ndetected => count_f))
     return nothing
 end;

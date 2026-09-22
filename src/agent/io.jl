@@ -46,10 +46,14 @@ end
 """
     $(TYPEDSIGNATURES)
 
-Instantiates an agent from a TOML file
+Instantiates an agent from a TOML file.
 """
 function load_agent(path::String, query)
     toml = TOML.parsefile(path)
+    load_agent(toml, query)
+end
+
+function load_agent(toml, query)
     get(toml, "format", nothing) == "Agent" || error("Not valid format")
     parts = Dict()
     load_perception!(parts, toml, query)

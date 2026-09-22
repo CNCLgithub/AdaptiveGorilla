@@ -1,5 +1,5 @@
 ################################################################################
-# Script to run models on the Load Experiment (Study 1)
+# Script to run models on Study 3 - load curve
 #
 # Output is stored under `spaths/experiments/`
 # See `README` for more information.
@@ -10,17 +10,16 @@
 # Includes
 ################################################################################
 
+using CSV
 using Gen
+using Random
 using ArgParse
-using Gen_Compose
+using DataFrames
 using ProgressMeter
-using DataFrames, CSV
-
 using AdaptiveGorilla
+using Statistics: mean, std
 using AdaptiveGorilla: count_collisions
 
-using Profile
-using StatProfilerHTML
 
 ################################################################################
 # Command Line Interface
@@ -38,96 +37,133 @@ s = ArgParseSettings()
     "--nchains", "-n"
     help = "The number of chains to run"
     arg_type = Int
-    default = 1
+    default = 32
 
     "model"
     help = "Model Variant"
     arg_type = Symbol
     range_tester = in(keys(MODEL_VARIANTS))
-    default = :mo
+    default = :fr
 
     "scene"
     help = "Which scene to run"
     arg_type = Int64
-    default = 3
+    default = 1
 end
 
 PARAMS = parse_args(ARGS, s)
+
 
 ################################################################################
 # Model Parameters
 ################################################################################
 
-MODEL = PARAMS["model"]
-MODEL_PARAMS = "/project/scripts/params/$(MODEL).toml"
+MODEL        = PARAMS["model"]
+MODEL_PARAMS = "$(@__DIR__)/params/$(MODEL).toml"
 
 
 ################################################################################
 # General Experiment Parameters
 ################################################################################
 
+Random.seed!(123) # Setting seed for reproducibility
+
+SCENE   = PARAMS["scene"]
+CHAINS  = PARAMS["nchains"]
+
 # which dataset to run
 DATASET = "study3"
 DPATH   = "/spaths/datasets/$(DATASET)/dataset.json"
-SCENE   = PARAMS["scene"]
 FRAMES  = 240
 
+# Number of targets and distractors
 NTARGETS = 4
-NDISTRACTORS = 6
+NDISTRACTORS = 4 # [4, 6, 8]
+# Each condition is a distractor count
+NCOND = 1
+
 
 ################################################################################
 # Methods
 ################################################################################
 
-function run_model!(pbar, exp)
-    out = "/spaths/tests/load"
-    isdir(out) || mkpath(out)
+# Run the model once, returns expected collision count
+function run_model!(pbar, experiment::LoadCurve, gt_count::Int, c::Int)
     # Initializes the agent
     # (Done from scratch each time to avoid bugs / memory leaks)
-    agent = load_agent(MODEL_PARAMS, exp.init_query)
-    results = DataFrame(
-        :frame => Int64[],
-        :collision_p => Float64[],
-        :time => Float64[],
-        :bytes => Int64[],
-    )
+    agent = load_agent(MODEL_PARAMS, experiment.init_query)
+    count = 0.0
+    elapsed = 0.0
     for t = 1:(FRAMES - 1)
-        _results = test_agent!(agent, exp, t)
-        # @profile _results = test_agent!(agent, exp, t)
-        _results[:frame] = t
-        push!(results, _results)
-        render_agent_state(exp, agent, t, out)
+        _results = test_agent!(agent, experiment, t)
+        count = _results[:collision_p]
+        elapsed += _results[:time]
         next!(pbar)
     end
-    return results
+    count_error = abs(gt_count - count) / gt_count
+    RunSummary((
+        scene          = SCENE,
+        ndark          = experiment.n_distractors,
+        chain          = c,
+        gt_count       = gt_count,
+        expected_count = count,
+        count_error    = count_error,
+        time           = elapsed,
+    ))
 end
 
+# Stores data from a single model run
+RunSummary = @NamedTuple begin
+    scene          :: Int64
+    ndark          :: Int64
+    chain          :: Int64
+    gt_count       :: Int64
+    expected_count :: Float64
+    count_error    :: Float64
+    time           :: Float64
+end
+
+    
 ################################################################################
 # Main Entry
 ################################################################################
 
 function main()
-    result = NamedTuple[]
-    nsteps = FRAMES-1
-    pbar = Progress(nsteps; desc="Running $(MODEL) model...", dt = 1.0)
+    nruns = NCOND * CHAINS
+    nsteps = nruns * (FRAMES-1)
+    pbar = Progress(nsteps;
+                    desc="[Study 3] $(MODEL_VARIANTS[MODEL]) (x$(nruns))",
+                    dt = 2.0)
+
+    # Preallocate simulation results
+    summaries = Vector{RunSummary}(undef, nruns)
+
     # Load the world model
-    wm = load_wm_from_toml("/project/scripts/params/wm.toml";
-                           object_rate = Float64(NTARGETS + NDISTRACTORS))
+    wm = load_wm_from_toml("$(@__DIR__)/params/wm.toml";
+                            object_rate = Float64(NTARGETS + NDISTRACTORS))
     # Load the experiment
     experiment = LoadCurve(wm, DPATH, SCENE, FRAMES, NTARGETS, NDISTRACTORS)
     # Retrieve the number of true collisions
     gt_count = count_collisions(experiment)
 
-    Profile.clear()
-    results = run_model!(pbar, experiment)
-    # statprofilehtml()
-    # display(last(results))
-    show(results; allrows=true)
-    println()
-    @show sum(results[!, :time])
-    println()
+    # Run the model several chains
+    for c = 1:CHAINS
+        summaries[c] = run_model!(pbar, experiment, gt_count, c)
+    end
     finish!(pbar)
-    @show gt_count
+    out_dir = "/spaths/experiments/$(DATASET)/$(MODEL)/runs"
+    isdir(out_dir) || mkpath(out_dir)
+    df = DataFrame(vec(summaries))
+    CSV.write("$(out_dir)/$(SCENE).csv", df)
+
+    # Quick display
+    display(combine(groupby(df, [:scene, :ndark]),
+                    :gt_count => mean,
+                    :expected_count => mean,
+                    :count_error => mean,
+                    :count_error => std,
+                    :time => mean,
+                    :time => std))
     return nothing
 end;
 

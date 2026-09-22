@@ -30,6 +30,8 @@ struct TEnsExp <: Experiment
     lone_parent::Bool
     "Whether to swap colors (included gorilla)"
     swap_colors::Bool
+    "Time range when gorilla is present"
+    gorilla_present::Tuple{Int, Int}
     "Observations for model"
     observations::Vector{ChoiceMap}
     "Query to initialize percept"
@@ -105,9 +107,10 @@ function TEnsExp(dpath::String, wm::InertiaWM, trial_idx::Int64,
                  lone_parent::Bool,
                  frames::Int64;
                  show_gorilla::Bool = true)
-    ws, obs = load_tens_trial(wm, dpath, trial_idx, lone_parent,
-                              swap_color; frames=frames,
-                              show_gorilla=show_gorilla)
+    ws, trng, obs =
+        load_tens_trial(wm, dpath, trial_idx, lone_parent,
+                        swap_color; frames=frames,
+                        show_gorilla=show_gorilla)
 
     gm = gen_fn(wm)
     args = (0, wm, ws) # t = 0
@@ -116,7 +119,7 @@ function TEnsExp(dpath::String, wm::InertiaWM, trial_idx::Int64,
     init_cm[:s0 => :nsm] = 1
     # argdiffs: only `t` changes
     q = IncrementalQuery(gm, init_cm, args, INERTIA_ARG_DIFFS, 1)
-    TEnsExp(frames, lone_parent, swap_color, obs, q)
+    TEnsExp(frames, lone_parent, swap_color, trng, obs, q)
 end
 
 #################################################################################
@@ -207,6 +210,9 @@ function load_tens_trial(wm::WorldModel,
     parent = lone_parent ? 4 : 1
     # first frame gets GT
     istate = initial_state(wm, positions[1], 4, swap_color)
+    wrote = false
+    tstart = 0
+    tstop = 0
     for t = 2:trial_length
         cm = choicemap()
         # Observations associated with each object
@@ -222,14 +228,22 @@ function load_tens_trial(wm::WorldModel,
         end
         if show_gorilla
             # Gorilla observations: orbits around parent
-            write_tens_gorilla!(cm, t, gorilla["frame"],
-                                gorilla_dur, gorilla_threshold,
-                                wm.single_size, step[parent],
-                                wm, gorilla_color, nobj + 1)
+            wrote =
+                write_tens_gorilla!(cm, t, gorilla["frame"],
+                                    gorilla_dur, gorilla_threshold,
+                                    wm.single_size, step[parent],
+                                    wm, gorilla_color, nobj + 1)
+            if wrote && tstart === 0
+                tstart = t
+
+            elseif !wrote && tstart !== 0 && tstop === 0
+                tstop = t
+            end
+                    
         end
         observations[t-1] = cm
     end
-    (istate, observations)
+    (istate, (tstart, tstop), observations)
 end
 
 function write_tens_gorilla!(
@@ -245,19 +259,19 @@ function write_tens_gorilla!(
     idx,
     )
     dt = t - start
-    (0 > dt || dt > gorilla_dur) && return nothing
+    (0 > dt || dt > gorilla_dur) && return false
     gx, gy = loc
     angle = ( 2 * dt * pi ) / gorilla_dur
     radius_pct = sin(0.5 * angle)
     # eg., only show for frames with at least 1/2 unoccluded
-    radius_pct < occ_thresh && return nothing
+    radius_pct < occ_thresh && return false
     radius = radius_pct * 8 * size
     xy = orbit_position(gx, gy, radius, angle)
     write_obs_mask!(
         cm, wm, t, idx, xy, color;
         prefix = (t, i) -> i,
     )
-    return nothing
+    return true
 end
 
 function orbit_position(

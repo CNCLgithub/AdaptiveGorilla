@@ -31,8 +31,8 @@ function MOTCore.paint(p::ObjectPainter, obj::InertiaEnsemble)
     color = (w, w, w)
     _draw_circle(get_pos(obj), 1.0 * std, color;
                  style = :stroke)
-    _draw_circle(get_pos(obj), 2.0 * std, color;
-                 style = :stroke)
+    # _draw_circle(get_pos(obj), 2.0 * std, color;
+    #              style = :stroke)
     rte = round(obj.rate; digits = 2)
     frc = round(obj.matws[1]; digits = 2)
     _draw_text("λ $(rte) L $(frc)", get_pos(obj))
@@ -67,13 +67,13 @@ function MOTCore.paint(p::Painter, wm::InertiaWM, st::InertiaState,
         @inbounds for i = 1:ns
             pos = get_pos(st.singles[i])
             radius = 40.0 * ws[i]
-            _draw_circle(pos, radius, "red", opacity = 0.4)
+            _draw_circle(pos, radius, "#ffbe5ff5", opacity = 0.4)
         end
 
         @inbounds for i = 1:ne
             pos = get_pos(st.ensembles[i])
             radius = 40.0 * ws[i + ns]
-            _draw_circle(pos, radius, "red", opacity = 0.4)
+            _draw_circle(pos, radius, "#ffbe5ff5", opacity = 0.4)
         end
     end
     for e = st.ensembles
@@ -91,7 +91,7 @@ function MOTCore.paint(state::InertiaState, ws::Vector{Float64})
     @inbounds for i = eachindex(state.singles)
         pos = get_pos(state.singles[i])
         radius = 40.0 * ws[i]
-        _draw_circle(pos, radius, "red", opacity = 0.8)
+        _draw_circle(pos, radius, "#ffbe5ff5", opacity = 0.8)
     end
 
     # pos = get_pos(state.ensemble)
@@ -106,10 +106,10 @@ Applies the Object painter to an InertiaSingle
 """
 function MOTCore.paint(p::ObjectPainter, obj::InertiaSingle)
     color = obj.mat == Dark ? (0.1, 0.1, 0.1) : (0.9, 0.9, 0.9)
-    _draw_circle(get_pos(obj), 5.0, color,
+    _draw_circle(get_pos(obj), 10.0, color,
                  opacity = p.alpha; style = :stroke)
-        return nothing
-    end
+    return nothing
+end
 
     #HINT: see below as an example (different than above)
     # https://github.com/CNCLgithub/MOTCore.jl/blob/master/src/render/painters/painters.jl#L23-L27

@@ -29,19 +29,22 @@ end
 Posterior probability that gorilla is detected.
 ---
 Criterion:
-    1. A gorilla is present
-    2. There are 5 singles
-    3. All targets (xs[1-4]) are tracked
-    4. The gorilla (x = n + 1) is tracked
+    1. A gorilla is present in the observation
+    2. A birth has occurred
+    2. There is at least 1 individual representation
+    3. The gorilla detection is assigned to an individual
 """
 function detect_gorilla(trace::InertiaTrace)
     t, wm, _ = get_args(trace)
+    # Number of objects in the system
     nobj = Int64(wm.object_rate)
     t == 0 && return -Inf
+
+    # Number of singles and detections
     state = get_last_state(trace)
-    rfs = extract_rfs_subtrace(trace, t)
-    nx,ne,np = size(rfs.ptensor)
     ns = length(state.singles)
+    rfs = extract_rfs_subtrace(trace, t)
+    nx = findlast(>(0), first(keys(rfs.partitions)))
     # Cases for 0 prob
     # No gorilla
     # No individuals to detect gorilla
@@ -51,12 +54,17 @@ function detect_gorilla(trace::InertiaTrace)
         (object_count(state) != nobj + 1 )
         return -Inf
     end
-    result = -Inf
-    @inbounds for p = 1:np, e = 1:ns
-        rfs.ptensor[nx, e, p] || continue
-        result = logsumexp(result, rfs.pscores[p])
+    acc_log_score = -Inf
+    tot_score = -Inf
+    # Check which key has nx assigned to e<ns
+    for (tup_key, l) in rfs.partitions
+        e = Int(tup_key[nx])
+        w = l - rfs.score
+        tot_score = logsumexp(tot_score, l)
+        e <= ns || continue
+        acc_log_score = logsumexp(acc_log_score, l)
     end
-    result - rfs.score
+    acc_log_score - rfs.score
 end
 
 function had_birth_bool(trace::InertiaTrace)

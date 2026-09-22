@@ -1,6 +1,8 @@
 using Luxor: finish
 using MOTCore: _draw_line
 
+using GenRFS: PartitionKey  # NTuple{MAX_XS, UInt16}; 0 = unassigned
+
 function render_assigments(trace::InertiaTrace)
     t = first(get_args(trace))
     # Regranularization occurs at the end of a time step.
@@ -11,21 +13,25 @@ function render_assigments(trace::InertiaTrace)
     xs = Gen.to_array(rfs.choices, Detection)
     state = get_last_state(trace)
 
-    nx,ne,np = size(rfs.ptensor)
-    porder = sortperm(rfs.pscores; rev = true)
+    nx = length(xs)
+    ne = length(get_args(rfs)[1])
+    pkeys = collect(keys(rfs.partitions))
+    scores = collect(values(rfs.partitions))
+    porder = sortperm(scores; rev = true)
     pmass = -Inf
     pidx = 1
-    while pmass < log(0.95)
+    while pidx <= length(scores) && pmass < log(0.95)
         p = porder[pidx]
-        pmass = logsumexp(pmass, rfs.pscores[p] - rfs.score)
-        @inbounds for e = 1:ne
+        weight = scores[p] - rfs.score
+        pmass = logsumexp(pmass, weight)
+        key = pkeys[p]
+        for x = 1:nx
+            xpos = position(xs[x])
+            e = Int(key[x])
             epos = get_pos(object_from_idx(state, e))
-            for x = 1:nx
-                rfs.ptensor[x, e, p] || continue
-                xpos = position(xs[x])
-                _draw_line(epos, xpos, "blue"; opacity=0.25)
-            end
+            _draw_line(epos, xpos, "blue"; opacity=0.25*weight)
         end
+        pidx += 1
     end
     return nothing
 end
