@@ -85,16 +85,6 @@ Study numbering differs between the manuscript and this repository's `scripts/` 
 | Study 2 | `scripts/study1` | Sustained inattentional blindness, appearance effect (Most et al., 2001) |
 | Study 3 | `scripts/study2` | Functional irrelevance effect (target-ensemble) |
 
-## Simulation studies
-
-The script directory names do not correspond one-to-one to the manuscript study numbers:
-
-| Manuscript study | Script directory | Content |
-| --- | --- | --- |
-| Study 1 (tractability and performance under load) | `scripts/study3` | Load curve |
-| Study 2 (appearance effect in inattentional blindness) | `scripts/study1` | Sustained inattentional blindness (Most et al., 2001) |
-| Study 3 (functional irrelevance) | `scripts/study2` | Target-ensemble / irrelevant targets |
-
 Each study under `scripts/study<n>` follows the same pattern:
 
 - `dataset.jl`: generates the trials for that study.
@@ -103,15 +93,6 @@ Each study under `scripts/study<n>` follows the same pattern:
 
 Parameter-sensitivity analyses are under `scripts/sensitivity-<n>`.
 
-### Mapping to manuscript studies
-
-| Script directory | Manuscript study |
-| --- | --- |
-| `scripts/study1` | Study 1: Tractability and performance benefits under load |
-| `scripts/study2` | Study 2: Recapitulating the "appearance" effect in inattentional blindness |
-| `scripts/study3` | Study 3: Confirming a novel prediction on human awareness (functional irrelevance) |
-| `scripts/sensitivity-1` | Supplementary: parameter sensitivity analysis 1 |
-| `scripts/sensitivity-2` | Supplementary: parameter sensitivity analysis 2 |
 
 ## Running on a cluster
 
