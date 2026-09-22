@@ -1,3 +1,6 @@
 [submodule "deps/GenRFS"]
 	path = deps/GenRFS
 	url = git@github.com:CNCLgithub/GenRFS.git
+[submodule "experiment"]
+	path = experiment
+	url = git@github.com:CNCLgithub/ib-jspsych
