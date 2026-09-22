@@ -41,7 +41,7 @@ The code implements MO alongside three ablation controls (matched in total compu
 - `ta` — *Task Agnostic*: reframing without adaptive computation, optimizing description length.
 - `fr` — *Fixed Resource*: a standard particle filter at fixed granularity with uniform processing.
 
-Variant parameters live under `scripts/<study>/params/*.toml`.
+Variant parameters live under `scripts/params/*.toml`.
 
 ## Organization
 
